@@ -151,6 +151,11 @@ impl Perform for AnsiHandler<'_> {
             b'\t' => self.grid.put_char('\t'),
             b'\x08' => self.grid.put_char('\x08'), // Backspace
             b'\x07' => {}                          // Bell (ignore for now)
+            b'\x0c' => {
+                // Form feed (Ctrl+L) - clear screen and move cursor to home
+                self.grid.clear_screen();
+                self.grid.goto(0, 0);
+            }
             _ => {}
         }
     }

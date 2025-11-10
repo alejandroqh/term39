@@ -295,6 +295,20 @@ fn main() -> io::Result<()> {
                         continue;
                     }
 
+                    // Handle CTRL+L to clear the terminal (like 'clear' command)
+                    // Check for both Ctrl+L and the control character form
+                    if key_event.code == KeyCode::Char('l')
+                        && key_event.modifiers.contains(KeyModifiers::CONTROL)
+                    {
+                        if current_focus != FocusState::Desktop {
+                            debug_log!("CTRL+L detected - clearing terminal");
+                            // Send Ctrl+L (form feed, 0x0c) to the shell
+                            // Most shells (bash, zsh, etc.) interpret this as "clear screen"
+                            let _ = window_manager.send_to_focused("\x0c");
+                        }
+                        continue;
+                    }
+
                     match key_event.code {
                         KeyCode::Esc => {
                             // ESC exits only from desktop (prompts are handled above)
@@ -358,6 +372,7 @@ fn main() -> io::Result<()> {
                                     {Y}'h'{W}       - Show this help screen\n\
                                     {Y}'l'{W}       - Show license and about information\n\
                                     {Y}'c'{W}       - Show calendar ({Y}\u{2190}\u{2192}{W} months, {Y}\u{2191}\u{2193}{W} years, {Y}t{W} today)\n\
+                                    {Y}CTRL+L{W}    - Clear terminal (like 'clear' command)\n\
                                     {Y}ALT+TAB{W}   - Switch between windows\n\
                                     \n\
                                     {C}POPUP DIALOG CONTROLS{W}\n\
@@ -767,12 +782,14 @@ fn show_splash_screen(
     // Choose ASCII art based on charset mode
     let ascii_art = match charset.mode {
         charset::CharsetMode::Unicode => vec![
-            "████████╗███████╗██████╗ ███╗   ███╗██████╗  █████╗ ",
-            "╚══██╔══╝██╔════╝██╔══██╗████╗ ████║╚════██╗██╔══██╗",
-            "   ██║   █████╗  ██████╔╝██╔████╔██║ █████╔╝╚██████║",
-            "   ██║   ██╔══╝  ██╔══██╗██║╚██╔╝██║ ╚═══██╗ ╚═══██║",
-            "   ██║   ███████╗██║  ██║██║ ╚═╝ ██║██████╔╝ █████╔╝",
-            "   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝     ╚═╝╚═════╝  ╚════╝ ",
+            " ███████████ ██████████ ███████████   ██████   ██████  ████████   ████████ ",
+            "░█░░░███░░░█░░███░░░░░█░░███░░░░░███ ░░██████ ██████  ███░░░░███ ███░░░░███",
+            "░   ░███  ░  ░███  █ ░  ░███    ░███  ░███░█████░███ ░░░    ░███░███   ░███",
+            "    ░███     ░██████    ░██████████   ░███░░███ ░███    ██████░ ░░█████████",
+            "    ░███     ░███░░█    ░███░░░░░███  ░███ ░░░  ░███   ░░░░░░███ ░░░░░░░███",
+            "    ░███     ░███ ░   █ ░███    ░███  ░███      ░███  ███   ░███ ███   ░███",
+            "    █████    ██████████ █████   █████ █████     █████░░████████ ░░████████ ",
+            "   ░░░░░    ░░░░░░░░░░ ░░░░░   ░░░░░ ░░░░░     ░░░░░  ░░░░░░░░   ░░░░░░░░  ",
         ],
         charset::CharsetMode::Ascii => vec![
             "TTTTTTT EEEEEEE RRRRRR  M     M  333333   999999 ",
