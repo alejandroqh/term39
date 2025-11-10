@@ -20,6 +20,7 @@ pub struct WindowManager {
     // Interaction state
     dragging: Option<DragState>,
     resizing: Option<ResizeState>,
+    scrollbar_dragging: Option<ScrollbarDragState>,
     last_click: Option<LastClick>,
 }
 
@@ -39,6 +40,13 @@ struct ResizeState {
     start_height: u16,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct ScrollbarDragState {
+    window_id: u32,
+    #[allow(dead_code)]
+    start_offset: usize,
+}
+
 #[derive(Clone, Debug)]
 struct LastClick {
     window_id: u32,
@@ -55,6 +63,7 @@ impl WindowManager {
             focus: FocusState::Desktop,
             dragging: None,
             resizing: None,
+            scrollbar_dragging: None,
             last_click: None,
         }
     }
@@ -136,6 +145,12 @@ impl WindowManager {
             MouseEventKind::Up(MouseButton::Left) => {
                 self.handle_mouse_up();
             }
+            MouseEventKind::ScrollUp => {
+                self.handle_scroll_up(event.column, event.row);
+            }
+            MouseEventKind::ScrollDown => {
+                self.handle_scroll_down(event.column, event.row);
+            }
             _ => {}
         }
     }
@@ -200,6 +215,24 @@ impl WindowManager {
                         start_width: window.width,
                         start_height: window.height,
                     });
+                    return;
+                }
+
+                // Check if clicking scrollbar
+                if terminal_window.is_point_on_scrollbar(x, y) {
+                    if terminal_window.is_point_on_scrollbar_thumb(x, y) {
+                        // Start dragging scrollbar thumb
+                        self.scrollbar_dragging = Some(ScrollbarDragState {
+                            window_id,
+                            start_offset: terminal_window.get_scroll_offset(),
+                        });
+                    } else {
+                        // Click on track - jump to position or page up/down
+                        // For simplicity, jump to clicked position
+                        if let Some(win) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+                            win.scroll_to_position(y);
+                        }
+                    }
                     return;
                 }
 
@@ -309,11 +342,44 @@ impl WindowManager {
                 let _ = terminal_window.resize(new_width, new_height);
             }
         }
+
+        // Handle scrollbar dragging
+        if let Some(_scrollbar) = self.scrollbar_dragging {
+            if let Some(terminal_window) = self
+                .windows
+                .iter_mut()
+                .find(|w| w.id() == _scrollbar.window_id)
+            {
+                // Update scroll position based on mouse Y position
+                terminal_window.scroll_to_position(y);
+            }
+        }
     }
 
     fn handle_mouse_up(&mut self) {
         self.dragging = None;
         self.resizing = None;
+        self.scrollbar_dragging = None;
+    }
+
+    fn handle_scroll_up(&mut self, x: u16, y: u16) {
+        // Find window at position
+        if let Some(window_id) = self.window_at(x, y) {
+            if let Some(terminal_window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+                // Scroll up 3 lines
+                terminal_window.scroll_up(3);
+            }
+        }
+    }
+
+    fn handle_scroll_down(&mut self, x: u16, y: u16) {
+        // Find window at position
+        if let Some(window_id) = self.window_at(x, y) {
+            if let Some(terminal_window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+                // Scroll down 3 lines
+                terminal_window.scroll_down(3);
+            }
+        }
     }
 
     /// Render all windows in z-order (bottom to top)

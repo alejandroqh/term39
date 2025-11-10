@@ -1,4 +1,4 @@
-use crate::charset::Charset;
+use crate::charset::{Charset, CharsetMode};
 use crate::term_grid::{Color as TermColor, NamedColor, TerminalCell};
 use crate::terminal_emulator::TerminalEmulator;
 use crate::video_buffer::{Cell, VideoBuffer};
@@ -97,6 +97,9 @@ impl TerminalWindow {
 
         // Render the terminal content
         self.render_terminal_content(buffer);
+
+        // Render the scrollbar
+        self.render_scrollbar(buffer, charset);
     }
 
     fn render_terminal_content(&self, buffer: &mut VideoBuffer) {
@@ -113,14 +116,38 @@ impl TerminalWindow {
         let content_width = self.window.width.saturating_sub(2);
         let content_height = self.window.height.saturating_sub(2);
 
+        let scrollback_len = grid.scrollback_len();
+        let visible_rows = grid.rows();
+
         // Render terminal grid cells
         for row in 0..content_height {
             for col in 0..content_width {
-                let grid_row = row as usize;
                 let grid_col = col as usize;
+                let row_idx = row as usize;
 
-                // Get the cell from the terminal grid
-                if let Some(term_cell) = grid.get_cell(grid_col, grid_row) {
+                // Calculate which line to display based on scroll offset
+                let term_cell = if self.scroll_offset > 0 {
+                    // We're scrolled back, need to fetch from scrollback or visible rows
+                    let total_lines = scrollback_len + visible_rows;
+                    let line_idx =
+                        total_lines.saturating_sub(self.scroll_offset + visible_rows) + row_idx;
+
+                    if line_idx < scrollback_len {
+                        // Fetch from scrollback
+                        grid.get_scrollback_line(line_idx)
+                            .and_then(|line| line.get(grid_col))
+                    } else {
+                        // Fetch from visible rows
+                        let visible_row = line_idx - scrollback_len;
+                        grid.get_cell(grid_col, visible_row)
+                    }
+                } else {
+                    // Not scrolled, show current visible rows
+                    grid.get_cell(grid_col, row_idx)
+                };
+
+                // Render the cell
+                if let Some(term_cell) = term_cell {
                     let cell = convert_terminal_cell(term_cell);
                     buffer.set(content_x + col, content_y + row, cell);
                 }
@@ -145,6 +172,71 @@ impl TerminalWindow {
                     buffer.set(cursor_x, cursor_y, cursor_cell);
                 }
             }
+        }
+    }
+
+    fn render_scrollbar(&self, buffer: &mut VideoBuffer, charset: &Charset) {
+        if self.window.is_minimized {
+            return;
+        }
+
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+
+        let scrollback_len = grid.scrollback_len();
+
+        // Only show scrollbar if there's scrollback content
+        if scrollback_len == 0 {
+            return;
+        }
+
+        let scrollbar_x = self.window.x + self.window.width - 1;
+        let (track_start, track_end) = self.get_scrollbar_bounds();
+
+        // Calculate thumb bounds inline to avoid re-locking the grid
+        let visible_rows = grid.rows();
+        let total_lines = scrollback_len + visible_rows;
+        let (thumb_start, thumb_end) = if total_lines <= visible_rows {
+            (0, 0)
+        } else {
+            let track_height = (track_end - track_start) as usize;
+            let thumb_size =
+                ((visible_rows as f64 / total_lines as f64) * track_height as f64).max(1.0) as usize;
+            let max_scroll = total_lines.saturating_sub(visible_rows);
+            // Invert the scroll ratio so thumb is at bottom when at current output (scroll_offset=0)
+            let scroll_ratio = if max_scroll > 0 {
+                (max_scroll - self.scroll_offset) as f64 / max_scroll as f64
+            } else {
+                1.0
+            };
+            let thumb_offset = (scroll_ratio * (track_height - thumb_size) as f64) as usize;
+            let thumb_start = track_start + thumb_offset as u16;
+            let thumb_end = thumb_start + thumb_size as u16;
+            (thumb_start, thumb_end)
+        };
+
+        // Choose characters based on charset mode
+        let track_char = match charset.mode {
+            CharsetMode::Unicode => '║',
+            CharsetMode::Ascii => '|',
+        };
+        let thumb_char = match charset.mode {
+            CharsetMode::Unicode => '█',
+            CharsetMode::Ascii => '#',
+        };
+
+        // Render the scrollbar track and thumb
+        for y in track_start..track_end {
+            let (ch, fg_color) = if y >= thumb_start && y < thumb_end {
+                // Scrollbar thumb
+                (thumb_char, Color::White)
+            } else {
+                // Scrollbar track
+                (track_char, Color::DarkGrey)
+            };
+
+            let cell = Cell::new(ch, fg_color, self.window.content_bg);
+            buffer.set(scrollbar_x, y, cell);
         }
     }
 
@@ -176,6 +268,105 @@ impl TerminalWindow {
     /// Check if point is in resize handle
     pub fn is_in_resize_handle(&self, x: u16, y: u16) -> bool {
         self.window.is_in_resize_handle(x, y)
+    }
+
+    /// Get total number of lines (scrollback + visible)
+    #[allow(dead_code)]
+    pub fn get_total_lines(&self) -> usize {
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+        grid.scrollback_len() + grid.rows()
+    }
+
+    /// Get the bounds of the scrollbar track (y_start, y_end)
+    pub fn get_scrollbar_bounds(&self) -> (u16, u16) {
+        let y_start = self.window.y + 1; // After title bar
+        let y_end = self.window.y + self.window.height - 1; // Before bottom border
+        (y_start, y_end)
+    }
+
+    /// Get the bounds of the scrollbar thumb (y_start, y_end)
+    pub fn get_scrollbar_thumb_bounds(&self) -> (u16, u16) {
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+
+        let scrollback_len = grid.scrollback_len();
+        let visible_rows = grid.rows();
+        let total_lines = scrollback_len + visible_rows;
+
+        if total_lines <= visible_rows {
+            // No scrollbar needed
+            return (0, 0);
+        }
+
+        let (track_start, track_end) = self.get_scrollbar_bounds();
+        let track_height = (track_end - track_start) as usize;
+
+        // Calculate thumb size (proportional to visible area)
+        let thumb_size =
+            ((visible_rows as f64 / total_lines as f64) * track_height as f64).max(1.0) as usize;
+
+        // Calculate thumb position based on scroll offset
+        // Invert the scroll ratio so thumb is at bottom when at current output (scroll_offset=0)
+        let max_scroll = total_lines.saturating_sub(visible_rows);
+        let scroll_ratio = if max_scroll > 0 {
+            (max_scroll - self.scroll_offset) as f64 / max_scroll as f64
+        } else {
+            1.0
+        };
+
+        let thumb_offset = (scroll_ratio * (track_height - thumb_size) as f64) as usize;
+        let thumb_start = track_start + thumb_offset as u16;
+        let thumb_end = thumb_start + thumb_size as u16;
+
+        (thumb_start, thumb_end)
+    }
+
+    /// Check if a point is on the scrollbar
+    pub fn is_point_on_scrollbar(&self, x: u16, y: u16) -> bool {
+        let scrollbar_x = self.window.x + self.window.width - 1;
+        let (y_start, y_end) = self.get_scrollbar_bounds();
+
+        x == scrollbar_x && y >= y_start && y < y_end
+    }
+
+    /// Check if a point is on the scrollbar thumb
+    pub fn is_point_on_scrollbar_thumb(&self, x: u16, y: u16) -> bool {
+        if !self.is_point_on_scrollbar(x, y) {
+            return false;
+        }
+
+        let (thumb_start, thumb_end) = self.get_scrollbar_thumb_bounds();
+        y >= thumb_start && y < thumb_end
+    }
+
+    /// Scroll to a specific offset based on mouse position on scrollbar
+    pub fn scroll_to_position(&mut self, y: u16) {
+        let (track_start, track_end) = self.get_scrollbar_bounds();
+        let track_height = (track_end - track_start) as usize;
+
+        if track_height == 0 {
+            return;
+        }
+
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+        let total_lines = grid.scrollback_len() + grid.rows();
+        let visible_rows = grid.rows();
+        let max_scroll = total_lines.saturating_sub(visible_rows);
+
+        // Calculate position ratio (inverted: top = old content, bottom = current)
+        let click_offset = y.saturating_sub(track_start) as usize;
+        let ratio = click_offset as f64 / track_height as f64;
+
+        // Invert the ratio so clicking at bottom shows current output (scroll_offset=0)
+        self.scroll_offset = ((1.0 - ratio) * max_scroll as f64) as usize;
+        self.scroll_offset = self.scroll_offset.min(max_scroll);
+    }
+
+    /// Get the current scroll offset
+    pub fn get_scroll_offset(&self) -> usize {
+        self.scroll_offset
     }
 }
 
