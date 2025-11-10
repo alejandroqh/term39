@@ -3,6 +3,7 @@ mod debug_log;
 mod ansi_handler;
 mod button;
 mod charset;
+mod config;
 mod prompt;
 mod term_grid;
 mod terminal_emulator;
@@ -377,13 +378,14 @@ fn main() -> io::Result<()> {
                             // Show license and about if desktop is focused
                             if current_focus == FocusState::Desktop {
                                 let (cols, rows) = terminal::size()?;
-                                let license_message = "TERM39 - Terminal UI Windows Manager\n\
+                                let license_message = format!(
+                                    "TERM39 - Terminal UI Windows Manager\n\
                                     \n\
                                     A low-level terminal UI windows manager built with Rust.\n\
                                     \n\
-                                    Version: 0.1.0\n\
-                                    Author: Alejandro Quintanar\n\
-                                    Repository: https://github.com/alejandroqh/term39\n\
+                                    Version: {}\n\
+                                    Author: {}\n\
+                                    Repository: {}\n\
                                     \n\
                                     LICENSE\n\
                                     \n\
@@ -399,11 +401,15 @@ fn main() -> io::Result<()> {
                                     - vte - Virtual terminal emulator parser\n\
                                     - chrono - Date and time library\n\
                                     \n\
-                                    All dependencies are used under their respective licenses.";
+                                    All dependencies are used under their respective licenses.",
+                                    config::VERSION,
+                                    config::AUTHORS,
+                                    config::REPOSITORY
+                                );
 
                                 active_prompt = Some(Prompt::new(
                                     PromptType::Info,
-                                    license_message.to_string(),
+                                    license_message,
                                     vec![PromptButton::new(
                                         "Close".to_string(),
                                         PromptAction::Cancel,
@@ -748,9 +754,9 @@ fn show_splash_screen(
     // License information to display below ASCII art
     let license_lines = [
         "",
-        "Version 0.1.0",
+        &format!("Version {}", config::VERSION),
         "MIT License",
-        "Copyright (c) 2025 Alejandro Quintanar",
+        &format!("Copyright (c) 2025 {}", config::AUTHORS),
     ];
 
     // Calculate window dimensions
