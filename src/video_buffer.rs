@@ -1,6 +1,5 @@
 use crossterm::{
-    cursor,
-    execute,
+    cursor, execute,
     style::{Color, Print, SetBackgroundColor, SetForegroundColor},
 };
 use std::io;

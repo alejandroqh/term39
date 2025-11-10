@@ -60,14 +60,7 @@ impl WindowManager {
     }
 
     /// Create and add a new terminal window (returns window ID)
-    pub fn create_window(
-        &mut self,
-        x: u16,
-        y: u16,
-        width: u16,
-        height: u16,
-        title: String,
-    ) -> u32 {
+    pub fn create_window(&mut self, x: u16, y: u16, width: u16, height: u16, title: String) -> u32 {
         let id = self.next_id;
         self.next_id += 1;
 
@@ -181,7 +174,10 @@ impl WindowManager {
                     }
 
                     // Find the next non-minimized window to focus (from top of z-order)
-                    let next_window_id = self.windows.iter().rev()
+                    let next_window_id = self
+                        .windows
+                        .iter()
+                        .rev()
                         .find(|w| !w.window.is_minimized && w.id() != window_id)
                         .map(|w| w.id());
 
@@ -213,10 +209,10 @@ impl WindowManager {
 
                     // Check for double-click (within 500ms, same window and position)
                     let is_double_click = if let Some(ref last) = self.last_click {
-                        last.window_id == window_id &&
-                        last.x == x &&
-                        last.y == y &&
-                        now.duration_since(last.time).as_millis() < 500
+                        last.window_id == window_id
+                            && last.x == x
+                            && last.y == y
+                            && now.duration_since(last.time).as_millis() < 500
                     } else {
                         false
                     };
@@ -269,7 +265,9 @@ impl WindowManager {
     fn handle_mouse_drag(&mut self, buffer: &mut VideoBuffer, x: u16, y: u16) {
         // Handle window dragging
         if let Some(drag) = self.dragging {
-            if let Some(terminal_window) = self.windows.iter_mut().find(|w| w.id() == drag.window_id) {
+            if let Some(terminal_window) =
+                self.windows.iter_mut().find(|w| w.id() == drag.window_id)
+            {
                 let (buffer_width, buffer_height) = buffer.dimensions();
 
                 // Calculate desired position
@@ -281,7 +279,9 @@ impl WindowManager {
                 let new_x = (desired_x.max(0) as u16).min(max_x);
 
                 // Constrain y: keep below top bar and entire window visible vertically
-                let max_y = buffer_height.saturating_sub(terminal_window.window.height).saturating_sub(1); // -1 for button bar
+                let max_y = buffer_height
+                    .saturating_sub(terminal_window.window.height)
+                    .saturating_sub(1); // -1 for button bar
                 let new_y = (desired_y.max(1) as u16).min(max_y);
 
                 terminal_window.window.x = new_x;
@@ -291,7 +291,9 @@ impl WindowManager {
 
         // Handle window resizing
         if let Some(resize) = self.resizing {
-            if let Some(terminal_window) = self.windows.iter_mut().find(|w| w.id() == resize.window_id) {
+            if let Some(terminal_window) =
+                self.windows.iter_mut().find(|w| w.id() == resize.window_id)
+            {
                 // Calculate new size
                 let delta_x = x as i16 - resize.start_x as i16;
                 let delta_y = y as i16 - resize.start_y as i16;
@@ -328,7 +330,9 @@ impl WindowManager {
             }
 
             // Check if this window is being resized
-            let is_resizing = self.resizing.map_or(false, |r| r.window_id == self.windows[i].id());
+            let is_resizing = self
+                .resizing
+                .map_or(false, |r| r.window_id == self.windows[i].id());
             self.windows[i].render(buffer, is_resizing, charset);
         }
 
@@ -346,9 +350,17 @@ impl WindowManager {
     /// Get window info for button bar rendering (id, title, is_focused, is_minimized)
     /// Returns windows sorted by creation order (ID), not z-order
     pub fn get_window_list(&self) -> Vec<(u32, &str, bool, bool)> {
-        let mut list: Vec<(u32, &str, bool, bool)> = self.windows
+        let mut list: Vec<(u32, &str, bool, bool)> = self
+            .windows
             .iter()
-            .map(|w| (w.id(), w.window.title.as_str(), w.window.is_focused, w.window.is_minimized))
+            .map(|w| {
+                (
+                    w.id(),
+                    w.window.title.as_str(),
+                    w.window.is_focused,
+                    w.window.is_minimized,
+                )
+            })
             .collect();
 
         // Sort by window ID to maintain creation order

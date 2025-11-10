@@ -43,11 +43,7 @@ fn main() -> io::Result<()> {
     terminal::enable_raw_mode()?;
 
     // Hide cursor and enable mouse capture
-    execute!(
-        stdout,
-        cursor::Hide,
-        event::EnableMouseCapture
-    )?;
+    execute!(stdout, cursor::Hide, event::EnableMouseCapture)?;
 
     // Clear the screen
     execute!(stdout, terminal::Clear(ClearType::All))?;
@@ -155,7 +151,9 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle ALT+TAB for window cycling
-                    if key_event.code == KeyCode::Tab && key_event.modifiers.contains(KeyModifiers::ALT) {
+                    if key_event.code == KeyCode::Tab
+                        && key_event.modifiers.contains(KeyModifiers::ALT)
+                    {
                         debug_log!("ALT+TAB detected - cycling to next window");
                         window_manager.cycle_to_next_window();
                         continue;
@@ -240,9 +238,11 @@ fn main() -> io::Result<()> {
                                 active_prompt = Some(Prompt::new(
                                     PromptType::Success,
                                     help_message.to_string(),
-                                    vec![
-                                        PromptButton::new("Close".to_string(), PromptAction::Cancel, true),
-                                    ],
+                                    vec![PromptButton::new(
+                                        "Close".to_string(),
+                                        PromptAction::Cancel,
+                                        true,
+                                    )],
                                     cols,
                                     rows,
                                 ));
@@ -365,7 +365,9 @@ fn main() -> io::Result<()> {
                     // Check if there's an active prompt - it takes priority
                     if let Some(ref prompt) = active_prompt {
                         if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
-                            if let Some(action) = prompt.handle_click(mouse_event.column, mouse_event.row) {
+                            if let Some(action) =
+                                prompt.handle_click(mouse_event.column, mouse_event.row)
+                            {
                                 match action {
                                     PromptAction::Confirm => {
                                         // Exit confirmed
@@ -395,9 +397,11 @@ fn main() -> io::Result<()> {
                     }
 
                     // Check if click is on the New Terminal button in the top bar (only if no prompt)
-                    if !handled && active_prompt.is_none() &&
-                        mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
-                        && new_terminal_button.contains(mouse_event.column, mouse_event.row) {
+                    if !handled
+                        && active_prompt.is_none()
+                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+                        && new_terminal_button.contains(mouse_event.column, mouse_event.row)
+                    {
                         debug_log!("New Terminal button clicked");
                         new_terminal_button.set_state(button::ButtonState::Pressed);
 
@@ -419,8 +423,13 @@ fn main() -> io::Result<()> {
                     }
 
                     // Check if click is on button bar (only if no prompt)
-                    if !handled && active_prompt.is_none() && mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
-                        handled = window_manager.button_bar_click(mouse_event.column, bar_y, mouse_event.row).is_some();
+                    if !handled
+                        && active_prompt.is_none()
+                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+                    {
+                        handled = window_manager
+                            .button_bar_click(mouse_event.column, bar_y, mouse_event.row)
+                            .is_some();
                     }
 
                     // If not handled by buttons, let window manager handle it (only if no prompt)
@@ -478,11 +487,19 @@ fn render_top_bar(buffer: &mut VideoBuffer, focus: FocusState, new_terminal_butt
     let time_pos = cols.saturating_sub(time_str.len() as u16 + 1);
 
     for (i, ch) in time_str.chars().enumerate() {
-        buffer.set(time_pos + i as u16, 0, Cell::new(ch, Color::White, bg_color));
+        buffer.set(
+            time_pos + i as u16,
+            0,
+            Cell::new(ch, Color::White, bg_color),
+        );
     }
 }
 
-fn show_splash_screen(buffer: &mut VideoBuffer, stdout: &mut io::Stdout, charset: &Charset) -> io::Result<()> {
+fn show_splash_screen(
+    buffer: &mut VideoBuffer,
+    stdout: &mut io::Stdout,
+    charset: &Charset,
+) -> io::Result<()> {
     let (cols, rows) = buffer.dimensions();
 
     // Clear screen to black
@@ -513,11 +530,7 @@ fn show_splash_screen(buffer: &mut VideoBuffer, stdout: &mut io::Stdout, charset
     };
 
     // License information to display below ASCII art
-    let license_lines = vec![
-        "",
-        "MIT License",
-        "Copyright (c) 2025 Alejandro Quintanar",
-    ];
+    let license_lines = vec!["", "MIT License", "Copyright (c) 2025 Alejandro Quintanar"];
 
     // Calculate window dimensions
     let art_width = ascii_art[0].chars().count() as u16;
@@ -536,32 +549,68 @@ fn show_splash_screen(buffer: &mut VideoBuffer, stdout: &mut io::Stdout, charset
     let content_bg = Color::DarkBlue;
 
     // Draw top border using charset
-    buffer.set(window_x, window_y, Cell::new(charset.border_top_left, border_color, content_bg));
+    buffer.set(
+        window_x,
+        window_y,
+        Cell::new(charset.border_top_left, border_color, content_bg),
+    );
     for x in 1..window_width - 1 {
-        buffer.set(window_x + x, window_y, Cell::new(charset.border_horizontal, border_color, content_bg));
+        buffer.set(
+            window_x + x,
+            window_y,
+            Cell::new(charset.border_horizontal, border_color, content_bg),
+        );
     }
-    buffer.set(window_x + window_width - 1, window_y, Cell::new(charset.border_top_right, border_color, content_bg));
+    buffer.set(
+        window_x + window_width - 1,
+        window_y,
+        Cell::new(charset.border_top_right, border_color, content_bg),
+    );
 
     // Draw middle rows (content area)
     for y in 1..window_height - 1 {
         // Left border
-        buffer.set(window_x, window_y + y, Cell::new(charset.border_vertical, border_color, content_bg));
+        buffer.set(
+            window_x,
+            window_y + y,
+            Cell::new(charset.border_vertical, border_color, content_bg),
+        );
 
         // Content
         for x in 1..window_width - 1 {
-            buffer.set(window_x + x, window_y + y, Cell::new(' ', Color::White, content_bg));
+            buffer.set(
+                window_x + x,
+                window_y + y,
+                Cell::new(' ', Color::White, content_bg),
+            );
         }
 
         // Right border
-        buffer.set(window_x + window_width - 1, window_y + y, Cell::new(charset.border_vertical, border_color, content_bg));
+        buffer.set(
+            window_x + window_width - 1,
+            window_y + y,
+            Cell::new(charset.border_vertical, border_color, content_bg),
+        );
     }
 
     // Draw bottom border using charset
-    buffer.set(window_x, window_y + window_height - 1, Cell::new(charset.border_bottom_left, border_color, content_bg));
+    buffer.set(
+        window_x,
+        window_y + window_height - 1,
+        Cell::new(charset.border_bottom_left, border_color, content_bg),
+    );
     for x in 1..window_width - 1 {
-        buffer.set(window_x + x, window_y + window_height - 1, Cell::new(charset.border_horizontal, border_color, content_bg));
+        buffer.set(
+            window_x + x,
+            window_y + window_height - 1,
+            Cell::new(charset.border_horizontal, border_color, content_bg),
+        );
     }
-    buffer.set(window_x + window_width - 1, window_y + window_height - 1, Cell::new(charset.border_bottom_right, border_color, content_bg));
+    buffer.set(
+        window_x + window_width - 1,
+        window_y + window_height - 1,
+        Cell::new(charset.border_bottom_right, border_color, content_bg),
+    );
 
     // Draw shadow (right and bottom) using charset
     let shadow_char = charset.shadow;
@@ -570,14 +619,22 @@ fn show_splash_screen(buffer: &mut VideoBuffer, stdout: &mut io::Stdout, charset
     // Right shadow
     for y in 1..=window_height {
         if window_y + y < rows {
-            buffer.set(window_x + window_width, window_y + y, Cell::new(shadow_char, shadow_color, shadow_color));
+            buffer.set(
+                window_x + window_width,
+                window_y + y,
+                Cell::new(shadow_char, shadow_color, shadow_color),
+            );
         }
     }
 
     // Bottom shadow
     for x in 1..=window_width {
         if window_x + x < cols {
-            buffer.set(window_x + x, window_y + window_height, Cell::new(shadow_char, shadow_color, shadow_color));
+            buffer.set(
+                window_x + x,
+                window_y + window_height,
+                Cell::new(shadow_char, shadow_color, shadow_color),
+            );
         }
     }
 
@@ -641,7 +698,11 @@ fn render_button_bar(buffer: &mut VideoBuffer, window_manager: &WindowManager) {
     if cols >= help_text_len + 1 {
         let help_x = cols - help_text_len - 1;
         for (i, ch) in help_text.chars().enumerate() {
-            buffer.set(help_x + i as u16, bar_y, Cell::new(ch, Color::White, Color::Black));
+            buffer.set(
+                help_x + i as u16,
+                bar_y,
+                Cell::new(ch, Color::White, Color::Black),
+            );
         }
     }
 
@@ -676,7 +737,11 @@ fn render_button_bar(buffer: &mut VideoBuffer, window_manager: &WindowManager) {
         };
 
         // Render opening bracket and space
-        buffer.set(current_x, bar_y, Cell::new(open_bracket, button_fg, button_bg));
+        buffer.set(
+            current_x,
+            bar_y,
+            Cell::new(open_bracket, button_fg, button_bg),
+        );
         current_x += 1;
         buffer.set(current_x, bar_y, Cell::new(' ', button_fg, button_bg));
         current_x += 1;
@@ -696,7 +761,11 @@ fn render_button_bar(buffer: &mut VideoBuffer, window_manager: &WindowManager) {
             current_x += 1;
         }
         if current_x < cols - 1 {
-            buffer.set(current_x, bar_y, Cell::new(close_bracket, button_fg, button_bg));
+            buffer.set(
+                current_x,
+                bar_y,
+                Cell::new(close_bracket, button_fg, button_bg),
+            );
             current_x += 1;
         }
 

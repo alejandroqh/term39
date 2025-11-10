@@ -196,7 +196,8 @@ impl TerminalGrid {
 
         // Add or remove rows
         if new_rows > self.rows_count {
-            self.rows.resize(new_rows, vec![TerminalCell::default(); new_cols]);
+            self.rows
+                .resize(new_rows, vec![TerminalCell::default(); new_cols]);
         } else if new_rows < self.rows_count {
             self.rows.truncate(new_rows);
         }
@@ -320,7 +321,8 @@ impl TerminalGrid {
 
                 // Insert blank line at bottom of scroll region
                 let insert_pos = self.scroll_region_bottom.min(self.rows_count - 1);
-                self.rows.insert(insert_pos, vec![TerminalCell::default(); self.cols]);
+                self.rows
+                    .insert(insert_pos, vec![TerminalCell::default(); self.cols]);
             }
         }
     }
@@ -333,7 +335,10 @@ impl TerminalGrid {
                 self.rows.remove(self.scroll_region_bottom);
 
                 // Insert blank line at top of scroll region
-                self.rows.insert(self.scroll_region_top, vec![TerminalCell::default(); self.cols]);
+                self.rows.insert(
+                    self.scroll_region_top,
+                    vec![TerminalCell::default(); self.cols],
+                );
             }
         }
     }

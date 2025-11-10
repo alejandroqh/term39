@@ -1,4 +1,4 @@
-use crate::term_grid::{Color, NamedColor, TerminalGrid, CursorShape};
+use crate::term_grid::{Color, CursorShape, NamedColor, TerminalGrid};
 use vte::{Params, Perform};
 
 /// ANSI escape sequence handler that implements the VTE Perform trait
@@ -64,8 +64,11 @@ impl<'a> AnsiHandler<'a> {
                         match next_param[0] {
                             2 => {
                                 // RGB color
-                                if let (Some(r), Some(g), Some(b)) = (iter.next(), iter.next(), iter.next()) {
-                                    self.grid.current_fg = Color::Rgb(r[0] as u8, g[0] as u8, b[0] as u8);
+                                if let (Some(r), Some(g), Some(b)) =
+                                    (iter.next(), iter.next(), iter.next())
+                                {
+                                    self.grid.current_fg =
+                                        Color::Rgb(r[0] as u8, g[0] as u8, b[0] as u8);
                                 }
                             }
                             5 => {
@@ -94,8 +97,11 @@ impl<'a> AnsiHandler<'a> {
                         match next_param[0] {
                             2 => {
                                 // RGB color
-                                if let (Some(r), Some(g), Some(b)) = (iter.next(), iter.next(), iter.next()) {
-                                    self.grid.current_bg = Color::Rgb(r[0] as u8, g[0] as u8, b[0] as u8);
+                                if let (Some(r), Some(g), Some(b)) =
+                                    (iter.next(), iter.next(), iter.next())
+                                {
+                                    self.grid.current_bg =
+                                        Color::Rgb(r[0] as u8, g[0] as u8, b[0] as u8);
                                 }
                             }
                             5 => {
@@ -144,7 +150,7 @@ impl<'a> Perform for AnsiHandler<'a> {
             b'\r' => self.grid.put_char('\r'),
             b'\t' => self.grid.put_char('\t'),
             b'\x08' => self.grid.put_char('\x08'), // Backspace
-            b'\x07' => {} // Bell (ignore for now)
+            b'\x07' => {}                          // Bell (ignore for now)
             _ => {}
         }
     }
@@ -176,40 +182,77 @@ impl<'a> Perform for AnsiHandler<'a> {
             // Cursor movement
             ('A', []) => {
                 // Cursor Up
-                let n = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
+                let n = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(1) as usize;
                 self.grid.move_cursor(0, -(n as isize));
             }
             ('B', []) => {
                 // Cursor Down
-                let n = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
+                let n = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(1) as usize;
                 self.grid.move_cursor(0, n as isize);
             }
             ('C', []) => {
                 // Cursor Forward
-                let n = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
+                let n = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(1) as usize;
                 self.grid.move_cursor(n as isize, 0);
             }
             ('D', []) => {
                 // Cursor Back
-                let n = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
+                let n = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(1) as usize;
                 self.grid.move_cursor(-(n as isize), 0);
             }
             ('E', []) => {
                 // Cursor Next Line
-                let n = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
+                let n = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(1) as usize;
                 self.grid.move_cursor(0, n as isize);
                 self.grid.cursor.x = 0;
             }
             ('F', []) => {
                 // Cursor Previous Line
-                let n = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
+                let n = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(1) as usize;
                 self.grid.move_cursor(0, -(n as isize));
                 self.grid.cursor.x = 0;
             }
             ('G', []) => {
                 // Cursor Horizontal Absolute
-                let col = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
-                self.grid.cursor.x = col.saturating_sub(1).min(self.grid.cols().saturating_sub(1));
+                let col = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(1) as usize;
+                self.grid.cursor.x = col
+                    .saturating_sub(1)
+                    .min(self.grid.cols().saturating_sub(1));
             }
             ('H', []) | ('f', []) => {
                 // Cursor Position
@@ -220,55 +263,92 @@ impl<'a> Perform for AnsiHandler<'a> {
             }
             ('J', []) => {
                 // Erase in Display
-                let mode = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(0);
+                let mode = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(0);
                 match mode {
                     0 => self.grid.erase_to_eos(),     // Erase below
-                    1 => {},                           // Erase above (TODO)
+                    1 => {}                            // Erase above (TODO)
                     2 | 3 => self.grid.clear_screen(), // Erase all
                     _ => {}
                 }
             }
             ('K', []) => {
                 // Erase in Line
-                let mode = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(0);
+                let mode = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(0);
                 match mode {
                     0 => self.grid.erase_to_eol(), // Erase to right
-                    1 => {},                       // Erase to left (TODO)
+                    1 => {}                        // Erase to left (TODO)
                     2 => self.grid.clear_line(),   // Erase all
                     _ => {}
                 }
             }
             ('L', []) => {
                 // Insert Lines
-                let n = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
+                let n = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(1) as usize;
                 self.grid.scroll_down(n);
             }
             ('M', []) => {
                 // Delete Lines
-                let n = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
+                let n = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(1) as usize;
                 self.grid.scroll_up(n);
             }
             ('S', []) => {
                 // Scroll Up
-                let n = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
+                let n = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(1) as usize;
                 self.grid.scroll_up(n);
             }
             ('T', []) => {
                 // Scroll Down
-                let n = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
+                let n = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(1) as usize;
                 self.grid.scroll_down(n);
             }
             ('d', []) => {
                 // Vertical Position Absolute
-                let row = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
-                self.grid.cursor.y = row.saturating_sub(1).min(self.grid.rows().saturating_sub(1));
+                let row = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(1) as usize;
+                self.grid.cursor.y = row
+                    .saturating_sub(1)
+                    .min(self.grid.rows().saturating_sub(1));
             }
             ('h', [b'?']) => {
                 // DEC Private Mode Set
                 for param in params.iter() {
                     match param[0] {
-                        25 => self.grid.cursor.visible = true,  // Show cursor
-                        1049 => self.grid.use_alt_screen(),     // Alt screen
+                        25 => self.grid.cursor.visible = true, // Show cursor
+                        1049 => self.grid.use_alt_screen(),    // Alt screen
                         _ => {}
                     }
                 }
@@ -291,8 +371,13 @@ impl<'a> Perform for AnsiHandler<'a> {
                 // Set Scroll Region
                 let mut iter = params.iter();
                 let top = iter.next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
-                let bottom = iter.next().and_then(|p| p.get(0)).copied().unwrap_or(self.grid.rows() as u16) as usize;
-                self.grid.set_scroll_region(top.saturating_sub(1), bottom.saturating_sub(1));
+                let bottom = iter
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(self.grid.rows() as u16) as usize;
+                self.grid
+                    .set_scroll_region(top.saturating_sub(1), bottom.saturating_sub(1));
             }
             ('s', []) => {
                 // Save Cursor Position
@@ -304,7 +389,12 @@ impl<'a> Perform for AnsiHandler<'a> {
             }
             ('q', [b' ']) => {
                 // Set Cursor Shape (DECSCUSR)
-                let shape = params.iter().next().and_then(|p| p.get(0)).copied().unwrap_or(0);
+                let shape = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.get(0))
+                    .copied()
+                    .unwrap_or(0);
                 self.grid.cursor.shape = match shape {
                     1 | 2 => CursorShape::Block,
                     3 | 4 => CursorShape::Underline,

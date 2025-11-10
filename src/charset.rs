@@ -31,15 +31,15 @@ impl Charset {
     pub fn unicode() -> Self {
         Self {
             mode: CharsetMode::Unicode,
-            background: '░',              // U+2591 light shade (DOS CP437 177)
-            border_top_left: '╔',         // U+2554
-            border_top_right: '╗',        // U+2557
-            border_bottom_left: '╚',      // U+255A
-            border_bottom_right: '╝',     // U+255D
-            border_horizontal: '═',       // U+2550
-            border_vertical: '║',         // U+2551
-            resize_handle: '╬',           // U+256C (DOS CP437 206) box drawings double vertical and horizontal
-            shadow: '▓',                  // U+2593 dark shade
+            background: '░',          // U+2591 light shade (DOS CP437 177)
+            border_top_left: '╔',     // U+2554
+            border_top_right: '╗',    // U+2557
+            border_bottom_left: '╚',  // U+255A
+            border_bottom_right: '╝', // U+255D
+            border_horizontal: '═',   // U+2550
+            border_vertical: '║',     // U+2551
+            resize_handle: '╬', // U+256C (DOS CP437 206) box drawings double vertical and horizontal
+            shadow: '▓',        // U+2593 dark shade
         }
     }
 
@@ -47,15 +47,15 @@ impl Charset {
     pub fn ascii() -> Self {
         Self {
             mode: CharsetMode::Ascii,
-            background: ' ',              // Space for clean background
-            border_top_left: '+',         // Plus for corners
+            background: ' ',      // Space for clean background
+            border_top_left: '+', // Plus for corners
             border_top_right: '+',
             border_bottom_left: '+',
             border_bottom_right: '+',
-            border_horizontal: '-',       // Dash for horizontal
-            border_vertical: '|',         // Pipe for vertical
-            resize_handle: '+',           // Plus for resize handle (matches corners)
-            shadow: '#',                  // Hash for shadow
+            border_horizontal: '-', // Dash for horizontal
+            border_vertical: '|',   // Pipe for vertical
+            resize_handle: '+',     // Plus for resize handle (matches corners)
+            shadow: '#',            // Hash for shadow
         }
     }
 

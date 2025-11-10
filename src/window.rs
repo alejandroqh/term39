@@ -48,7 +48,7 @@ impl Window {
             title_bg: Color::Black,
             title_fg: Color::White,
             border_color: Color::White,
-            content_bg: Color::DarkBlue,  // Use DarkBlue to distinguish from background Blue
+            content_bg: Color::DarkBlue, // Use DarkBlue to distinguish from background Blue
             content_fg: Color::White,
             is_focused: false,
             is_minimized: false,
@@ -213,22 +213,30 @@ impl Window {
         buffer.set(
             self.x,
             self.y + self.height - 1,
-            Cell::new(charset.border_bottom_left, self.border_color, self.content_bg),
+            Cell::new(
+                charset.border_bottom_left,
+                self.border_color,
+                self.content_bg,
+            ),
         );
         for x in 1..self.width - 1 {
             buffer.set(
                 self.x + x,
                 self.y + self.height - 1,
-                Cell::new(charset.border_horizontal, self.border_color, self.content_bg),
+                Cell::new(
+                    charset.border_horizontal,
+                    self.border_color,
+                    self.content_bg,
+                ),
             );
         }
 
         // Bottom-right corner with resize handle
         // Change colors based on whether we're actively resizing
         let (resize_fg, resize_bg) = if is_resizing {
-            (Color::Yellow, Color::Grey)  // Bright colors during interaction
+            (Color::Yellow, Color::Grey) // Bright colors during interaction
         } else {
-            (Color::Grey, self.title_bg)  // Normal state - background matches title bar (black)
+            (Color::Grey, self.title_bg) // Normal state - background matches title bar (black)
         };
 
         buffer.set(
@@ -258,11 +266,7 @@ impl Window {
                 '_' => Color::Yellow,
                 _ => self.title_fg,
             };
-            buffer.set(
-                self.x + x_offset,
-                self.y,
-                Cell::new(ch, color, title_bg),
-            );
+            buffer.set(self.x + x_offset, self.y, Cell::new(ch, color, title_bg));
             x_offset += 1;
 
             // After each button group, there's a space

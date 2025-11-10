@@ -1,8 +1,8 @@
 use crate::ansi_handler::AnsiHandler;
 use crate::term_grid::TerminalGrid;
-use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
+use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use std::io::{Read, Write};
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use vte::Parser;
@@ -147,7 +147,11 @@ impl TerminalEmulator {
 
     /// Write input to the PTY (send to shell)
     pub fn write_input(&mut self, data: &[u8]) -> std::io::Result<()> {
-        debug_log!("PTY: Writing {} bytes: {:?}", data.len(), String::from_utf8_lossy(data));
+        debug_log!(
+            "PTY: Writing {} bytes: {:?}",
+            data.len(),
+            String::from_utf8_lossy(data)
+        );
         let result = self.writer.write_all(data);
         debug_log!("PTY: Write result: {:?}", result);
         result?;

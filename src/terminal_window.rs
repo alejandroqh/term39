@@ -64,7 +64,8 @@ impl TerminalWindow {
         let content_width = new_width.saturating_sub(2).max(1);
         let content_height = new_height.saturating_sub(2).max(1);
 
-        self.emulator.resize(content_width as usize, content_height as usize)
+        self.emulator
+            .resize(content_width as usize, content_height as usize)
     }
 
     /// Scroll up in the scrollback buffer

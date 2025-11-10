@@ -6,12 +6,12 @@ use crossterm::style::Color;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PromptType {
     #[allow(dead_code)]
-    Info,     // Blue theme
+    Info, // Blue theme
     #[allow(dead_code)]
-    Success,  // Green theme
+    Success, // Green theme
     #[allow(dead_code)]
-    Warning,  // Yellow theme
-    Danger,   // Red theme
+    Warning, // Yellow theme
+    Danger, // Red theme
 }
 
 impl PromptType {
@@ -41,7 +41,7 @@ impl PromptType {
 pub struct PromptButton {
     pub text: String,
     pub action: PromptAction,
-    pub is_primary: bool,  // Primary buttons have attractive colors, secondary are muted
+    pub is_primary: bool, // Primary buttons have attractive colors, secondary are muted
 }
 
 /// Action to take when a button is clicked
@@ -95,7 +95,7 @@ pub struct Prompt {
     pub height: u16,
     pub x: u16,
     pub y: u16,
-    pub selected_button_index: usize,  // Index of currently selected button for keyboard navigation
+    pub selected_button_index: usize, // Index of currently selected button for keyboard navigation
 }
 
 impl Prompt {
@@ -109,7 +109,11 @@ impl Prompt {
     ) -> Self {
         // Calculate dimensions
         let message_lines: Vec<&str> = message.lines().collect();
-        let max_message_width = message_lines.iter().map(|line| line.len()).max().unwrap_or(0) as u16;
+        let max_message_width = message_lines
+            .iter()
+            .map(|line| line.len())
+            .max()
+            .unwrap_or(0) as u16;
 
         // Calculate total button width (with spacing)
         let total_button_width: u16 = buttons.iter().map(|b| b.width()).sum::<u16>()
@@ -127,9 +131,7 @@ impl Prompt {
         let y = (buffer_height.saturating_sub(height)) / 2;
 
         // Find the first primary button as default selection, or use first button
-        let selected_button_index = buttons.iter()
-            .position(|b| b.is_primary)
-            .unwrap_or(0);
+        let selected_button_index = buttons.iter().position(|b| b.is_primary).unwrap_or(0);
 
         Self {
             prompt_type,
@@ -151,11 +153,7 @@ impl Prompt {
         // Fill the entire prompt area with the background color (no borders)
         for y in 0..self.height {
             for x in 0..self.width {
-                buffer.set(
-                    self.x + x,
-                    self.y + y,
-                    Cell::new(' ', fg_color, bg_color),
-                );
+                buffer.set(self.x + x, self.y + y, Cell::new(' ', fg_color, bg_color));
             }
         }
 
@@ -168,11 +166,7 @@ impl Prompt {
             let line_y = message_start_y + i as u16;
 
             for (j, ch) in line.chars().enumerate() {
-                buffer.set(
-                    line_x + j as u16,
-                    line_y,
-                    Cell::new(ch, fg_color, bg_color),
-                );
+                buffer.set(line_x + j as u16, line_y, Cell::new(ch, fg_color, bg_color));
             }
         }
 
@@ -313,7 +307,9 @@ impl Prompt {
 
     /// Get the action of the currently selected button
     pub fn get_selected_action(&self) -> Option<PromptAction> {
-        self.buttons.get(self.selected_button_index).map(|b| b.action)
+        self.buttons
+            .get(self.selected_button_index)
+            .map(|b| b.action)
     }
 }
 
