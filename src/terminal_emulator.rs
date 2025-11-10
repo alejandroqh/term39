@@ -64,9 +64,7 @@ impl TerminalEmulator {
 
         debug_log!("PTY: Got reader");
 
-        let writer = pty_master
-            .take_writer()
-            .map_err(std::io::Error::other)?;
+        let writer = pty_master.take_writer().map_err(std::io::Error::other)?;
 
         debug_log!("PTY: Got writer");
 
