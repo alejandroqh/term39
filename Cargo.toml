@@ -4,6 +4,17 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT"
 authors = ["Alejandro Quintanar"]
+description = "A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-DOS)"
+repository = "https://github.com/alejandroqh/term39"
+homepage = "https://github.com/alejandroqh/term39"
+readme = "README.md"
+keywords = ["terminal", "multiplexer", "tui", "dos", "retro"]
+categories = ["command-line-utilities"]
+exclude = [
+    "assets/*",
+    ".github/*",
+    ".git/*",
+]
 
 [dependencies]
 chrono = "0.4.42"
