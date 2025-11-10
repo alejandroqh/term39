@@ -150,8 +150,14 @@ fn main() -> io::Result<()> {
         let focus = window_manager.get_focus();
         render_top_bar(&mut video_buffer, focus, &new_terminal_button);
 
-        // Render all windows
-        window_manager.render_all(&mut video_buffer, &charset);
+        // Render all windows (returns true if any were closed)
+        let windows_closed = window_manager.render_all(&mut video_buffer, &charset);
+
+        // Auto-reposition remaining windows if any were closed
+        if windows_closed {
+            let (cols, rows) = terminal::size()?;
+            window_manager.auto_position_windows(cols, rows);
+        }
 
         // Render snap preview overlay (if dragging and snap zone is active)
         window_manager.render_snap_preview(&mut video_buffer, &charset);
@@ -354,11 +360,12 @@ fn main() -> io::Result<()> {
                                     \n\
                                     {C}MOUSE CONTROLS{W}\n\
                                     \n\
-                                    {Y}Click title bar{W}  - Drag window\n\
-                                    {Y}Click [X]{W}        - Close window\n\
-                                    {Y}Drag ╬ handle{W}    - Resize window\n\
-                                    {Y}Click window{W}     - Focus window\n\
-                                    {Y}Click bottom bar{W} - Switch windows";
+                                    {Y}Click title bar{W}     - Drag window\n\
+                                    {Y}CTRL+Drag{W}          - Drag without snap\n\
+                                    {Y}Click [X]{W}           - Close window\n\
+                                    {Y}Drag ╬ handle{W}       - Resize window\n\
+                                    {Y}Click window{W}        - Focus window\n\
+                                    {Y}Click bottom bar{W}    - Switch windows";
 
                                 active_prompt = Some(Prompt::new_with_alignment(
                                     PromptType::Info,
@@ -457,6 +464,10 @@ fn main() -> io::Result<()> {
                                     height,
                                     format!("Terminal {}", window_manager.window_count() + 1),
                                 );
+
+                                // Auto-position all windows based on the snap pattern
+                                window_manager.auto_position_windows(cols, rows);
+
                                 debug_log!("Terminal window created");
                             } else {
                                 // Send 't' to terminal
@@ -639,6 +650,10 @@ fn main() -> io::Result<()> {
                             height,
                             format!("Terminal {}", window_manager.window_count() + 1),
                         );
+
+                        // Auto-position all windows based on the snap pattern
+                        window_manager.auto_position_windows(cols, rows);
+
                         handled = true;
                     }
 
@@ -654,7 +669,13 @@ fn main() -> io::Result<()> {
 
                     // If not handled by buttons, let window manager handle it (only if no prompt)
                     if !handled && active_prompt.is_none() {
-                        window_manager.handle_mouse_event(&mut video_buffer, mouse_event);
+                        let window_closed =
+                            window_manager.handle_mouse_event(&mut video_buffer, mouse_event);
+                        // Auto-reposition remaining windows if a window was closed
+                        if window_closed {
+                            let (cols, rows) = terminal::size()?;
+                            window_manager.auto_position_windows(cols, rows);
+                        }
                     }
                 }
                 _ => {}

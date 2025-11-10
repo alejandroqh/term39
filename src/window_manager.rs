@@ -1,7 +1,7 @@
 use crate::charset::Charset;
 use crate::terminal_window::TerminalWindow;
 use crate::video_buffer::VideoBuffer;
-use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use std::time::Instant;
 
 /// Focus state - either desktop or a specific window
@@ -105,6 +105,115 @@ impl WindowManager {
         } else {
             // Failed to create terminal window
             id
+        }
+    }
+
+    /// Automatically position windows based on count (snap corners pattern)
+    /// Called when buffer size is known
+    pub fn auto_position_windows(&mut self, buffer_width: u16, buffer_height: u16) {
+        let visible_count = self
+            .windows
+            .iter()
+            .filter(|w| !w.window.is_minimized)
+            .count();
+
+        if visible_count == 0 {
+            return;
+        }
+
+        // Get visible windows sorted by ID (creation order)
+        let mut visible_ids: Vec<u32> = self
+            .windows
+            .iter()
+            .filter(|w| !w.window.is_minimized)
+            .map(|w| w.id())
+            .collect();
+        visible_ids.sort();
+
+        // Calculate positions based on pattern
+        let positions = self.calculate_auto_positions(visible_count, buffer_width, buffer_height);
+
+        // Apply positions to windows
+        for (idx, &window_id) in visible_ids.iter().enumerate() {
+            if idx < positions.len() {
+                if let Some(win) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+                    let (x, y, width, height) = positions[idx];
+                    win.window.x = x;
+                    win.window.y = y;
+                    win.window.width = width;
+                    win.window.height = height;
+                    // Resize the terminal to match new window size
+                    let _ = win.resize(width, height);
+                }
+            }
+        }
+    }
+
+    /// Calculate positions for all windows based on the snap pattern
+    fn calculate_auto_positions(
+        &self,
+        count: usize,
+        buffer_width: u16,
+        buffer_height: u16,
+    ) -> Vec<(u16, u16, u16, u16)> {
+        let usable_height = buffer_height.saturating_sub(2); // -1 for top bar, -1 for button bar
+        let half_width = buffer_width / 2;
+        let half_height = usable_height / 2;
+
+        match count {
+            1 => {
+                // Center position
+                let width = 150.min(buffer_width.saturating_sub(10));
+                let height = 50.min(usable_height.saturating_sub(10));
+                let x = (buffer_width.saturating_sub(width)) / 2;
+                let y = 1 + (usable_height.saturating_sub(height)) / 2;
+                vec![(x, y, width, height)]
+            }
+            2 => {
+                // Split screen: full left, full right
+                vec![
+                    (0, 1, half_width, usable_height),          // Window 1: Full left
+                    (half_width, 1, half_width, usable_height), // Window 2: Full right
+                ]
+            }
+            3 => {
+                // Split left, full right
+                vec![
+                    (0, 1, half_width, half_height),               // Window 1: Top-left
+                    (0, 1 + half_height, half_width, half_height), // Window 2: Bottom-left
+                    (half_width, 1, half_width, usable_height),    // Window 3: Full right
+                ]
+            }
+            4 => {
+                // All four quarters
+                vec![
+                    (0, 1, half_width, half_height),               // Window 1: Top-left
+                    (0, 1 + half_height, half_width, half_height), // Window 2: Bottom-left
+                    (half_width, 1, half_width, half_height),      // Window 3: Top-right
+                    (half_width, 1 + half_height, half_width, half_height), // Window 4: Bottom-right
+                ]
+            }
+            _ => {
+                // 5+ windows: first 4 in quarters, rest centered
+                let mut positions = vec![
+                    (0, 1, half_width, half_height),               // Window 1: Top-left
+                    (0, 1 + half_height, half_width, half_height), // Window 2: Bottom-left
+                    (half_width, 1, half_width, half_height),      // Window 3: Top-right
+                    (half_width, 1 + half_height, half_width, half_height), // Window 4: Bottom-right
+                ];
+
+                // Add center positions for remaining windows (with slight offset)
+                for i in 4..count {
+                    let width = 150.min(buffer_width.saturating_sub(10));
+                    let height = 50.min(usable_height.saturating_sub(10));
+                    let offset = ((i - 4) * 2) as u16; // Slight offset for each additional window
+                    let x = ((buffer_width.saturating_sub(width)) / 2).saturating_add(offset);
+                    let y = 1 + ((usable_height.saturating_sub(height)) / 2).saturating_add(offset);
+                    positions.push((x, y, width, height));
+                }
+
+                positions
+            }
         }
     }
 
@@ -237,28 +346,34 @@ impl WindowManager {
     }
 
     /// Handle mouse event
-    pub fn handle_mouse_event(&mut self, buffer: &mut VideoBuffer, event: MouseEvent) {
+    /// Returns true if a window was closed (so caller can reposition)
+    pub fn handle_mouse_event(&mut self, buffer: &mut VideoBuffer, event: MouseEvent) -> bool {
         match event.kind {
             MouseEventKind::Down(MouseButton::Left) => {
-                self.handle_mouse_down(buffer, event.column, event.row);
+                self.handle_mouse_down(buffer, event.column, event.row)
             }
             MouseEventKind::Drag(MouseButton::Left) => {
-                self.handle_mouse_drag(buffer, event.column, event.row);
+                // Pass modifiers to check if Control is pressed (to disable snap)
+                self.handle_mouse_drag(buffer, event.column, event.row, event.modifiers);
+                false
             }
             MouseEventKind::Up(MouseButton::Left) => {
                 self.handle_mouse_up(buffer);
+                false
             }
             MouseEventKind::ScrollUp => {
                 self.handle_scroll_up(event.column, event.row);
+                false
             }
             MouseEventKind::ScrollDown => {
                 self.handle_scroll_down(event.column, event.row);
+                false
             }
-            _ => {}
+            _ => false,
         }
     }
 
-    fn handle_mouse_down(&mut self, buffer: &mut VideoBuffer, x: u16, y: u16) {
+    fn handle_mouse_down(&mut self, buffer: &mut VideoBuffer, x: u16, y: u16) -> bool {
         // Find window at click position
         if let Some(window_id) = self.window_at(x, y) {
             // Get the window
@@ -267,8 +382,8 @@ impl WindowManager {
 
                 // Check if clicking close button
                 if terminal_window.is_in_close_button(x, y) {
-                    self.close_window(window_id);
-                    return;
+                    let closed = self.close_window(window_id);
+                    return closed;
                 }
 
                 // Check if clicking maximize button
@@ -281,7 +396,7 @@ impl WindowManager {
                         // Resize the terminal to match new window size
                         let _ = win.resize(win.window.width, win.window.height);
                     }
-                    return;
+                    return false;
                 }
 
                 // Check if clicking minimize button
@@ -306,7 +421,7 @@ impl WindowManager {
                         // No other windows available, focus desktop
                         self.focus_desktop();
                     }
-                    return;
+                    return false;
                 }
 
                 // Check if clicking resize handle (only if not maximized)
@@ -318,7 +433,7 @@ impl WindowManager {
                         start_width: window.width,
                         start_height: window.height,
                     });
-                    return;
+                    return false;
                 }
 
                 // Check if clicking scrollbar
@@ -336,7 +451,7 @@ impl WindowManager {
                             win.scroll_to_position(y);
                         }
                     }
-                    return;
+                    return false;
                 }
 
                 // Check if clicking title bar (for dragging or double-click maximize)
@@ -396,16 +511,28 @@ impl WindowManager {
             // Clicked on desktop - focus it
             self.focus_desktop();
         }
+        false
     }
 
     #[allow(clippy::collapsible_if)]
-    fn handle_mouse_drag(&mut self, buffer: &mut VideoBuffer, x: u16, y: u16) {
+    fn handle_mouse_drag(
+        &mut self,
+        buffer: &mut VideoBuffer,
+        x: u16,
+        y: u16,
+        modifiers: KeyModifiers,
+    ) {
         // Handle window dragging
         if let Some(drag) = self.dragging {
             let (buffer_width, buffer_height) = buffer.dimensions();
 
             // Detect snap zone for preview (don't apply position yet)
-            self.current_snap_zone = self.detect_snap_zone(x, y, buffer_width, buffer_height);
+            // Disable snap if Control key is pressed
+            if modifiers.contains(KeyModifiers::CONTROL) {
+                self.current_snap_zone = None;
+            } else {
+                self.current_snap_zone = self.detect_snap_zone(x, y, buffer_width, buffer_height);
+            }
 
             if let Some(terminal_window) =
                 self.windows.iter_mut().find(|w| w.id() == drag.window_id)
@@ -514,7 +641,8 @@ impl WindowManager {
     }
 
     /// Render all windows in z-order (bottom to top)
-    pub fn render_all(&mut self, buffer: &mut VideoBuffer, charset: &Charset) {
+    /// Returns true if any windows were closed (so caller can reposition)
+    pub fn render_all(&mut self, buffer: &mut VideoBuffer, charset: &Charset) -> bool {
         let mut windows_to_close = Vec::new();
 
         for i in 0..self.windows.len() {
@@ -532,9 +660,14 @@ impl WindowManager {
         }
 
         // Close windows whose shell processes have exited
+        let mut any_closed = false;
         for window_id in windows_to_close {
-            self.close_window(window_id);
+            if self.close_window(window_id) {
+                any_closed = true;
+            }
         }
+
+        any_closed
     }
 
     /// Render snap preview overlay (if dragging and snap zone is active)
@@ -701,7 +834,8 @@ impl WindowManager {
     }
 
     /// Close window by ID
-    pub fn close_window(&mut self, id: u32) {
+    /// Returns true if a window was actually closed
+    pub fn close_window(&mut self, id: u32) -> bool {
         if let Some(pos) = self.windows.iter().position(|w| w.id() == id) {
             self.windows.remove(pos);
 
@@ -709,6 +843,9 @@ impl WindowManager {
             if self.focus == FocusState::Window(id) {
                 self.focus = FocusState::Desktop;
             }
+            true
+        } else {
+            false
         }
     }
 
