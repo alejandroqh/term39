@@ -62,13 +62,13 @@ impl Window {
 
     /// Check if point is in title bar (not including border)
     pub fn is_in_title_bar(&self, x: u16, y: u16) -> bool {
-        x >= self.x + 1 && x < self.x + self.width - 1 && y == self.y
+        x > self.x && x < self.x + self.width - 1 && y == self.y
     }
 
     /// Check if point is in close button [X]
     pub fn is_in_close_button(&self, x: u16, y: u16) -> bool {
         // [X] is at position x+1
-        y == self.y && x >= self.x + 1 && x <= self.x + 3
+        y == self.y && x > self.x && x <= self.x + 3
     }
 
     /// Check if point is in maximize button [+]

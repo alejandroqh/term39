@@ -321,18 +321,15 @@ impl WindowManager {
 
         for i in 0..self.windows.len() {
             // Process terminal output before rendering
-            match self.windows[i].process_output() {
-                Ok(false) => {
-                    // Shell process has exited, mark for closure
-                    windows_to_close.push(self.windows[i].id());
-                }
-                _ => {}
+            if let Ok(false) = self.windows[i].process_output() {
+                // Shell process has exited, mark for closure
+                windows_to_close.push(self.windows[i].id());
             }
 
             // Check if this window is being resized
             let is_resizing = self
                 .resizing
-                .map_or(false, |r| r.window_id == self.windows[i].id());
+                .is_some_and(|r| r.window_id == self.windows[i].id());
             self.windows[i].render(buffer, is_resizing, charset);
         }
 

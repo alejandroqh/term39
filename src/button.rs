@@ -94,10 +94,11 @@ mod tests {
     #[test]
     fn test_button_contains() {
         let button = Button::new(5, 10, "Click".to_string());
-        assert!(button.contains(5, 10)); // Left edge
-        assert!(button.contains(8, 10)); // Middle
-        assert!(button.contains(12, 10)); // Right edge
-        assert!(!button.contains(13, 10)); // Past right edge
+        // Button renders as "[ Click ]" from x=5 to x=13 (width=9)
+        assert!(button.contains(5, 10)); // Left edge '['
+        assert!(button.contains(8, 10)); // Middle 'i'
+        assert!(button.contains(13, 10)); // Right edge ']'
+        assert!(!button.contains(14, 10)); // Past right edge
         assert!(!button.contains(4, 10)); // Before left edge
         assert!(!button.contains(5, 11)); // Wrong row
     }

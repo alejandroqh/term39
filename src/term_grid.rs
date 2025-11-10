@@ -38,7 +38,7 @@ impl Default for Color {
 }
 
 /// Character cell attributes (bold, italic, underline, etc.)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct CellAttributes {
     pub bold: bool,
     pub dim: bool,
@@ -48,21 +48,6 @@ pub struct CellAttributes {
     pub reverse: bool,
     pub hidden: bool,
     pub strikethrough: bool,
-}
-
-impl Default for CellAttributes {
-    fn default() -> Self {
-        Self {
-            bold: false,
-            dim: false,
-            italic: false,
-            underline: false,
-            blink: false,
-            reverse: false,
-            hidden: false,
-            strikethrough: false,
-        }
-    }
 }
 
 /// A single terminal cell containing a character and its display attributes
@@ -195,11 +180,15 @@ impl TerminalGrid {
         }
 
         // Add or remove rows
-        if new_rows > self.rows_count {
-            self.rows
-                .resize(new_rows, vec![TerminalCell::default(); new_cols]);
-        } else if new_rows < self.rows_count {
-            self.rows.truncate(new_rows);
+        match new_rows.cmp(&self.rows_count) {
+            std::cmp::Ordering::Greater => {
+                self.rows
+                    .resize(new_rows, vec![TerminalCell::default(); new_cols]);
+            }
+            std::cmp::Ordering::Less => {
+                self.rows.truncate(new_rows);
+            }
+            std::cmp::Ordering::Equal => {}
         }
 
         // Update tab stops

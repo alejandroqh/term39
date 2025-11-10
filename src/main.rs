@@ -530,7 +530,7 @@ fn show_splash_screen(
     };
 
     // License information to display below ASCII art
-    let license_lines = vec!["", "MIT License", "Copyright (c) 2025 Alejandro Quintanar"];
+    let license_lines = ["", "MIT License", "Copyright (c) 2025 Alejandro Quintanar"];
 
     // Calculate window dimensions
     let art_width = ascii_art[0].chars().count() as u16;
@@ -695,7 +695,7 @@ fn render_button_bar(buffer: &mut VideoBuffer, window_manager: &WindowManager) {
     // Render help text on the right side
     let help_text = " > Press 'h' for Help < ";
     let help_text_len = help_text.len() as u16;
-    if cols >= help_text_len + 1 {
+    if cols > help_text_len {
         let help_x = cols - help_text_len - 1;
         for (i, ch) in help_text.chars().enumerate() {
             buffer.set(

@@ -139,7 +139,7 @@ impl<'a> AnsiHandler<'a> {
     }
 }
 
-impl<'a> Perform for AnsiHandler<'a> {
+impl Perform for AnsiHandler<'_> {
     fn print(&mut self, c: char) {
         self.grid.put_char(c);
     }
@@ -185,7 +185,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let n = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(1) as usize;
                 self.grid.move_cursor(0, -(n as isize));
@@ -195,7 +195,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let n = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(1) as usize;
                 self.grid.move_cursor(0, n as isize);
@@ -205,7 +205,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let n = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(1) as usize;
                 self.grid.move_cursor(n as isize, 0);
@@ -215,7 +215,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let n = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(1) as usize;
                 self.grid.move_cursor(-(n as isize), 0);
@@ -225,7 +225,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let n = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(1) as usize;
                 self.grid.move_cursor(0, n as isize);
@@ -236,7 +236,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let n = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(1) as usize;
                 self.grid.move_cursor(0, -(n as isize));
@@ -247,7 +247,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let col = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(1) as usize;
                 self.grid.cursor.x = col
@@ -257,8 +257,8 @@ impl<'a> Perform for AnsiHandler<'a> {
             ('H', []) | ('f', []) => {
                 // Cursor Position
                 let mut iter = params.iter();
-                let row = iter.next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
-                let col = iter.next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
+                let row = iter.next().and_then(|p| p.first()).copied().unwrap_or(1) as usize;
+                let col = iter.next().and_then(|p| p.first()).copied().unwrap_or(1) as usize;
                 self.grid.goto(col.saturating_sub(1), row.saturating_sub(1));
             }
             ('J', []) => {
@@ -266,7 +266,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let mode = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(0);
                 match mode {
@@ -281,7 +281,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let mode = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(0);
                 match mode {
@@ -296,7 +296,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let n = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(1) as usize;
                 self.grid.scroll_down(n);
@@ -306,7 +306,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let n = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(1) as usize;
                 self.grid.scroll_up(n);
@@ -316,7 +316,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let n = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(1) as usize;
                 self.grid.scroll_up(n);
@@ -326,7 +326,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let n = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(1) as usize;
                 self.grid.scroll_down(n);
@@ -336,7 +336,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let row = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(1) as usize;
                 self.grid.cursor.y = row
@@ -370,10 +370,10 @@ impl<'a> Perform for AnsiHandler<'a> {
             ('r', []) => {
                 // Set Scroll Region
                 let mut iter = params.iter();
-                let top = iter.next().and_then(|p| p.get(0)).copied().unwrap_or(1) as usize;
+                let top = iter.next().and_then(|p| p.first()).copied().unwrap_or(1) as usize;
                 let bottom = iter
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(self.grid.rows() as u16) as usize;
                 self.grid
@@ -392,7 +392,7 @@ impl<'a> Perform for AnsiHandler<'a> {
                 let shape = params
                     .iter()
                     .next()
-                    .and_then(|p| p.get(0))
+                    .and_then(|p| p.first())
                     .copied()
                     .unwrap_or(0);
                 self.grid.cursor.shape = match shape {

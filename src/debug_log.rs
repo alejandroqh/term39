@@ -18,7 +18,7 @@ pub fn init_debug_log() {
 macro_rules! debug_log {
     ($($arg:tt)*) => {{
         use std::io::Write;
-        if let Some(file) = crate::debug_log::LOG_FILE.lock().unwrap().as_mut() {
+        if let Some(file) = $crate::debug_log::LOG_FILE.lock().unwrap().as_mut() {
             let _ = writeln!(file, "[{}] {}", chrono::Local::now().format("%H:%M:%S%.3f"), format!($($arg)*));
             let _ = file.flush();
         }
