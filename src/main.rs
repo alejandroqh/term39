@@ -143,6 +143,14 @@ fn main() -> io::Result<()> {
         // Get current terminal size
         let (cols, rows) = terminal::size()?;
 
+        // Check if terminal was resized and recreate buffer if needed
+        let (buffer_cols, buffer_rows) = video_buffer.dimensions();
+        if cols != buffer_cols || rows != buffer_rows {
+            // Clear the terminal screen to remove artifacts
+            execute!(stdout, terminal::Clear(ClearType::All))?;
+            video_buffer = VideoBuffer::new(cols, rows);
+        }
+
         // Render the background (every frame for consistency)
         render_background(&mut video_buffer, &charset);
 
@@ -453,9 +461,9 @@ fn main() -> io::Result<()> {
                                 let width = 150;
                                 let height = 50;
 
-                                // Center the window
+                                // Center the window (ensuring y >= 1 to avoid overlapping top bar)
                                 let x = (cols.saturating_sub(width)) / 2;
-                                let y = (rows.saturating_sub(height)) / 2;
+                                let y = ((rows.saturating_sub(height)) / 2).max(1);
 
                                 window_manager.create_window(
                                     x,
@@ -486,9 +494,9 @@ fn main() -> io::Result<()> {
                                 let width = 150;
                                 let height = 50;
 
-                                // Center the window (will be maximized immediately)
+                                // Center the window (will be maximized immediately, ensuring y >= 1)
                                 let x = (cols.saturating_sub(width)) / 2;
-                                let y = (rows.saturating_sub(height)) / 2;
+                                let y = ((rows.saturating_sub(height)) / 2).max(1);
 
                                 let window_id = window_manager.create_window(
                                     x,
@@ -641,7 +649,7 @@ fn main() -> io::Result<()> {
                         let width = 150;
                         let height = 50;
                         let x = (cols.saturating_sub(width)) / 2;
-                        let y = (rows.saturating_sub(height)) / 2;
+                        let y = ((rows.saturating_sub(height)) / 2).max(1);
 
                         window_manager.create_window(
                             x,

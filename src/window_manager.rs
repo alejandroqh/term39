@@ -568,11 +568,12 @@ impl WindowManager {
                 let new_width = (resize.start_width as i16 + delta_x).max(20) as u16;
                 let new_height = (resize.start_height as i16 + delta_y).max(5) as u16;
 
+                // Update window dimensions immediately for visual feedback
                 terminal_window.window.width = new_width;
                 terminal_window.window.height = new_height;
 
-                // Resize the terminal to match new window size
-                let _ = terminal_window.resize(new_width, new_height);
+                // DON'T resize the terminal PTY during drag - it causes artifacts
+                // The PTY will be resized on mouse up
             }
         }
 
@@ -609,6 +610,17 @@ impl WindowManager {
                     // Resize the terminal to match new window size
                     let _ = terminal_window.resize(snap_width, snap_height);
                 }
+            }
+        }
+
+        // Finalize resize - update PTY terminal size
+        if let Some(resize) = self.resizing {
+            if let Some(terminal_window) =
+                self.windows.iter_mut().find(|w| w.id() == resize.window_id)
+            {
+                // Resize the terminal PTY to match final window size
+                let _ = terminal_window
+                    .resize(terminal_window.window.width, terminal_window.window.height);
             }
         }
 
