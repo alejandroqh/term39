@@ -363,6 +363,7 @@ fn main() -> io::Result<()> {
                     let mut handled = false;
 
                     // Check if there's an active prompt - it takes priority
+                    #[allow(clippy::collapsible_if)]
                     if let Some(ref prompt) = active_prompt {
                         if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
                             if let Some(action) =

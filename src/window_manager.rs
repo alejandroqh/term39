@@ -262,6 +262,7 @@ impl WindowManager {
         }
     }
 
+    #[allow(clippy::collapsible_if)]
     fn handle_mouse_drag(&mut self, buffer: &mut VideoBuffer, x: u16, y: u16) {
         // Handle window dragging
         if let Some(drag) = self.dragging {
@@ -407,6 +408,7 @@ impl WindowManager {
         // Focus the clicked window if found
         if let Some(window_id) = clicked_window_id {
             // If the window is minimized, restore it first
+            #[allow(clippy::collapsible_if)]
             if let Some(win) = self.windows.iter_mut().find(|w| w.id() == window_id) {
                 if win.window.is_minimized {
                     win.window.restore_from_minimize();
@@ -421,6 +423,7 @@ impl WindowManager {
     }
 
     /// Send input to the focused terminal window
+    #[allow(clippy::collapsible_if)]
     pub fn send_to_focused(&mut self, s: &str) -> std::io::Result<()> {
         if let FocusState::Window(id) = self.focus {
             if let Some(terminal_window) = self.windows.iter_mut().find(|w| w.id() == id) {
@@ -431,6 +434,7 @@ impl WindowManager {
     }
 
     /// Send a character to the focused terminal window
+    #[allow(clippy::collapsible_if)]
     pub fn send_char_to_focused(&mut self, c: char) -> std::io::Result<()> {
         if let FocusState::Window(id) = self.focus {
             if let Some(terminal_window) = self.windows.iter_mut().find(|w| w.id() == id) {
@@ -479,6 +483,7 @@ impl WindowManager {
         let next_window_id = sorted_windows[next_index];
 
         // If the window is minimized, restore it
+        #[allow(clippy::collapsible_if)]
         if let Some(win) = self.windows.iter_mut().find(|w| w.id() == next_window_id) {
             if win.window.is_minimized {
                 win.window.restore_from_minimize();

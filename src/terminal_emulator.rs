@@ -36,7 +36,7 @@ impl TerminalEmulator {
                 pixel_width: 0,
                 pixel_height: 0,
             })
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
 
         // Spawn shell process
         let mut cmd = CommandBuilder::new_default_prog();
@@ -52,7 +52,7 @@ impl TerminalEmulator {
         let child = pty_pair
             .slave
             .spawn_command(cmd)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
 
         // Get master PTY for I/O
         let pty_master = pty_pair.master;
@@ -60,13 +60,13 @@ impl TerminalEmulator {
         // Get reader and writer
         let mut reader = pty_master
             .try_clone_reader()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
 
         debug_log!("PTY: Got reader");
 
         let writer = pty_master
             .take_writer()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
 
         debug_log!("PTY: Got writer");
 
@@ -177,7 +177,7 @@ impl TerminalEmulator {
                 pixel_width: 0,
                 pixel_height: 0,
             })
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
 
         Ok(())
     }
