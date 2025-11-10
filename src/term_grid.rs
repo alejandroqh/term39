@@ -264,6 +264,19 @@ impl TerminalGrid {
 
     /// Move cursor to the next line, scrolling if necessary
     fn linefeed(&mut self) {
+        // Special case: if cursor is at row 0 and column 0, and row 0 is empty,
+        // don't move down. This prevents the shell init newline from creating a blank line.
+        if self.cursor.y == 0 && self.cursor.x == 0 {
+            // Check if row 0 is empty (all spaces)
+            if let Some(row) = self.rows.first() {
+                let is_empty = row.iter().all(|cell| cell.c == ' ');
+                if is_empty {
+                    // Don't move cursor, just ignore this linefeed
+                    return;
+                }
+            }
+        }
+
         if self.cursor.y == self.scroll_region_bottom {
             // At bottom of scroll region, scroll up
             self.scroll_up(1);

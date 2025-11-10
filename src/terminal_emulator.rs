@@ -49,6 +49,9 @@ impl TerminalEmulator {
         // Set PROMPT_EOL_MARK to empty string to hide the mark entirely
         cmd.env("PROMPT_EOL_MARK", "");
 
+        // Disable PROMPT_SP entirely to prevent any cursor positioning at startup
+        cmd.env("PROMPT_SP", "");
+
         let child = pty_pair
             .slave
             .spawn_command(cmd)
