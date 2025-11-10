@@ -41,7 +41,7 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          name: TERM39 v${{ steps.get_version.outputs.version }}
+          name: v${{ steps.get_version.outputs.version }}
           body_path: release_notes.txt
           draft: false
           prerelease: false
@@ -89,26 +89,26 @@ jobs:
         if: matrix.use_zigbuild
         uses: goto-bus-stop/setup-zig@v2
         with:
-          version: 0.11.0
+          version: 0.13.0
 
       - name: Install cargo-zigbuild
         if: matrix.use_zigbuild
         run: cargo install cargo-zigbuild
 
       - name: Cache cargo registry
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache cargo index
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache cargo build
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
@@ -127,7 +127,18 @@ jobs:
           tar czf term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz term39
           mv term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz ${{ github.workspace }}/
 
-      - name: Upload Release Asset
+      - name: Generate SHA256 checksum
+        run: |
+          cd ${{ github.workspace }}
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            shasum -a 256 term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz > term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz.sha256
+          else
+            sha256sum term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz > term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz.sha256
+          fi
+
+      - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
-          files: ./term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz
+          files: |
+            ./term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz
+            ./term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz.sha256
