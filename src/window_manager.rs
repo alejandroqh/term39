@@ -135,16 +135,17 @@ impl WindowManager {
 
         // Apply positions to windows
         for (idx, &window_id) in visible_ids.iter().enumerate() {
-            if idx < positions.len() {
-                if let Some(win) = self.windows.iter_mut().find(|w| w.id() == window_id) {
-                    let (x, y, width, height) = positions[idx];
-                    win.window.x = x;
-                    win.window.y = y;
-                    win.window.width = width;
-                    win.window.height = height;
-                    // Resize the terminal to match new window size
-                    let _ = win.resize(width, height);
-                }
+            if idx >= positions.len() {
+                continue;
+            }
+            if let Some(win) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+                let (x, y, width, height) = positions[idx];
+                win.window.x = x;
+                win.window.y = y;
+                win.window.width = width;
+                win.window.height = height;
+                // Resize the terminal to match new window size
+                let _ = win.resize(width, height);
             }
         }
     }
@@ -592,32 +593,29 @@ impl WindowManager {
 
     fn handle_mouse_up(&mut self, buffer: &mut VideoBuffer) {
         // Apply snap positioning if a snap zone is active
-        if let Some(snap_zone) = self.current_snap_zone {
-            if let Some(drag) = self.dragging {
-                let (buffer_width, buffer_height) = buffer.dimensions();
-                let (snap_x, snap_y, snap_width, snap_height) =
-                    self.calculate_snap_rect(snap_zone, buffer_width, buffer_height);
+        if let (Some(snap_zone), Some(drag)) = (self.current_snap_zone, self.dragging) {
+            let (buffer_width, buffer_height) = buffer.dimensions();
+            let (snap_x, snap_y, snap_width, snap_height) =
+                self.calculate_snap_rect(snap_zone, buffer_width, buffer_height);
 
-                // Find the dragged window and apply snap position
-                if let Some(terminal_window) =
-                    self.windows.iter_mut().find(|w| w.id() == drag.window_id)
-                {
-                    terminal_window.window.x = snap_x;
-                    terminal_window.window.y = snap_y;
-                    terminal_window.window.width = snap_width;
-                    terminal_window.window.height = snap_height;
+            // Find the dragged window and apply snap position
+            if let Some(terminal_window) =
+                self.windows.iter_mut().find(|w| w.id() == drag.window_id)
+            {
+                terminal_window.window.x = snap_x;
+                terminal_window.window.y = snap_y;
+                terminal_window.window.width = snap_width;
+                terminal_window.window.height = snap_height;
 
-                    // Resize the terminal to match new window size
-                    let _ = terminal_window.resize(snap_width, snap_height);
-                }
+                // Resize the terminal to match new window size
+                let _ = terminal_window.resize(snap_width, snap_height);
             }
         }
 
         // Finalize resize - update PTY terminal size
         if let Some(resize) = self.resizing {
-            if let Some(terminal_window) =
-                self.windows.iter_mut().find(|w| w.id() == resize.window_id)
-            {
+            let window_id = resize.window_id;
+            if let Some(terminal_window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
                 // Resize the terminal PTY to match final window size
                 let _ = terminal_window
                     .resize(terminal_window.window.width, terminal_window.window.height);
