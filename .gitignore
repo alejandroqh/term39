@@ -20,3 +20,6 @@ Thumbs.db
 # AI Agents
 CLAUDE.md
 .claude/
+
+# Release binaries (uploaded to GitHub Releases, not committed)
+releases/
