@@ -22,7 +22,24 @@ pub struct WindowManager {
     resizing: Option<ResizeState>,
     scrollbar_dragging: Option<ScrollbarDragState>,
     last_click: Option<LastClick>,
+    current_snap_zone: Option<SnapZone>,
 }
+
+/// Snap zones for window positioning
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum SnapZone {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+    FullLeft,
+    FullRight,
+    FullTop,
+    FullBottom,
+}
+
+/// Snap threshold in pixels
+const SNAP_THRESHOLD: u16 = 25;
 
 #[derive(Clone, Copy, Debug)]
 struct DragState {
@@ -65,6 +82,7 @@ impl WindowManager {
             resizing: None,
             scrollbar_dragging: None,
             last_click: None,
+            current_snap_zone: None,
         }
     }
 
@@ -133,6 +151,91 @@ impl WindowManager {
         None
     }
 
+    /// Calculate target rectangle (x, y, width, height) for a given snap zone
+    fn calculate_snap_rect(
+        &self,
+        zone: SnapZone,
+        buffer_width: u16,
+        buffer_height: u16,
+    ) -> (u16, u16, u16, u16) {
+        // Account for top bar (y starts at 1) and button bar (height - 1)
+        let usable_height = buffer_height.saturating_sub(2); // -1 for top bar, -1 for button bar
+        let half_width = buffer_width / 2;
+        let half_height = usable_height / 2;
+
+        match zone {
+            SnapZone::TopLeft => (0, 1, half_width, half_height),
+            SnapZone::TopRight => (half_width, 1, half_width, half_height),
+            SnapZone::BottomLeft => (0, 1 + half_height, half_width, half_height),
+            SnapZone::BottomRight => (half_width, 1 + half_height, half_width, half_height),
+            SnapZone::FullLeft => (0, 1, half_width, usable_height),
+            SnapZone::FullRight => (half_width, 1, half_width, usable_height),
+            SnapZone::FullTop => (0, 1, buffer_width, half_height),
+            SnapZone::FullBottom => (0, 1 + half_height, buffer_width, half_height),
+        }
+    }
+
+    /// Detect snap zone based on mouse position
+    /// Checks corners first, then edges
+    fn detect_snap_zone(
+        &self,
+        x: u16,
+        y: u16,
+        buffer_width: u16,
+        buffer_height: u16,
+    ) -> Option<SnapZone> {
+        let threshold = SNAP_THRESHOLD;
+
+        // Define corner regions (top-left, top-right, bottom-left, bottom-right)
+        // Corners are checked first for priority
+
+        // Top-left corner
+        if x <= threshold && y <= threshold + 1 {
+            return Some(SnapZone::TopLeft);
+        }
+
+        // Top-right corner
+        if x >= buffer_width.saturating_sub(threshold) && y <= threshold + 1 {
+            return Some(SnapZone::TopRight);
+        }
+
+        // Bottom-left corner
+        if x <= threshold && y >= buffer_height.saturating_sub(threshold + 1) {
+            return Some(SnapZone::BottomLeft);
+        }
+
+        // Bottom-right corner
+        if x >= buffer_width.saturating_sub(threshold)
+            && y >= buffer_height.saturating_sub(threshold + 1)
+        {
+            return Some(SnapZone::BottomRight);
+        }
+
+        // Check edges (full-width or full-height snaps)
+
+        // Left edge (not corner)
+        if x <= threshold {
+            return Some(SnapZone::FullLeft);
+        }
+
+        // Right edge (not corner)
+        if x >= buffer_width.saturating_sub(threshold) {
+            return Some(SnapZone::FullRight);
+        }
+
+        // Top edge (not corner)
+        if y <= threshold + 1 {
+            return Some(SnapZone::FullTop);
+        }
+
+        // Bottom edge (not corner)
+        if y >= buffer_height.saturating_sub(threshold + 1) {
+            return Some(SnapZone::FullBottom);
+        }
+
+        None
+    }
+
     /// Handle mouse event
     pub fn handle_mouse_event(&mut self, buffer: &mut VideoBuffer, event: MouseEvent) {
         match event.kind {
@@ -143,7 +246,7 @@ impl WindowManager {
                 self.handle_mouse_drag(buffer, event.column, event.row);
             }
             MouseEventKind::Up(MouseButton::Left) => {
-                self.handle_mouse_up();
+                self.handle_mouse_up(buffer);
             }
             MouseEventKind::ScrollUp => {
                 self.handle_scroll_up(event.column, event.row);
@@ -299,11 +402,14 @@ impl WindowManager {
     fn handle_mouse_drag(&mut self, buffer: &mut VideoBuffer, x: u16, y: u16) {
         // Handle window dragging
         if let Some(drag) = self.dragging {
+            let (buffer_width, buffer_height) = buffer.dimensions();
+
+            // Detect snap zone for preview (don't apply position yet)
+            self.current_snap_zone = self.detect_snap_zone(x, y, buffer_width, buffer_height);
+
             if let Some(terminal_window) =
                 self.windows.iter_mut().find(|w| w.id() == drag.window_id)
             {
-                let (buffer_width, buffer_height) = buffer.dimensions();
-
                 // Calculate desired position
                 let desired_x = x as i16 - drag.offset_x;
                 let desired_y = y as i16 - drag.offset_y;
@@ -356,10 +462,33 @@ impl WindowManager {
         }
     }
 
-    fn handle_mouse_up(&mut self) {
+    fn handle_mouse_up(&mut self, buffer: &mut VideoBuffer) {
+        // Apply snap positioning if a snap zone is active
+        if let Some(snap_zone) = self.current_snap_zone {
+            if let Some(drag) = self.dragging {
+                let (buffer_width, buffer_height) = buffer.dimensions();
+                let (snap_x, snap_y, snap_width, snap_height) =
+                    self.calculate_snap_rect(snap_zone, buffer_width, buffer_height);
+
+                // Find the dragged window and apply snap position
+                if let Some(terminal_window) =
+                    self.windows.iter_mut().find(|w| w.id() == drag.window_id)
+                {
+                    terminal_window.window.x = snap_x;
+                    terminal_window.window.y = snap_y;
+                    terminal_window.window.width = snap_width;
+                    terminal_window.window.height = snap_height;
+
+                    // Resize the terminal to match new window size
+                    let _ = terminal_window.resize(snap_width, snap_height);
+                }
+            }
+        }
+
         self.dragging = None;
         self.resizing = None;
         self.scrollbar_dragging = None;
+        self.current_snap_zone = None;
     }
 
     #[allow(clippy::collapsible_if)]
@@ -405,6 +534,65 @@ impl WindowManager {
         // Close windows whose shell processes have exited
         for window_id in windows_to_close {
             self.close_window(window_id);
+        }
+    }
+
+    /// Render snap preview overlay (if dragging and snap zone is active)
+    pub fn render_snap_preview(&self, buffer: &mut VideoBuffer, charset: &Charset) {
+        use crate::video_buffer::Cell;
+        use crossterm::style::Color;
+
+        // Only render if dragging and a snap zone is active
+        if self.dragging.is_none() || self.current_snap_zone.is_none() {
+            return;
+        }
+
+        let snap_zone = self.current_snap_zone.unwrap();
+        let (buffer_width, buffer_height) = buffer.dimensions();
+        let (x, y, width, height) =
+            self.calculate_snap_rect(snap_zone, buffer_width, buffer_height);
+
+        // Use bright yellow for the preview border
+        let border_color = Color::Yellow;
+        let bg_color = Color::Black;
+
+        // Draw top border
+        for i in 0..width {
+            let ch = if i == 0 {
+                charset.border_top_left
+            } else if i == width - 1 {
+                charset.border_top_right
+            } else {
+                charset.border_horizontal
+            };
+            buffer.set(x + i, y, Cell::new(ch, border_color, bg_color));
+        }
+
+        // Draw bottom border
+        let bottom_y = y + height.saturating_sub(1);
+        for i in 0..width {
+            let ch = if i == 0 {
+                charset.border_bottom_left
+            } else if i == width - 1 {
+                charset.border_bottom_right
+            } else {
+                charset.border_horizontal
+            };
+            buffer.set(x + i, bottom_y, Cell::new(ch, border_color, bg_color));
+        }
+
+        // Draw left and right borders
+        for j in 1..height.saturating_sub(1) {
+            buffer.set(
+                x,
+                y + j,
+                Cell::new(charset.border_vertical, border_color, bg_color),
+            );
+            buffer.set(
+                x + width.saturating_sub(1),
+                y + j,
+                Cell::new(charset.border_vertical, border_color, bg_color),
+            );
         }
     }
 

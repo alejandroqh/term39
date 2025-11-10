@@ -153,6 +153,9 @@ fn main() -> io::Result<()> {
         // Render all windows
         window_manager.render_all(&mut video_buffer, &charset);
 
+        // Render snap preview overlay (if dragging and snap zone is active)
+        window_manager.render_snap_preview(&mut video_buffer, &charset);
+
         // Render the button bar
         render_button_bar(&mut video_buffer, &window_manager);
 
