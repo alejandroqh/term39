@@ -35,6 +35,16 @@ A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-D
 
 ## Installation
 
+### From crates.io (Recommended)
+
+The easiest way to install TERM39 is via cargo:
+
+```bash
+cargo install term39
+```
+
+This requires Rust to be installed. [Install Rust](https://rustup.rs/)
+
 ### From Source
 
 Ensure you have Rust installed (1.70 or later). [Install Rust](https://rustup.rs/)
