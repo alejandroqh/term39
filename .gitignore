@@ -1,0 +1,22 @@
+# Rust build artifacts
+/target
+Cargo.lock
+
+# Debug logs
+debug.log
+*.log
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS files
+Thumbs.db
+
+# AI Agents
+CLAUDE.md
+.claude/
