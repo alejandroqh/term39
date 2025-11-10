@@ -86,6 +86,13 @@ impl PromptButton {
     }
 }
 
+/// Text alignment for prompt messages
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum TextAlign {
+    Left,
+    Center,
+}
+
 /// A modal prompt dialog (no title bar, centered on screen)
 pub struct Prompt {
     pub prompt_type: PromptType,
@@ -96,10 +103,11 @@ pub struct Prompt {
     pub x: u16,
     pub y: u16,
     pub selected_button_index: usize, // Index of currently selected button for keyboard navigation
+    pub text_align: TextAlign,        // Text alignment for the message
 }
 
 impl Prompt {
-    /// Create a new prompt (auto-sized and centered)
+    /// Create a new prompt (auto-sized and centered) with center alignment
     pub fn new(
         prompt_type: PromptType,
         message: String,
@@ -107,11 +115,32 @@ impl Prompt {
         buffer_width: u16,
         buffer_height: u16,
     ) -> Self {
+        Self::new_with_alignment(
+            prompt_type,
+            message,
+            buttons,
+            buffer_width,
+            buffer_height,
+            TextAlign::Center,
+        )
+    }
+
+    /// Create a new prompt (auto-sized and centered) with custom alignment
+    pub fn new_with_alignment(
+        prompt_type: PromptType,
+        message: String,
+        buttons: Vec<PromptButton>,
+        buffer_width: u16,
+        buffer_height: u16,
+        text_align: TextAlign,
+    ) -> Self {
         // Calculate dimensions
         let message_lines: Vec<&str> = message.lines().collect();
+
+        // Strip color codes when calculating width
         let max_message_width = message_lines
             .iter()
-            .map(|line| line.len())
+            .map(|line| Self::strip_color_codes(line).len())
             .max()
             .unwrap_or(0) as u16;
 
@@ -142,31 +171,100 @@ impl Prompt {
             x,
             y,
             selected_button_index,
+            text_align,
+        }
+    }
+
+    /// Strip color codes from a string for length calculation
+    fn strip_color_codes(s: &str) -> String {
+        let mut result = String::new();
+        let mut chars = s.chars();
+        while let Some(ch) = chars.next() {
+            if ch == '{' {
+                // Skip until we find '}'
+                for next in chars.by_ref() {
+                    if next == '}' {
+                        break;
+                    }
+                }
+            } else {
+                result.push(ch);
+            }
+        }
+        result
+    }
+
+    /// Parse color code and return the corresponding Color
+    fn parse_color_code(code: &str) -> Option<Color> {
+        match code {
+            "Y" | "y" => Some(Color::Yellow),
+            "C" | "c" => Some(Color::Cyan),
+            "W" | "w" => Some(Color::White),
+            "G" | "g" => Some(Color::Green),
+            "R" | "r" => Some(Color::Red),
+            "M" | "m" => Some(Color::Magenta),
+            "B" | "b" => Some(Color::Blue),
+            "DG" | "dg" => Some(Color::DarkGrey),
+            _ => None,
         }
     }
 
     /// Render the prompt to the video buffer
     pub fn render(&self, buffer: &mut VideoBuffer, _charset: &Charset) {
         let bg_color = self.prompt_type.background_color();
-        let fg_color = self.prompt_type.foreground_color();
+        let default_fg_color = self.prompt_type.foreground_color();
 
         // Fill the entire prompt area with the background color (no borders)
         for y in 0..self.height {
             for x in 0..self.width {
-                buffer.set(self.x + x, self.y + y, Cell::new(' ', fg_color, bg_color));
+                buffer.set(
+                    self.x + x,
+                    self.y + y,
+                    Cell::new(' ', default_fg_color, bg_color),
+                );
             }
         }
 
-        // Render message (centered)
+        // Render message (with alignment and color support)
         let message_lines: Vec<&str> = self.message.lines().collect();
         let message_start_y = self.y + 2; // Leave space at top
 
         for (i, line) in message_lines.iter().enumerate() {
-            let line_x = self.x + (self.width.saturating_sub(line.len() as u16)) / 2;
             let line_y = message_start_y + i as u16;
 
-            for (j, ch) in line.chars().enumerate() {
-                buffer.set(line_x + j as u16, line_y, Cell::new(ch, fg_color, bg_color));
+            // Calculate line_x based on alignment
+            let stripped_line = Self::strip_color_codes(line);
+            let line_x = match self.text_align {
+                TextAlign::Center => {
+                    self.x + (self.width.saturating_sub(stripped_line.len() as u16)) / 2
+                }
+                TextAlign::Left => self.x + 3, // 3 spaces from left edge
+            };
+
+            // Render line with color code parsing
+            let mut current_x = line_x;
+            let mut current_color = default_fg_color;
+            let mut chars = line.chars();
+
+            while let Some(ch) = chars.next() {
+                if ch == '{' {
+                    // Collect color code
+                    let mut code = String::new();
+                    for next in chars.by_ref() {
+                        if next == '}' {
+                            // Apply color if valid
+                            if let Some(color) = Self::parse_color_code(&code) {
+                                current_color = color;
+                            }
+                            break;
+                        }
+                        code.push(next);
+                    }
+                } else {
+                    // Render character with current color
+                    buffer.set(current_x, line_y, Cell::new(ch, current_color, bg_color));
+                    current_x += 1;
+                }
             }
         }
 
@@ -185,7 +283,11 @@ impl Prompt {
             if is_selected {
                 // Add ">" indicator before selected button (1 cell to the left)
                 if button_x > self.x {
-                    buffer.set(button_x - 1, button_y, Cell::new('>', fg_color, bg_color));
+                    buffer.set(
+                        button_x - 1,
+                        button_y,
+                        Cell::new('>', default_fg_color, bg_color),
+                    );
                 }
             }
 
@@ -207,7 +309,11 @@ impl Prompt {
 
             // Render selection indicator after button
             if is_selected {
-                buffer.set(button_x, button_y, Cell::new('<', fg_color, bg_color));
+                buffer.set(
+                    button_x,
+                    button_y,
+                    Cell::new('<', default_fg_color, bg_color),
+                );
             }
 
             // Add spacing between buttons

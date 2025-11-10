@@ -21,7 +21,7 @@ use crossterm::{
     style::Color,
     terminal::{self, ClearType},
 };
-use prompt::{Prompt, PromptAction, PromptButton, PromptType};
+use prompt::{Prompt, PromptAction, PromptButton, PromptType, TextAlign};
 use std::io::{self, Write};
 use std::time::Duration;
 use std::{thread, time};
@@ -332,32 +332,32 @@ fn main() -> io::Result<()> {
                             // Show help if desktop is focused (prompts are handled above)
                             if current_focus == FocusState::Desktop {
                                 let (cols, rows) = terminal::size()?;
-                                let help_message = "KEYBOARD SHORTCUTS\n\
+                                let help_message = "{C}KEYBOARD SHORTCUTS{W}\n\
                                     \n\
-                                    't'       - Create new terminal window\n\
-                                    'T'       - Create new maximized terminal window\n\
-                                    'q'/ESC   - Exit application (from desktop)\n\
-                                    'h'       - Show this help screen\n\
-                                    'l'       - Show license and about information\n\
-                                    'c'       - Show calendar (\u{2190}\u{2192} months, \u{2191}\u{2193} years, t today)\n\
-                                    ALT+TAB   - Switch between windows\n\
+                                    {Y}'t'{W}       - Create new terminal window\n\
+                                    {Y}'T'{W}       - Create new maximized terminal window\n\
+                                    {Y}'q'/ESC{W}   - Exit application (from desktop)\n\
+                                    {Y}'h'{W}       - Show this help screen\n\
+                                    {Y}'l'{W}       - Show license and about information\n\
+                                    {Y}'c'{W}       - Show calendar ({Y}\u{2190}\u{2192}{W} months, {Y}\u{2191}\u{2193}{W} years, {Y}t{W} today)\n\
+                                    {Y}ALT+TAB{W}   - Switch between windows\n\
                                     \n\
-                                    POPUP DIALOG CONTROLS\n\
+                                    {C}POPUP DIALOG CONTROLS{W}\n\
                                     \n\
-                                    TAB/Arrow keys - Navigate between buttons\n\
-                                    ENTER          - Activate selected button\n\
-                                    ESC            - Close dialog\n\
+                                    {Y}TAB/Arrow keys{W} - Navigate between buttons\n\
+                                    {Y}ENTER{W}          - Activate selected button\n\
+                                    {Y}ESC{W}            - Close dialog\n\
                                     \n\
-                                    MOUSE CONTROLS\n\
+                                    {C}MOUSE CONTROLS{W}\n\
                                     \n\
-                                    Click title bar  - Drag window\n\
-                                    Click [X]        - Close window\n\
-                                    Drag ╬ handle    - Resize window\n\
-                                    Click window     - Focus window\n\
-                                    Click bottom bar - Switch windows";
+                                    {Y}Click title bar{W}  - Drag window\n\
+                                    {Y}Click [X]{W}        - Close window\n\
+                                    {Y}Drag ╬ handle{W}    - Resize window\n\
+                                    {Y}Click window{W}     - Focus window\n\
+                                    {Y}Click bottom bar{W} - Switch windows";
 
-                                active_prompt = Some(Prompt::new(
-                                    PromptType::Success,
+                                active_prompt = Some(Prompt::new_with_alignment(
+                                    PromptType::Info,
                                     help_message.to_string(),
                                     vec![PromptButton::new(
                                         "Close".to_string(),
@@ -366,6 +366,7 @@ fn main() -> io::Result<()> {
                                     )],
                                     cols,
                                     rows,
+                                    TextAlign::Left,
                                 ));
                             } else if current_focus != FocusState::Desktop {
                                 // Send 'h' to terminal
@@ -691,16 +692,21 @@ fn render_top_bar(buffer: &mut VideoBuffer, focus: FocusState, new_terminal_butt
     // Left section - New Terminal button (always visible)
     new_terminal_button.render(buffer);
 
-    // Right section - Clock
+    // Right section - Clock with dark background
     let now = Local::now();
     let time_str = now.format("%H:%M:%S").to_string();
-    let time_pos = cols.saturating_sub(time_str.len() as u16 + 1);
 
-    for (i, ch) in time_str.chars().enumerate() {
+    // Format: "| HH:MM:SS " (with separator and trailing space)
+    let clock_with_separator = format!("| {} ", time_str);
+    let clock_width = clock_with_separator.len() as u16;
+    let time_pos = cols.saturating_sub(clock_width);
+
+    // Render clock with dark background
+    for (i, ch) in clock_with_separator.chars().enumerate() {
         buffer.set(
             time_pos + i as u16,
             0,
-            Cell::new(ch, Color::White, bg_color),
+            Cell::new(ch, Color::White, Color::DarkGrey),
         );
     }
 }
