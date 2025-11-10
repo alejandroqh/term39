@@ -200,8 +200,8 @@ impl TerminalWindow {
             (0, 0)
         } else {
             let track_height = (track_end - track_start) as usize;
-            let thumb_size =
-                ((visible_rows as f64 / total_lines as f64) * track_height as f64).max(1.0) as usize;
+            let thumb_size = ((visible_rows as f64 / total_lines as f64) * track_height as f64)
+                .max(1.0) as usize;
             let max_scroll = total_lines.saturating_sub(visible_rows);
             // Invert the scroll ratio so thumb is at bottom when at current output (scroll_offset=0)
             let scroll_ratio = if max_scroll > 0 {
