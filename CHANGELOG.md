@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-11-10
+
+### Added
+- Window snapping to corners and auto-snap feature
+  - Automatically snaps windows to screen corners when dragging near edges
+  - Improves window positioning and organization
+
+### Fixed
+- Resize render glitch that occurred during window resizing operations
+  - Multiple improvements to rendering during resize events
+  - Smoother window resizing experience
+
+### Changed
+- Updated README with splash screen ASCII art for better visual branding
+
 ## [0.2.1] - 2025-11-10
 
 ### Fixed
@@ -78,6 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - portable-pty 0.8 for PTY support
   - vte 0.13 for ANSI/VT escape sequences
 
+[0.3.0]: https://github.com/alejandroqh/term39/releases/tag/v0.3.0
 [0.2.1]: https://github.com/alejandroqh/term39/releases/tag/v0.2.1
 [0.2.0]: https://github.com/alejandroqh/term39/releases/tag/v0.2.0
 [0.1.0]: https://github.com/alejandroqh/term39/releases/tag/v0.1.0
