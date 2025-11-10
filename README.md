@@ -75,11 +75,29 @@ Download the latest binary from the [Releases](https://github.com/alejandroqh/te
 | Key | Action |
 |-----|--------|
 | `t` | Create new terminal window (from desktop) |
+| `T` | Create new maximized terminal window (from desktop) |
 | `q` or `ESC` | Exit application (from desktop) |
 | `h` | Show help screen |
+| `l` | Show license and about information |
+| `c` | Show calendar |
 | `ALT+TAB` | Switch between windows |
-| `TAB` | Navigate between dialog buttons |
+
+### Dialog Controls
+
+| Key | Action |
+|-----|--------|
+| `TAB` or `LEFT`/`RIGHT` | Navigate between dialog buttons |
 | `ENTER` | Activate selected button |
+| `ESC` | Close dialog |
+
+### Calendar Navigation (when calendar is open)
+
+| Key | Action |
+|-----|--------|
+| `LEFT`/`RIGHT` or `<`/`>` or `,`/`.` | Navigate months |
+| `UP`/`DOWN` | Navigate years |
+| `t` or `HOME` | Jump to today |
+| `ESC` | Close calendar |
 
 ### Mouse Controls
 
