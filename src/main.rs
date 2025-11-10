@@ -746,7 +746,12 @@ fn show_splash_screen(
     };
 
     // License information to display below ASCII art
-    let license_lines = ["", "MIT License", "Copyright (c) 2025 Alejandro Quintanar"];
+    let license_lines = [
+        "",
+        "Version 0.1.0",
+        "MIT License",
+        "Copyright (c) 2025 Alejandro Quintanar",
+    ];
 
     // Calculate window dimensions
     let art_width = ascii_art[0].chars().count() as u16;
