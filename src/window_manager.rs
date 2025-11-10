@@ -456,6 +456,18 @@ impl WindowManager {
         }
     }
 
+    /// Maximize window by ID
+    pub fn maximize_window(&mut self, id: u32, buffer_width: u16, buffer_height: u16) {
+        if let Some(win) = self.windows.iter_mut().find(|w| w.id() == id) {
+            // Only maximize if not already maximized
+            if !win.window.is_maximized {
+                win.window.toggle_maximize(buffer_width, buffer_height);
+                // Resize the terminal to match new window size
+                let _ = win.resize(win.window.width, win.window.height);
+            }
+        }
+    }
+
     /// Cycle to the next window (for ALT+TAB)
     /// If the next window is minimized, restore it
     pub fn cycle_to_next_window(&mut self) {

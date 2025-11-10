@@ -335,6 +335,7 @@ fn main() -> io::Result<()> {
                                 let help_message = "KEYBOARD SHORTCUTS\n\
                                     \n\
                                     't'       - Create new terminal window\n\
+                                    'T'       - Create new maximized terminal window\n\
                                     'q'/ESC   - Exit application (from desktop)\n\
                                     'h'       - Show this help screen\n\
                                     'l'       - Show license and about information\n\
@@ -451,6 +452,41 @@ fn main() -> io::Result<()> {
                                 // Send 't' to terminal
                                 debug_log!("Sending 't' to terminal");
                                 let _ = window_manager.send_char_to_focused('t');
+                            }
+                        }
+                        KeyCode::Char('T') => {
+                            // Only create maximized window if desktop is focused
+                            if current_focus == FocusState::Desktop {
+                                debug_log!("Creating new maximized terminal window");
+                                // Create a new terminal window
+                                let (cols, rows) = terminal::size()?;
+
+                                // Window size: 2.5x larger (60*2.5=150, 20*2.5=50)
+                                let width = 150;
+                                let height = 50;
+
+                                // Center the window (will be maximized immediately)
+                                let x = (cols.saturating_sub(width)) / 2;
+                                let y = (rows.saturating_sub(height)) / 2;
+
+                                let window_id = window_manager.create_window(
+                                    x,
+                                    y,
+                                    width,
+                                    height,
+                                    format!("Terminal {}", window_manager.window_count() + 1),
+                                );
+                                debug_log!(
+                                    "Maximized terminal window created with ID: {}",
+                                    window_id
+                                );
+
+                                // Maximize the newly created window
+                                window_manager.maximize_window(window_id, cols, rows);
+                            } else {
+                                // Send 'T' to terminal
+                                debug_log!("Sending 'T' to terminal");
+                                let _ = window_manager.send_char_to_focused('T');
                             }
                         }
                         KeyCode::Char(c) => {
@@ -960,7 +996,6 @@ fn render_calendar(
     cols: u16,
     rows: u16,
 ) {
-
     // Calendar dimensions
     let width = 42u16;
     let height = 18u16;
