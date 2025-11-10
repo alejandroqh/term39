@@ -362,6 +362,7 @@ impl WindowManager {
         self.scrollbar_dragging = None;
     }
 
+    #[allow(clippy::collapsible_if)]
     fn handle_scroll_up(&mut self, x: u16, y: u16) {
         // Find window at position
         if let Some(window_id) = self.window_at(x, y) {
@@ -372,6 +373,7 @@ impl WindowManager {
         }
     }
 
+    #[allow(clippy::collapsible_if)]
     fn handle_scroll_down(&mut self, x: u16, y: u16) {
         // Find window at position
         if let Some(window_id) = self.window_at(x, y) {
