@@ -20,8 +20,6 @@ A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-D
 
 ![TERM39 in action](assets/screenshot.png)
 
-*TERM39 running multiple terminal windows with btop, vim, and file navigation*
-
 ## Features
 
 - **Retro DOS Aesthetic**: Classic blue-and-white color scheme with box-drawing characters
