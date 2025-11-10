@@ -13,7 +13,7 @@ mod window_manager;
 
 use button::Button;
 use charset::Charset;
-use chrono::Local;
+use chrono::{Datelike, Local, NaiveDate};
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind},
@@ -27,6 +27,73 @@ use std::time::Duration;
 use std::{thread, time};
 use video_buffer::{Cell, VideoBuffer};
 use window_manager::{FocusState, WindowManager};
+
+// Calendar state structure
+struct CalendarState {
+    year: i32,
+    month: u32,
+    today: NaiveDate,
+}
+
+impl CalendarState {
+    fn new() -> Self {
+        let today = Local::now().date_naive();
+        Self {
+            year: today.year(),
+            month: today.month(),
+            today,
+        }
+    }
+
+    fn next_month(&mut self) {
+        if self.month == 12 {
+            self.month = 1;
+            self.year += 1;
+        } else {
+            self.month += 1;
+        }
+    }
+
+    fn previous_month(&mut self) {
+        if self.month == 1 {
+            self.month = 12;
+            self.year -= 1;
+        } else {
+            self.month -= 1;
+        }
+    }
+
+    fn next_year(&mut self) {
+        self.year += 1;
+    }
+
+    fn previous_year(&mut self) {
+        self.year -= 1;
+    }
+
+    fn reset_to_today(&mut self) {
+        self.year = self.today.year();
+        self.month = self.today.month();
+    }
+
+    fn month_name(&self) -> &'static str {
+        match self.month {
+            1 => "January",
+            2 => "February",
+            3 => "March",
+            4 => "April",
+            5 => "May",
+            6 => "June",
+            7 => "July",
+            8 => "August",
+            9 => "September",
+            10 => "October",
+            11 => "November",
+            12 => "December",
+            _ => "Unknown",
+        }
+    }
+}
 
 fn main() -> io::Result<()> {
     // Initialize debug logging
@@ -61,6 +128,9 @@ fn main() -> io::Result<()> {
     // Prompt state (None when no prompt is active)
     let mut active_prompt: Option<Prompt> = None;
 
+    // Calendar state (None when calendar is not shown)
+    let mut active_calendar: Option<CalendarState> = None;
+
     // Show splash screen for 1 second
     show_splash_screen(&mut video_buffer, &mut stdout, &charset)?;
 
@@ -69,6 +139,9 @@ fn main() -> io::Result<()> {
 
     // Main loop
     loop {
+        // Get current terminal size
+        let (cols, rows) = terminal::size()?;
+
         // Render the background (every frame for consistency)
         render_background(&mut video_buffer, &charset);
 
@@ -85,6 +158,11 @@ fn main() -> io::Result<()> {
         // Render active prompt (if any) on top of everything
         if let Some(ref prompt) = active_prompt {
             prompt.render(&mut video_buffer, &charset);
+        }
+
+        // Render active calendar (if any) on top of everything
+        if let Some(ref calendar) = active_calendar {
+            render_calendar(&mut video_buffer, calendar, &charset, cols, rows);
         }
 
         // Present buffer to screen
@@ -145,6 +223,46 @@ fn main() -> io::Result<()> {
                             }
                             _ => {
                                 // Ignore other keys when prompt is active
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Handle calendar keyboard navigation if calendar is active
+                    if let Some(ref mut calendar) = active_calendar {
+                        match key_event.code {
+                            KeyCode::Char('<') | KeyCode::Char(',') | KeyCode::Left => {
+                                // Previous month
+                                calendar.previous_month();
+                                continue;
+                            }
+                            KeyCode::Char('>') | KeyCode::Char('.') | KeyCode::Right => {
+                                // Next month
+                                calendar.next_month();
+                                continue;
+                            }
+                            KeyCode::Up => {
+                                // Previous year
+                                calendar.previous_year();
+                                continue;
+                            }
+                            KeyCode::Down => {
+                                // Next year
+                                calendar.next_year();
+                                continue;
+                            }
+                            KeyCode::Char('t') | KeyCode::Home => {
+                                // Reset to today
+                                calendar.reset_to_today();
+                                continue;
+                            }
+                            KeyCode::Esc => {
+                                // ESC dismisses the calendar
+                                active_calendar = None;
+                                continue;
+                            }
+                            _ => {
+                                // Ignore other keys when calendar is active
                                 continue;
                             }
                         }
@@ -219,6 +337,8 @@ fn main() -> io::Result<()> {
                                     't'       - Create new terminal window\n\
                                     'q'/ESC   - Exit application (from desktop)\n\
                                     'h'       - Show this help screen\n\
+                                    'l'       - Show license and about information\n\
+                                    'c'       - Show calendar (\u{2190}\u{2192} months, \u{2191}\u{2193} years, t today)\n\
                                     ALT+TAB   - Switch between windows\n\
                                     \n\
                                     POPUP DIALOG CONTROLS\n\
@@ -249,6 +369,59 @@ fn main() -> io::Result<()> {
                             } else if current_focus != FocusState::Desktop {
                                 // Send 'h' to terminal
                                 let _ = window_manager.send_char_to_focused('h');
+                            }
+                        }
+                        KeyCode::Char('l') => {
+                            // Show license and about if desktop is focused
+                            if current_focus == FocusState::Desktop {
+                                let (cols, rows) = terminal::size()?;
+                                let license_message = "TERM39 - Terminal UI Windows Manager\n\
+                                    \n\
+                                    A low-level terminal UI windows manager built with Rust.\n\
+                                    \n\
+                                    Version: 0.1.0\n\
+                                    Author: Alejandro Quintanar\n\
+                                    Repository: https://github.com/alejandroqh/term39\n\
+                                    \n\
+                                    LICENSE\n\
+                                    \n\
+                                    This software is licensed under the MIT License.\n\
+                                    See LICENSE file or visit the repository for details.\n\
+                                    \n\
+                                    BUILT WITH\n\
+                                    \n\
+                                    This project uses the following open source packages:\n\
+                                    \n\
+                                    - crossterm - Cross-platform terminal manipulation\n\
+                                    - portable-pty - Portable pseudo-terminal support\n\
+                                    - vte - Virtual terminal emulator parser\n\
+                                    - chrono - Date and time library\n\
+                                    \n\
+                                    All dependencies are used under their respective licenses.";
+
+                                active_prompt = Some(Prompt::new(
+                                    PromptType::Info,
+                                    license_message.to_string(),
+                                    vec![PromptButton::new(
+                                        "Close".to_string(),
+                                        PromptAction::Cancel,
+                                        true,
+                                    )],
+                                    cols,
+                                    rows,
+                                ));
+                            } else if current_focus != FocusState::Desktop {
+                                // Send 'l' to terminal
+                                let _ = window_manager.send_char_to_focused('l');
+                            }
+                        }
+                        KeyCode::Char('c') => {
+                            // Show calendar if desktop is focused
+                            if current_focus == FocusState::Desktop {
+                                active_calendar = Some(CalendarState::new());
+                            } else if current_focus != FocusState::Desktop {
+                                // Send 'c' to terminal
+                                let _ = window_manager.send_char_to_focused('c');
                             }
                         }
                         KeyCode::Char('t') => {
@@ -777,6 +950,157 @@ fn render_button_bar(buffer: &mut VideoBuffer, window_manager: &WindowManager) {
         if current_x >= cols - 1 {
             break;
         }
+    }
+}
+
+fn render_calendar(
+    buffer: &mut VideoBuffer,
+    calendar: &CalendarState,
+    charset: &Charset,
+    cols: u16,
+    rows: u16,
+) {
+
+    // Calendar dimensions
+    let width = 42u16;
+    let height = 18u16;
+    let x = (cols.saturating_sub(width)) / 2;
+    let y = (rows.saturating_sub(height)) / 2;
+
+    // Get the first day of the month
+    let first_day = match NaiveDate::from_ymd_opt(calendar.year, calendar.month, 1) {
+        Some(date) => date,
+        None => return, // Invalid date, don't render
+    };
+
+    // Get the number of days in the month
+    let days_in_month = if calendar.month == 12 {
+        match NaiveDate::from_ymd_opt(calendar.year + 1, 1, 1) {
+            Some(next_month) => (next_month - chrono::Duration::days(1)).day(),
+            None => 31,
+        }
+    } else {
+        match NaiveDate::from_ymd_opt(calendar.year, calendar.month + 1, 1) {
+            Some(next_month) => (next_month - chrono::Duration::days(1)).day(),
+            None => 31,
+        }
+    };
+
+    // Get the weekday of the first day (0 = Sunday, 6 = Saturday)
+    let first_weekday = first_day.weekday().num_days_from_sunday() as u16;
+
+    // Colors
+    let bg_color = Color::Blue;
+    let fg_color = Color::White;
+    let title_color = Color::White;
+    let today_bg = Color::Cyan;
+    let today_fg = Color::Black;
+
+    // Fill calendar background
+    for cy in 0..height {
+        for cx in 0..width {
+            buffer.set(x + cx, y + cy, Cell::new(' ', fg_color, bg_color));
+        }
+    }
+
+    // Render title (Month Year)
+    let title = format!("{} {}", calendar.month_name(), calendar.year);
+    let title_len = title.len() as u16;
+    let title_x = if title_len < width {
+        x + (width - title_len) / 2
+    } else {
+        x + 1
+    };
+    for (i, ch) in title.chars().enumerate() {
+        let char_x = title_x + i as u16;
+        if char_x < x + width {
+            buffer.set(char_x, y + 1, Cell::new(ch, title_color, bg_color));
+        }
+    }
+
+    // Render day headers (Su  Mo  Tu  We  Th  Fr  Sa)
+    let day_headers = "Su   Mo   Tu   We   Th   Fr   Sa";
+    let header_len = day_headers.len() as u16;
+    let header_x = if header_len < width {
+        x + (width - header_len) / 2
+    } else {
+        x + 1
+    };
+    for (i, ch) in day_headers.chars().enumerate() {
+        let char_x = header_x + i as u16;
+        if char_x < x + width {
+            buffer.set(char_x, y + 3, Cell::new(ch, fg_color, bg_color));
+        }
+    }
+
+    // Render calendar days
+    let mut day = 1u32;
+    let calendar_start_y = y + 5;
+
+    for week in 0..6 {
+        for weekday in 0..7 {
+            let day_x = header_x + (weekday * 5);
+            let day_y = calendar_start_y + (week * 2);
+
+            if (week == 0 && weekday < first_weekday) || day > days_in_month {
+                continue;
+            }
+
+            // Check if this is today
+            let is_today = calendar.today.year() == calendar.year
+                && calendar.today.month() == calendar.month
+                && calendar.today.day() == day;
+
+            let (day_fg, day_bg) = if is_today {
+                (today_fg, today_bg)
+            } else {
+                (fg_color, bg_color)
+            };
+
+            // Render day number (right-aligned in 2-char space)
+            let day_str = format!("{:>2}", day);
+            for (i, ch) in day_str.chars().enumerate() {
+                buffer.set(day_x + i as u16, day_y, Cell::new(ch, day_fg, day_bg));
+            }
+
+            day += 1;
+        }
+    }
+
+    // Render navigation hints at bottom
+    let hint = "\u{2190}\u{2192} Month | \u{2191}\u{2193} Year | T Today | ESC Close";
+    let hint_len = hint.chars().count() as u16;
+    let hint_x = if hint_len < width {
+        x + (width - hint_len) / 2
+    } else {
+        x + 1
+    };
+    for (i, ch) in hint.chars().enumerate() {
+        let char_x = hint_x + i as u16;
+        if char_x < x + width {
+            buffer.set(
+                char_x,
+                y + height - 1,
+                Cell::new(ch, Color::DarkGrey, bg_color),
+            );
+        }
+    }
+
+    // Add shadow effect
+    let shadow_char = charset.shadow;
+    for sy in 1..height {
+        buffer.set(
+            x + width,
+            y + sy,
+            Cell::new(shadow_char, Color::DarkGrey, Color::Black),
+        );
+    }
+    for sx in 1..=width {
+        buffer.set(
+            x + sx,
+            y + height,
+            Cell::new(shadow_char, Color::DarkGrey, Color::Black),
+        );
     }
 }
 
