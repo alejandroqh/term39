@@ -19,7 +19,8 @@ impl Default for AppConfig {
 
 impl AppConfig {
     /// Get the configuration file path
-    /// Returns ~/.config/term39/config.toml on Unix
+    /// Returns ~/Library/Application Support/term39/config.toml on macOS
+    /// Returns ~/.config/term39/config.toml on Linux
     /// Returns %APPDATA%\term39\config.toml on Windows
     fn config_path() -> Option<PathBuf> {
         let config_dir = dirs::config_dir()?;
