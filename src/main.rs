@@ -807,6 +807,33 @@ fn main() -> io::Result<()> {
                         handled = true;
                     }
 
+                    // Check if click is on the clock in the top bar (only if no prompt)
+                    if !handled
+                        && active_prompt.is_none()
+                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+                        && mouse_event.row == 0
+                    {
+                        // Calculate clock position (same logic as render_top_bar)
+                        let (cols, _) = terminal::size()?;
+                        let now = Local::now();
+                        let time_str = if app_config.show_date_in_clock {
+                            now.format("%a %b %d, %H:%M").to_string()
+                        } else {
+                            now.format("%H:%M:%S").to_string()
+                        };
+                        let clock_with_separator = format!("| {} ", time_str);
+                        let clock_width = clock_with_separator.len() as u16;
+                        let time_pos = cols.saturating_sub(clock_width);
+
+                        // Check if click is within clock area
+                        if mouse_event.column >= time_pos && mouse_event.column < cols {
+                            debug_log!("Clock clicked - showing calendar");
+                            // Show calendar (same as pressing 'c')
+                            active_calendar = Some(CalendarState::new());
+                            handled = true;
+                        }
+                    }
+
                     // Check if click is on the Auto-Tiling toggle button (only if no prompt)
                     if !handled
                         && active_prompt.is_none()
