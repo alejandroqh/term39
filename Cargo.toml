@@ -35,7 +35,7 @@ extended-description = """\
 A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-DOS). \
 Features a full-screen text-based interface with a classic DOS aesthetic, \
 supporting both Unicode and ASCII rendering modes."""
-depends = "$auto"
+depends = "libc6"
 section = "utils"
 priority = "optional"
 assets = [
