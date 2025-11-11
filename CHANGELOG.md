@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-11-11
+
+### Added
+- Settings/configuration window (press 's' key from desktop):
+  - Configuration management system with persistence
+  - Auto-tiling/auto-arrange windows toggle
+  - Show date in top bar toggle
+  - Settings saved to `~/.config/term39/config.toml`
+- Configuration manager for loading and saving user preferences
+- Visual settings window with interactive toggles
+
+### Fixed
+- Various clippy warnings for improved code quality
+
+### Changed
+- Enhanced help screen to include settings key ('s')
+- Bottom bar now shows settings shortcut
+
 ## [0.3.0] - 2025-11-10
 
 ### Added
@@ -93,6 +111,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - portable-pty 0.8 for PTY support
   - vte 0.13 for ANSI/VT escape sequences
 
+[0.4.0]: https://github.com/alejandroqh/term39/releases/tag/v0.4.0
 [0.3.0]: https://github.com/alejandroqh/term39/releases/tag/v0.3.0
 [0.2.1]: https://github.com/alejandroqh/term39/releases/tag/v0.2.1
 [0.2.0]: https://github.com/alejandroqh/term39/releases/tag/v0.2.0

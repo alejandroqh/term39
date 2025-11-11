@@ -27,6 +27,7 @@ A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-D
 - **Retro DOS Aesthetic**: Classic blue-and-white color scheme with box-drawing characters
 - **Multiple Terminal Windows**: Create, manage, and switch between multiple terminal sessions
 - **Window Management**: Drag, resize, minimize, and maximize windows with mouse or keyboard
+- **Configuration System**: Persistent settings with auto-tiling and UI customization options
 - **Double-Buffered Rendering**: Smooth, flicker-free display at ~60fps
 - **Cross-Platform**: Works on Linux, macOS, and Windows
 - **ASCII Compatibility Mode**: Optional `--ascii` flag for maximum terminal compatibility
@@ -80,6 +81,7 @@ Download the latest binary from the [Releases](https://github.com/alejandroqh/te
 | `T` | Create new maximized terminal window (from desktop) |
 | `q` or `ESC` | Exit application (from desktop) |
 | `h` | Show help screen |
+| `s` | Show settings/configuration window |
 | `l` | Show license and about information |
 | `c` | Show calendar |
 | `ALT+TAB` | Switch between windows |
@@ -221,12 +223,12 @@ Contributions are welcome! Whether you're fixing bugs, adding features, or impro
 
 ## Roadmap
 
-- [ ] Configuration file support (colors, keybindings)
+- [x] Configuration file support (colors, keybindings)
 - [ ] Custom themes
 - [ ] Session persistence (save/restore windows)
 - [ ] Tab completion
 - [ ] Split panes within windows
-- [ ] Scrollback buffer
+- [x] Scrollback buffer
 - [ ] Search functionality
 - [ ] Copy/paste support
 
