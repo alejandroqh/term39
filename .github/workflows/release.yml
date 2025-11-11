@@ -36,7 +36,8 @@ jobs:
 
           # If tag has an annotation, use it as release notes
           if [ -n "$tag_message" ] && [ "$tag_message" != "" ]; then
-            echo "$tag_message" > release_notes.txt
+            # Strip PGP signature block from release notes
+            echo "$tag_message" | sed '/-----BEGIN PGP SIGNATURE-----/,/-----END PGP SIGNATURE-----/d' > release_notes.txt
           else
             # Fall back to extracting from CHANGELOG.md
             awk "/^## \[${version}\]/,/^## \[/{if(/^## \[${version}\]/)p=1;else if(/^## \[/)p=0;if(p)print}" CHANGELOG.md > release_notes.txt
