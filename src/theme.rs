@@ -140,7 +140,7 @@ impl Theme {
             clock_fg: Color::White,
 
             // Windows
-            window_title_bg: Color::Black,
+            window_title_bg: Color::DarkGrey,
             window_title_bg_focused: Color::DarkCyan,
             window_title_fg: Color::White,
             window_border: Color::White,
@@ -256,8 +256,8 @@ impl Theme {
             clock_fg: Color::White,
 
             // Windows
-            window_title_bg: Color::Black,
-            window_title_bg_focused: Color::DarkGrey,
+            window_title_bg: Color::DarkGrey,
+            window_title_bg_focused: Color::Grey,
             window_title_fg: Color::White,
             window_border: Color::White,
             window_content_bg: Color::Black,
@@ -372,8 +372,8 @@ impl Theme {
             clock_fg: Color::Cyan,
 
             // Windows
-            window_title_bg: Color::Black,
-            window_title_bg_focused: Color::DarkGrey,
+            window_title_bg: Color::DarkGrey,
+            window_title_bg_focused: Color::Grey,
             window_title_fg: Color::Cyan,
             window_border: Color::DarkGrey,
             window_content_bg: Color::Black,
