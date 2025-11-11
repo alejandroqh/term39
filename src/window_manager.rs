@@ -752,7 +752,14 @@ impl WindowManager {
     }
 
     /// Handle click on button bar - returns window ID if clicked on a button
-    pub fn button_bar_click(&mut self, x: u16, bar_y: u16, click_y: u16) -> Option<u32> {
+    /// offset_x: the starting x position for window buttons (after other UI elements)
+    pub fn button_bar_click(
+        &mut self,
+        x: u16,
+        bar_y: u16,
+        click_y: u16,
+        offset_x: u16,
+    ) -> Option<u32> {
         // Only process if clicking on the button bar row
         if click_y != bar_y {
             return None;
@@ -762,7 +769,7 @@ impl WindowManager {
         let mut sorted_windows: Vec<&TerminalWindow> = self.windows.iter().collect();
         sorted_windows.sort_by_key(|w| w.id());
 
-        let mut current_x = 1u16; // Start at position 1 (skip left edge)
+        let mut current_x = offset_x; // Start at the offset position
         let mut clicked_window_id: Option<u32> = None;
 
         for terminal_window in sorted_windows {

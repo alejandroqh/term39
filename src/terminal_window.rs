@@ -252,21 +252,33 @@ impl TerminalWindow {
 
     /// Check if a point is within the window
     pub fn contains_point(&self, x: u16, y: u16) -> bool {
+        if self.window.is_minimized {
+            return false;
+        }
         self.window.contains_point(x, y)
     }
 
     /// Check if point is in title bar
     pub fn is_in_title_bar(&self, x: u16, y: u16) -> bool {
+        if self.window.is_minimized {
+            return false;
+        }
         self.window.is_in_title_bar(x, y)
     }
 
     /// Check if point is in close button
     pub fn is_in_close_button(&self, x: u16, y: u16) -> bool {
+        if self.window.is_minimized {
+            return false;
+        }
         self.window.is_in_close_button(x, y)
     }
 
     /// Check if point is in resize handle
     pub fn is_in_resize_handle(&self, x: u16, y: u16) -> bool {
+        if self.window.is_minimized {
+            return false;
+        }
         self.window.is_in_resize_handle(x, y)
     }
 
@@ -324,6 +336,9 @@ impl TerminalWindow {
 
     /// Check if a point is on the scrollbar
     pub fn is_point_on_scrollbar(&self, x: u16, y: u16) -> bool {
+        if self.window.is_minimized {
+            return false;
+        }
         let scrollbar_x = self.window.x + self.window.width - 1;
         let (y_start, y_end) = self.get_scrollbar_bounds();
 
@@ -332,6 +347,9 @@ impl TerminalWindow {
 
     /// Check if a point is on the scrollbar thumb
     pub fn is_point_on_scrollbar_thumb(&self, x: u16, y: u16) -> bool {
+        if self.window.is_minimized {
+            return false;
+        }
         if !self.is_point_on_scrollbar(x, y) {
             return false;
         }

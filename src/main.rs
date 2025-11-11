@@ -873,8 +873,18 @@ fn main() -> io::Result<()> {
                         && active_prompt.is_none()
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
                     {
+                        // Calculate where window buttons start (after auto-tiling button)
+                        // Format: "[label ]" + 2 spaces
+                        let window_buttons_start =
+                            1 + 1 + auto_tiling_button.label.len() as u16 + 1 + 2;
+
                         handled = window_manager
-                            .button_bar_click(mouse_event.column, bar_y, mouse_event.row)
+                            .button_bar_click(
+                                mouse_event.column,
+                                bar_y,
+                                mouse_event.row,
+                                window_buttons_start,
+                            )
                             .is_some();
                     }
 
