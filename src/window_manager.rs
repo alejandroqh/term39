@@ -34,8 +34,6 @@ enum SnapZone {
     BottomRight,
     FullLeft,
     FullRight,
-    FullTop,
-    FullBottom,
 }
 
 /// Snap threshold in pixels
@@ -280,8 +278,6 @@ impl WindowManager {
             SnapZone::BottomRight => (half_width, 1 + half_height, half_width, half_height),
             SnapZone::FullLeft => (0, 1, half_width, usable_height),
             SnapZone::FullRight => (half_width, 1, half_width, usable_height),
-            SnapZone::FullTop => (0, 1, buffer_width, half_height),
-            SnapZone::FullBottom => (0, 1 + half_height, buffer_width, half_height),
         }
     }
 
@@ -321,7 +317,7 @@ impl WindowManager {
             return Some(SnapZone::BottomRight);
         }
 
-        // Check edges (full-width or full-height snaps)
+        // Check edges (full-height snaps on left/right)
 
         // Left edge (not corner)
         if x <= threshold {
@@ -331,16 +327,6 @@ impl WindowManager {
         // Right edge (not corner)
         if x >= buffer_width.saturating_sub(threshold) {
             return Some(SnapZone::FullRight);
-        }
-
-        // Top edge (not corner)
-        if y <= threshold + 1 {
-            return Some(SnapZone::FullTop);
-        }
-
-        // Bottom edge (not corner)
-        if y >= buffer_height.saturating_sub(threshold + 1) {
-            return Some(SnapZone::FullBottom);
         }
 
         None

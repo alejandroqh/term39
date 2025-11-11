@@ -126,6 +126,10 @@ fn main() -> io::Result<()> {
     // Create the "New Terminal" button
     let mut new_terminal_button = Button::new(1, 0, "+New Terminal".to_string());
 
+    // Auto-arrange toggle state and button
+    let mut auto_arrange_enabled = true;
+    let mut auto_arrange_button = Button::new(40, 0, "█ on] Arrange Windows".to_string());
+
     // Prompt state (None when no prompt is active)
     let mut active_prompt: Option<Prompt> = None;
 
@@ -156,13 +160,19 @@ fn main() -> io::Result<()> {
 
         // Render the top bar
         let focus = window_manager.get_focus();
-        render_top_bar(&mut video_buffer, focus, &new_terminal_button);
+        render_top_bar(
+            &mut video_buffer,
+            focus,
+            &new_terminal_button,
+            &auto_arrange_button,
+            auto_arrange_enabled,
+        );
 
         // Render all windows (returns true if any were closed)
         let windows_closed = window_manager.render_all(&mut video_buffer, &charset);
 
         // Auto-reposition remaining windows if any were closed
-        if windows_closed {
+        if windows_closed && auto_arrange_enabled {
             let (cols, rows) = terminal::size()?;
             window_manager.auto_position_windows(cols, rows);
         }
@@ -489,7 +499,9 @@ fn main() -> io::Result<()> {
                                 );
 
                                 // Auto-position all windows based on the snap pattern
-                                window_manager.auto_position_windows(cols, rows);
+                                if auto_arrange_enabled {
+                                    window_manager.auto_position_windows(cols, rows);
+                                }
 
                                 debug_log!("Terminal window created");
                             } else {
@@ -648,6 +660,21 @@ fn main() -> io::Result<()> {
                         } else {
                             new_terminal_button.set_state(button::ButtonState::Normal);
                         }
+
+                        // Calculate center position for toggle button hover detection
+                        let (cols, _) = terminal::size()?;
+                        let button_text_width = auto_arrange_button.label.len() as u16 + 4; // +2 for brackets, +2 for padding
+                        let center_x = (cols.saturating_sub(button_text_width)) / 2;
+                        let button_end_x = center_x + button_text_width;
+
+                        if mouse_event.row == 0
+                            && mouse_event.column >= center_x
+                            && mouse_event.column < button_end_x
+                        {
+                            auto_arrange_button.set_state(button::ButtonState::Hovered);
+                        } else {
+                            auto_arrange_button.set_state(button::ButtonState::Normal);
+                        }
                     }
 
                     // Check if click is on the New Terminal button in the top bar (only if no prompt)
@@ -675,9 +702,44 @@ fn main() -> io::Result<()> {
                         );
 
                         // Auto-position all windows based on the snap pattern
-                        window_manager.auto_position_windows(cols, rows);
+                        if auto_arrange_enabled {
+                            window_manager.auto_position_windows(cols, rows);
+                        }
 
                         handled = true;
+                    }
+
+                    // Check if click is on the Auto-Arrange toggle button (only if no prompt)
+                    if !handled
+                        && active_prompt.is_none()
+                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+                    {
+                        // Calculate center position for toggle button click detection
+                        let (cols, _) = terminal::size()?;
+                        let button_text_width = auto_arrange_button.label.len() as u16 + 4; // +2 for brackets, +2 for padding
+                        let center_x = (cols.saturating_sub(button_text_width)) / 2;
+                        let button_end_x = center_x + button_text_width;
+
+                        if mouse_event.row == 0
+                            && mouse_event.column >= center_x
+                            && mouse_event.column < button_end_x
+                        {
+                            debug_log!("Auto-Arrange toggle button clicked");
+                            auto_arrange_button.set_state(button::ButtonState::Pressed);
+
+                            // Toggle the auto-arrange state
+                            auto_arrange_enabled = !auto_arrange_enabled;
+
+                            // Update button label to reflect new state
+                            let new_label = if auto_arrange_enabled {
+                                "█ on] Arrange Windows".to_string()
+                            } else {
+                                "off ░] Arrange Windows".to_string()
+                            };
+                            auto_arrange_button = Button::new(40, 0, new_label);
+
+                            handled = true;
+                        }
                     }
 
                     // Check if click is on button bar (only if no prompt)
@@ -695,7 +757,7 @@ fn main() -> io::Result<()> {
                         let window_closed =
                             window_manager.handle_mouse_event(&mut video_buffer, mouse_event);
                         // Auto-reposition remaining windows if a window was closed
-                        if window_closed {
+                        if window_closed && auto_arrange_enabled {
                             let (cols, rows) = terminal::size()?;
                             window_manager.auto_position_windows(cols, rows);
                         }
@@ -726,7 +788,13 @@ fn render_background(buffer: &mut VideoBuffer, charset: &Charset) {
     }
 }
 
-fn render_top_bar(buffer: &mut VideoBuffer, focus: FocusState, new_terminal_button: &Button) {
+fn render_top_bar(
+    buffer: &mut VideoBuffer,
+    focus: FocusState,
+    new_terminal_button: &Button,
+    auto_arrange_button: &Button,
+    auto_arrange_enabled: bool,
+) {
     let (cols, _rows) = buffer.dimensions();
 
     // Change background color based on focus
@@ -745,11 +813,47 @@ fn render_top_bar(buffer: &mut VideoBuffer, focus: FocusState, new_terminal_butt
     // Left section - New Terminal button (always visible)
     new_terminal_button.render(buffer);
 
+    // Center section - Auto-arrange toggle button with custom colors
+    let toggle_color = if auto_arrange_enabled {
+        Color::Green
+    } else {
+        Color::White
+    };
+
+    let toggle_bg = match auto_arrange_button.state {
+        button::ButtonState::Normal => Color::DarkGrey,
+        button::ButtonState::Hovered => Color::Yellow,
+        button::ButtonState::Pressed => Color::Black,
+    };
+
+    // Calculate center position for the toggle button
+    let button_text_width = auto_arrange_button.label.len() as u16 + 4; // +2 for "[ " and "]", +2 for padding
+    let center_x = (cols.saturating_sub(button_text_width)) / 2;
+
+    let mut current_x = center_x;
+
+    // Render left padding space
+    buffer.set(current_x, 0, Cell::new(' ', toggle_color, toggle_bg));
+    current_x += 1;
+
+    // Render "[ "
+    buffer.set(current_x, 0, Cell::new('[', toggle_color, toggle_bg));
+    current_x += 1;
+
+    // Render label
+    for ch in auto_arrange_button.label.chars() {
+        buffer.set(current_x, 0, Cell::new(ch, toggle_color, toggle_bg));
+        current_x += 1;
+    }
+
+    // Render right padding space
+    buffer.set(current_x, 0, Cell::new(' ', toggle_color, toggle_bg));
+
     // Right section - Clock with dark background
     let now = Local::now();
-    let time_str = now.format("%H:%M:%S").to_string();
+    let time_str = now.format("%a %b %d, %H:%M").to_string();
 
-    // Format: "| HH:MM:SS " (with separator and trailing space)
+    // Format: "| Tue Nov 11, 09:21 " (with separator and trailing space)
     let clock_with_separator = format!("| {} ", time_str);
     let clock_width = clock_with_separator.len() as u16;
     let time_pos = cols.saturating_sub(clock_width);
