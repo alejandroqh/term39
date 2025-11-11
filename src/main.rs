@@ -1,11 +1,11 @@
-#[macro_use]
-mod debug_log;
 mod ansi_handler;
 mod button;
 mod charset;
 mod config;
 mod config_manager;
 mod config_window;
+#[cfg(target_os = "linux")]
+mod gpm_handler;
 mod info_window;
 mod prompt;
 mod term_grid;
@@ -105,25 +105,14 @@ impl CalendarState {
 }
 
 fn main() -> io::Result<()> {
-    // Initialize debug logging
-    debug_log::init_debug_log();
-    debug_log!("Application started");
-
     // Parse command-line arguments for charset configuration
     let mut charset = Charset::from_args();
-    debug_log!("Using charset mode: {:?}", charset.mode);
 
     // Load application configuration
     let mut app_config = AppConfig::load();
 
     // Set the background character from config
     charset.set_background(app_config.get_background_char());
-    debug_log!(
-        "Config loaded: auto_tiling={}, show_date={}, theme={}",
-        app_config.auto_tiling_on_startup,
-        app_config.show_date_in_clock,
-        app_config.theme
-    );
 
     // Parse command-line arguments for theme (overrides config if provided)
     let args: Vec<String> = std::env::args().collect();
@@ -134,7 +123,6 @@ fn main() -> io::Result<()> {
         .map(|s| s.as_str())
         .unwrap_or(&app_config.theme);
     let mut theme = Theme::from_name(theme_name);
-    debug_log!("Using theme: {}", theme.name());
 
     let mut stdout = io::stdout();
 
@@ -143,6 +131,10 @@ fn main() -> io::Result<()> {
 
     // Hide cursor and enable mouse capture
     execute!(stdout, cursor::Hide, event::EnableMouseCapture)?;
+
+    // Initialize GPM (General Purpose Mouse) for Linux console if available
+    #[cfg(target_os = "linux")]
+    let gpm_connection = gpm_handler::GpmConnection::open();
 
     // Clear the screen
     execute!(stdout, terminal::Clear(ClearType::All))?;
@@ -265,13 +257,96 @@ fn main() -> io::Result<()> {
         video_buffer.present(&mut stdout)?;
         stdout.flush()?;
 
+        // Check for GPM events first (Linux console mouse support)
+        #[cfg(target_os = "linux")]
+        let gpm_event = if let Some(ref gpm) = gpm_connection {
+            if gpm.has_event() {
+                gpm.get_event()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Process GPM event if available
+        #[cfg(target_os = "linux")]
+        if let Some(gpm_evt) = gpm_event {
+            // Convert GPM event to crossterm MouseEvent format
+            use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+
+            let mouse_event = match gpm_evt.event_type {
+                gpm_handler::GpmEventType::Down => {
+                    let button = match gpm_evt.button {
+                        Some(gpm_handler::GpmButton::Left) => MouseButton::Left,
+                        Some(gpm_handler::GpmButton::Middle) => MouseButton::Middle,
+                        Some(gpm_handler::GpmButton::Right) => MouseButton::Right,
+                        None => MouseButton::Left,
+                    };
+                    MouseEvent {
+                        kind: MouseEventKind::Down(button),
+                        column: gpm_evt.x,
+                        row: gpm_evt.y,
+                        modifiers: KeyModifiers::empty(),
+                    }
+                }
+                gpm_handler::GpmEventType::Up => {
+                    let button = match gpm_evt.button {
+                        Some(gpm_handler::GpmButton::Left) => MouseButton::Left,
+                        Some(gpm_handler::GpmButton::Middle) => MouseButton::Middle,
+                        Some(gpm_handler::GpmButton::Right) => MouseButton::Right,
+                        None => MouseButton::Left,
+                    };
+                    MouseEvent {
+                        kind: MouseEventKind::Up(button),
+                        column: gpm_evt.x,
+                        row: gpm_evt.y,
+                        modifiers: KeyModifiers::empty(),
+                    }
+                }
+                gpm_handler::GpmEventType::Drag => {
+                    let button = match gpm_evt.button {
+                        Some(gpm_handler::GpmButton::Left) => MouseButton::Left,
+                        Some(gpm_handler::GpmButton::Middle) => MouseButton::Middle,
+                        Some(gpm_handler::GpmButton::Right) => MouseButton::Right,
+                        None => MouseButton::Left,
+                    };
+                    MouseEvent {
+                        kind: MouseEventKind::Drag(button),
+                        column: gpm_evt.x,
+                        row: gpm_evt.y,
+                        modifiers: KeyModifiers::empty(),
+                    }
+                }
+                gpm_handler::GpmEventType::Move => MouseEvent {
+                    kind: MouseEventKind::Moved,
+                    column: gpm_evt.x,
+                    row: gpm_evt.y,
+                    modifiers: KeyModifiers::empty(),
+                },
+            };
+
+            // Process the mouse event (reuse existing mouse handling code)
+            // For now, we'll just pass it to the window manager
+            // This duplicates the mouse handling logic below, but we'll refactor it later
+            if active_prompt.is_none() {
+                let window_closed =
+                    window_manager.handle_mouse_event(&mut video_buffer, mouse_event);
+                if window_closed && auto_tiling_enabled {
+                    let (cols, rows) = terminal::size()?;
+                    window_manager.auto_position_windows(cols, rows);
+                }
+            }
+
+            // Continue to next frame to avoid processing crossterm events in same frame
+            continue;
+        }
+
         // Check for input (non-blocking with ~60fps)
         if event::poll(Duration::from_millis(16))? {
             match event::read()? {
                 Event::Key(key_event) => {
-                    debug_log!("Key event: {:?}", key_event);
                     let current_focus = window_manager.get_focus();
-                    debug_log!("Current focus: {:?}", current_focus);
 
                     // Handle prompt keyboard navigation if a prompt is active
                     if let Some(ref mut prompt) = active_prompt {
@@ -413,7 +488,6 @@ fn main() -> io::Result<()> {
                     if key_event.code == KeyCode::Tab
                         && key_event.modifiers.contains(KeyModifiers::ALT)
                     {
-                        debug_log!("ALT+TAB detected - cycling to next window");
                         window_manager.cycle_to_next_window();
                         continue;
                     }
@@ -424,7 +498,6 @@ fn main() -> io::Result<()> {
                         && key_event.modifiers.contains(KeyModifiers::CONTROL)
                     {
                         if current_focus != FocusState::Desktop {
-                            debug_log!("CTRL+L detected - clearing terminal");
                             // Send Ctrl+L (form feed, 0x0c) to the shell
                             // Most shells (bash, zsh, etc.) interpret this as "clear screen"
                             let _ = window_manager.send_to_focused("\x0c");
@@ -591,7 +664,6 @@ fn main() -> io::Result<()> {
                         KeyCode::Char('t') => {
                             // Only create new window if desktop is focused
                             if current_focus == FocusState::Desktop {
-                                debug_log!("Creating new terminal window");
                                 // Create a new terminal window
                                 let (cols, rows) = terminal::size()?;
 
@@ -615,18 +687,14 @@ fn main() -> io::Result<()> {
                                 if auto_tiling_enabled {
                                     window_manager.auto_position_windows(cols, rows);
                                 }
-
-                                debug_log!("Terminal window created");
                             } else {
                                 // Send 't' to terminal
-                                debug_log!("Sending 't' to terminal");
                                 let _ = window_manager.send_char_to_focused('t');
                             }
                         }
                         KeyCode::Char('T') => {
                             // Only create maximized window if desktop is focused
                             if current_focus == FocusState::Desktop {
-                                debug_log!("Creating new maximized terminal window");
                                 // Create a new terminal window
                                 let (cols, rows) = terminal::size()?;
 
@@ -645,25 +713,18 @@ fn main() -> io::Result<()> {
                                     height,
                                     format!("Terminal {}", window_manager.window_count() + 1),
                                 );
-                                debug_log!(
-                                    "Maximized terminal window created with ID: {}",
-                                    window_id
-                                );
 
                                 // Maximize the newly created window
                                 window_manager.maximize_window(window_id, cols, rows);
                             } else {
                                 // Send 'T' to terminal
-                                debug_log!("Sending 'T' to terminal");
                                 let _ = window_manager.send_char_to_focused('T');
                             }
                         }
                         KeyCode::Char(c) => {
                             // Send character to focused terminal
                             if current_focus != FocusState::Desktop {
-                                debug_log!("Sending char: {:?}", c);
-                                let result = window_manager.send_char_to_focused(c);
-                                debug_log!("Send char result: {:?}", result);
+                                let _ = window_manager.send_char_to_focused(c);
                             }
                         }
                         KeyCode::Enter => {
@@ -809,7 +870,6 @@ fn main() -> io::Result<()> {
                                         let _ = app_config.save();
                                         // Reload theme
                                         theme = Theme::from_name(&app_config.theme);
-                                        debug_log!("Theme changed to: {}", theme.name());
                                         handled = true;
                                     }
                                     ConfigAction::CycleBackgroundChar => {
@@ -817,10 +877,6 @@ fn main() -> io::Result<()> {
                                         app_config.cycle_background_char();
                                         // Update charset with new background character
                                         charset.set_background(app_config.get_background_char());
-                                        debug_log!(
-                                            "Background character changed to: {}",
-                                            app_config.get_background_char_name()
-                                        );
                                         handled = true;
                                     }
                                     ConfigAction::None => {
@@ -868,7 +924,6 @@ fn main() -> io::Result<()> {
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
                         && new_terminal_button.contains(mouse_event.column, mouse_event.row)
                     {
-                        debug_log!("New Terminal button clicked");
                         new_terminal_button.set_state(button::ButtonState::Pressed);
 
                         // Create a new terminal window (same as pressing 't')
@@ -914,7 +969,6 @@ fn main() -> io::Result<()> {
 
                         // Check if click is within clock area
                         if mouse_event.column >= time_pos && mouse_event.column < cols {
-                            debug_log!("Clock clicked - showing calendar");
                             // Show calendar (same as pressing 'c')
                             active_calendar = Some(CalendarState::new());
                             handled = true;
@@ -937,7 +991,6 @@ fn main() -> io::Result<()> {
                             && mouse_event.column >= button_start_x
                             && mouse_event.column < button_end_x
                         {
-                            debug_log!("Auto-Tiling toggle button clicked");
                             auto_tiling_button.set_state(button::ButtonState::Pressed);
 
                             // Toggle the auto-tiling state

@@ -1,16 +1,7 @@
 use crossterm::style::Color;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ThemeMode {
-    Classic,
-    Monochrome,
-    Dark,
-}
-
 #[derive(Debug, Clone)]
 pub struct Theme {
-    pub mode: ThemeMode,
-
     // Desktop
     pub desktop_bg: Color,
     pub desktop_fg: Color,
@@ -126,8 +117,6 @@ impl Theme {
     /// Classic DOS-inspired theme (current default colors)
     pub fn classic() -> Self {
         Self {
-            mode: ThemeMode::Classic,
-
             // Desktop
             desktop_bg: Color::Blue,
             desktop_fg: Color::White,
@@ -242,8 +231,6 @@ impl Theme {
     /// Monochrome grayscale theme
     pub fn monochrome() -> Self {
         Self {
-            mode: ThemeMode::Monochrome,
-
             // Desktop
             desktop_bg: Color::DarkGrey,
             desktop_fg: Color::White,
@@ -360,8 +347,6 @@ impl Theme {
     /// Accent colors: Cyan #8BE9FD, Purple #BD93F9, Pink #FF79C6, Green #50FA7B, Red #FF5555, Yellow #F1FA8C
     pub fn dark() -> Self {
         Self {
-            mode: ThemeMode::Dark,
-
             // Desktop - Dracula background
             desktop_bg: Color::Black,
             desktop_fg: Color::White,
@@ -486,12 +471,4 @@ impl Theme {
         }
     }
 
-    /// Get the theme mode name as a string
-    pub fn name(&self) -> &'static str {
-        match self.mode {
-            ThemeMode::Classic => "classic",
-            ThemeMode::Monochrome => "monochrome",
-            ThemeMode::Dark => "dark",
-        }
-    }
 }

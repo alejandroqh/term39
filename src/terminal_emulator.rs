@@ -65,11 +65,7 @@ impl TerminalEmulator {
             .try_clone_reader()
             .map_err(std::io::Error::other)?;
 
-        debug_log!("PTY: Got reader");
-
         let writer = pty_master.take_writer().map_err(std::io::Error::other)?;
-
-        debug_log!("PTY: Got writer");
 
         // Create channel for reading from PTY in background thread
         let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = channel();
@@ -80,25 +76,19 @@ impl TerminalEmulator {
             loop {
                 match reader.read(&mut buffer) {
                     Ok(0) => {
-                        debug_log!("PTY reader thread: EOF");
                         break;
                     }
                     Ok(n) => {
-                        debug_log!("PTY reader thread: Read {} bytes", n);
                         if tx.send(buffer[..n].to_vec()).is_err() {
-                            debug_log!("PTY reader thread: Send failed, exiting");
                             break;
                         }
                     }
-                    Err(e) => {
-                        debug_log!("PTY reader thread: Error: {}", e);
+                    Err(_) => {
                         break;
                     }
                 }
             }
         });
-
-        debug_log!("PTY: Spawned reader thread");
 
         let grid = Arc::new(Mutex::new(TerminalGrid::new(cols, rows, max_scrollback)));
         let parser = Parser::new();
@@ -123,7 +113,6 @@ impl TerminalEmulator {
         // Try to receive data from PTY reader thread (non-blocking)
         match self.rx.try_recv() {
             Ok(data) => {
-                debug_log!("PTY: Received {} bytes from thread", data.len());
                 // Process the bytes through VTE parser
                 let mut grid = self.grid.lock().unwrap();
                 let mut handler = AnsiHandler::new(&mut grid);
@@ -140,7 +129,6 @@ impl TerminalEmulator {
             }
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 // Reader thread died - child process exited
-                debug_log!("PTY: Reader thread disconnected");
                 Ok(false)
             }
         }
@@ -148,17 +136,8 @@ impl TerminalEmulator {
 
     /// Write input to the PTY (send to shell)
     pub fn write_input(&mut self, data: &[u8]) -> std::io::Result<()> {
-        debug_log!(
-            "PTY: Writing {} bytes: {:?}",
-            data.len(),
-            String::from_utf8_lossy(data)
-        );
-        let result = self.writer.write_all(data);
-        debug_log!("PTY: Write result: {:?}", result);
-        result?;
-        let flush_result = self.writer.flush();
-        debug_log!("PTY: Flush result: {:?}", flush_result);
-        flush_result?;
+        self.writer.write_all(data)?;
+        self.writer.flush()?;
         Ok(())
     }
 
