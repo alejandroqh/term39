@@ -1,5 +1,5 @@
+use crate::theme::Theme;
 use crate::video_buffer::{Cell, VideoBuffer};
-use crossterm::style::Color;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ButtonState {
@@ -49,15 +49,15 @@ impl Button {
     }
 
     /// Render the button to the video buffer
-    pub fn render(&self, buffer: &mut VideoBuffer) {
+    pub fn render(&self, buffer: &mut VideoBuffer, theme: &Theme) {
         if !self.enabled {
             return;
         }
 
         let (fg_color, bg_color) = match self.state {
-            ButtonState::Normal => (Color::Black, Color::White),
-            ButtonState::Hovered => (Color::Black, Color::Yellow),
-            ButtonState::Pressed => (Color::White, Color::DarkGrey),
+            ButtonState::Normal => (theme.button_normal_fg, theme.button_normal_bg),
+            ButtonState::Hovered => (theme.button_hovered_fg, theme.button_hovered_bg),
+            ButtonState::Pressed => (theme.button_pressed_fg, theme.button_pressed_bg),
         };
 
         let mut current_x = self.x;

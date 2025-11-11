@@ -1,6 +1,7 @@
 use crate::charset::{Charset, CharsetMode};
 use crate::term_grid::{Color as TermColor, NamedColor, TerminalCell};
 use crate::terminal_emulator::TerminalEmulator;
+use crate::theme::Theme;
 use crate::video_buffer::{Cell, VideoBuffer};
 use crate::window::Window;
 use crossterm::style::Color;
@@ -91,15 +92,21 @@ impl TerminalWindow {
     }
 
     /// Render the terminal window
-    pub fn render(&self, buffer: &mut VideoBuffer, is_resizing: bool, charset: &Charset) {
+    pub fn render(
+        &self,
+        buffer: &mut VideoBuffer,
+        is_resizing: bool,
+        charset: &Charset,
+        theme: &Theme,
+    ) {
         // Render the window frame and title bar
-        self.window.render(buffer, is_resizing, charset);
+        self.window.render(buffer, is_resizing, charset, theme);
 
         // Render the terminal content
         self.render_terminal_content(buffer);
 
         // Render the scrollbar
-        self.render_scrollbar(buffer, charset);
+        self.render_scrollbar(buffer, charset, theme);
     }
 
     fn render_terminal_content(&self, buffer: &mut VideoBuffer) {
@@ -175,7 +182,7 @@ impl TerminalWindow {
         }
     }
 
-    fn render_scrollbar(&self, buffer: &mut VideoBuffer, charset: &Charset) {
+    fn render_scrollbar(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
         if self.window.is_minimized {
             return;
         }
@@ -229,13 +236,13 @@ impl TerminalWindow {
         for y in track_start..track_end {
             let (ch, fg_color) = if y >= thumb_start && y < thumb_end {
                 // Scrollbar thumb
-                (thumb_char, Color::White)
+                (thumb_char, theme.scrollbar_thumb_fg)
             } else {
                 // Scrollbar track
-                (track_char, Color::DarkGrey)
+                (track_char, theme.scrollbar_track_fg)
             };
 
-            let cell = Cell::new(ch, fg_color, self.window.content_bg);
+            let cell = Cell::new(ch, fg_color, theme.window_content_bg);
             buffer.set(scrollbar_x, y, cell);
         }
     }

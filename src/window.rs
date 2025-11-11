@@ -1,4 +1,5 @@
 use crate::charset::Charset;
+use crate::theme::Theme;
 use crate::video_buffer::{Cell, VideoBuffer};
 use crossterm::style::Color;
 
@@ -158,30 +159,42 @@ impl Window {
     }
 
     /// Render the window to the video buffer
-    pub fn render(&self, buffer: &mut VideoBuffer, is_resizing: bool, charset: &Charset) {
+    pub fn render(
+        &self,
+        buffer: &mut VideoBuffer,
+        is_resizing: bool,
+        charset: &Charset,
+        theme: &Theme,
+    ) {
         if self.is_minimized {
             return;
         }
 
         // Draw the window frame
-        self.render_frame(buffer, is_resizing, charset);
+        self.render_frame(buffer, is_resizing, charset, theme);
 
         // Draw the title bar with buttons
-        self.render_title_bar(buffer);
+        self.render_title_bar(buffer, theme);
 
         // Draw the content area
         self.render_content(buffer);
 
         // Draw the shadow
-        self.render_shadow(buffer, charset);
+        self.render_shadow(buffer, charset, theme);
     }
 
-    fn render_frame(&self, buffer: &mut VideoBuffer, is_resizing: bool, charset: &Charset) {
+    fn render_frame(
+        &self,
+        buffer: &mut VideoBuffer,
+        is_resizing: bool,
+        charset: &Charset,
+        theme: &Theme,
+    ) {
         // Change title bar background color based on focus
         let title_bg = if self.is_focused {
-            Color::DarkCyan
+            theme.window_title_bg_focused
         } else {
-            self.title_bg
+            theme.window_title_bg
         };
 
         // Top border (title bar) - no border characters, just background
@@ -189,7 +202,7 @@ impl Window {
             buffer.set(
                 self.x + x,
                 self.y,
-                Cell::new(' ', self.border_color, title_bg),
+                Cell::new(' ', theme.window_border, title_bg),
             );
         }
 
@@ -199,13 +212,21 @@ impl Window {
             buffer.set(
                 self.x,
                 self.y + y,
-                Cell::new(charset.border_vertical, self.border_color, self.content_bg),
+                Cell::new(
+                    charset.border_vertical,
+                    theme.window_border,
+                    theme.window_content_bg,
+                ),
             );
             // Right border
             buffer.set(
                 self.x + self.width - 1,
                 self.y + y,
-                Cell::new(charset.border_vertical, self.border_color, self.content_bg),
+                Cell::new(
+                    charset.border_vertical,
+                    theme.window_border,
+                    theme.window_content_bg,
+                ),
             );
         }
 
@@ -215,8 +236,8 @@ impl Window {
             self.y + self.height - 1,
             Cell::new(
                 charset.border_bottom_left,
-                self.border_color,
-                self.content_bg,
+                theme.window_border,
+                theme.window_content_bg,
             ),
         );
         for x in 1..self.width - 1 {
@@ -225,8 +246,8 @@ impl Window {
                 self.y + self.height - 1,
                 Cell::new(
                     charset.border_horizontal,
-                    self.border_color,
-                    self.content_bg,
+                    theme.window_border,
+                    theme.window_content_bg,
                 ),
             );
         }
@@ -234,9 +255,9 @@ impl Window {
         // Bottom-right corner with resize handle
         // Change colors based on whether we're actively resizing
         let (resize_fg, resize_bg) = if is_resizing {
-            (Color::Yellow, Color::Grey) // Bright colors during interaction
+            (theme.resize_handle_active_fg, theme.resize_handle_active_bg) // Bright colors during interaction
         } else {
-            (Color::Grey, self.title_bg) // Normal state - background matches title bar (black)
+            (theme.resize_handle_normal_fg, theme.resize_handle_normal_bg) // Normal state - background matches title bar (black)
         };
 
         buffer.set(
@@ -246,12 +267,12 @@ impl Window {
         );
     }
 
-    fn render_title_bar(&self, buffer: &mut VideoBuffer) {
+    fn render_title_bar(&self, buffer: &mut VideoBuffer, theme: &Theme) {
         // Change title bar background color based on focus
         let title_bg = if self.is_focused {
-            Color::DarkCyan
+            theme.window_title_bg_focused
         } else {
-            self.title_bg
+            theme.window_title_bg
         };
 
         // Buttons: [X][+][_] followed by title
@@ -261,10 +282,10 @@ impl Window {
         // Render buttons with colored characters
         for (i, ch) in buttons.chars().enumerate() {
             let color = match ch {
-                'X' => Color::Red,
-                '+' => Color::Green,
-                '_' => Color::Yellow,
-                _ => self.title_fg,
+                'X' => theme.button_close_color,
+                '+' => theme.button_maximize_color,
+                '_' => theme.button_minimize_color,
+                _ => theme.window_title_fg,
             };
             buffer.set(self.x + x_offset, self.y, Cell::new(ch, color, title_bg));
             x_offset += 1;
@@ -284,7 +305,7 @@ impl Window {
             buffer.set(
                 title_start + i as u16,
                 self.y,
-                Cell::new(ch, self.title_fg, title_bg),
+                Cell::new(ch, theme.window_title_fg, title_bg),
             );
         }
     }
@@ -304,11 +325,11 @@ impl Window {
         }
     }
 
-    fn render_shadow(&self, buffer: &mut VideoBuffer, charset: &Charset) {
+    fn render_shadow(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
         // Use shadow character from charset configuration
         let shadow_char = charset.shadow;
-        let shadow_color_bg = Color::DarkGrey;
-        let shadow_color_fg = Color::DarkGrey;
+        let shadow_color_bg = theme.window_shadow_color;
+        let shadow_color_fg = theme.window_shadow_color;
         let (buffer_width, buffer_height) = buffer.dimensions();
 
         // Right shadow (1 cell to the right)

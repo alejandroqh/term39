@@ -1,4 +1,5 @@
 use crate::charset::Charset;
+use crate::theme::Theme;
 use crate::video_buffer::{Cell, VideoBuffer};
 use crossterm::style::Color;
 
@@ -16,22 +17,22 @@ pub enum PromptType {
 
 impl PromptType {
     /// Get the background color for this prompt type
-    pub fn background_color(&self) -> Color {
+    pub fn background_color(&self, theme: &Theme) -> Color {
         match self {
-            PromptType::Info => Color::DarkGrey,
-            PromptType::Success => Color::Green,
-            PromptType::Warning => Color::Yellow,
-            PromptType::Danger => Color::Red,
+            PromptType::Info => theme.prompt_info_bg,
+            PromptType::Success => theme.prompt_success_bg,
+            PromptType::Warning => theme.prompt_warning_bg,
+            PromptType::Danger => theme.prompt_danger_bg,
         }
     }
 
     /// Get the foreground color for this prompt type
-    pub fn foreground_color(&self) -> Color {
+    pub fn foreground_color(&self, theme: &Theme) -> Color {
         match self {
-            PromptType::Info => Color::White,
-            PromptType::Success => Color::Black,
-            PromptType::Warning => Color::Black,
-            PromptType::Danger => Color::White,
+            PromptType::Info => theme.prompt_info_fg,
+            PromptType::Success => theme.prompt_success_fg,
+            PromptType::Warning => theme.prompt_warning_fg,
+            PromptType::Danger => theme.prompt_danger_fg,
         }
     }
 }
@@ -64,18 +65,33 @@ impl PromptButton {
     }
 
     /// Get button colors based on whether it's primary
-    pub fn colors(&self, prompt_type: PromptType) -> (Color, Color) {
+    pub fn colors(&self, prompt_type: PromptType, theme: &Theme) -> (Color, Color) {
         if self.is_primary {
             // Primary button: attractive colors based on prompt type
             match prompt_type {
-                PromptType::Info => (Color::White, Color::DarkCyan),
-                PromptType::Success => (Color::White, Color::DarkGreen),
-                PromptType::Warning => (Color::Black, Color::DarkYellow),
-                PromptType::Danger => (Color::White, Color::DarkRed),
+                PromptType::Info => (
+                    theme.dialog_button_primary_info_fg,
+                    theme.dialog_button_primary_info_bg,
+                ),
+                PromptType::Success => (
+                    theme.dialog_button_primary_success_fg,
+                    theme.dialog_button_primary_success_bg,
+                ),
+                PromptType::Warning => (
+                    theme.dialog_button_primary_warning_fg,
+                    theme.dialog_button_primary_warning_bg,
+                ),
+                PromptType::Danger => (
+                    theme.dialog_button_primary_danger_fg,
+                    theme.dialog_button_primary_danger_bg,
+                ),
             }
         } else {
             // Secondary button: muted colors
-            (Color::White, Color::DarkGrey)
+            (
+                theme.dialog_button_secondary_fg,
+                theme.dialog_button_secondary_bg,
+            )
         }
     }
 
@@ -210,9 +226,9 @@ impl Prompt {
     }
 
     /// Render the prompt to the video buffer
-    pub fn render(&self, buffer: &mut VideoBuffer, _charset: &Charset) {
-        let bg_color = self.prompt_type.background_color();
-        let default_fg_color = self.prompt_type.foreground_color();
+    pub fn render(&self, buffer: &mut VideoBuffer, _charset: &Charset, theme: &Theme) {
+        let bg_color = self.prompt_type.background_color(theme);
+        let default_fg_color = self.prompt_type.foreground_color(theme);
 
         // Fill the entire prompt area with the background color (no borders)
         for y in 0..self.height {
@@ -276,7 +292,7 @@ impl Prompt {
         let mut button_x = self.x + (self.width.saturating_sub(total_button_width)) / 2;
 
         for (index, button) in self.buttons.iter().enumerate() {
-            let (button_fg, button_bg) = button.colors(self.prompt_type);
+            let (button_fg, button_bg) = button.colors(self.prompt_type, theme);
             let is_selected = index == self.selected_button_index;
 
             // Render selection indicator before button
@@ -321,12 +337,12 @@ impl Prompt {
         }
 
         // Render shadow
-        self.render_shadow(buffer);
+        self.render_shadow(buffer, theme);
     }
 
-    fn render_shadow(&self, buffer: &mut VideoBuffer) {
+    fn render_shadow(&self, buffer: &mut VideoBuffer, theme: &Theme) {
         let shadow_char = '▓'; // Unicode shadow
-        let shadow_color = Color::DarkGrey;
+        let shadow_color = theme.window_shadow_color;
         let (buffer_width, buffer_height) = buffer.dimensions();
 
         // Right shadow

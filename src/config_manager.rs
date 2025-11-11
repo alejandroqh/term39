@@ -6,6 +6,12 @@ use std::path::PathBuf;
 pub struct AppConfig {
     pub auto_tiling_on_startup: bool,
     pub show_date_in_clock: bool,
+    #[serde(default = "default_theme")]
+    pub theme: String,
+}
+
+fn default_theme() -> String {
+    "classic".to_string()
 }
 
 impl Default for AppConfig {
@@ -13,6 +19,7 @@ impl Default for AppConfig {
         Self {
             auto_tiling_on_startup: true,
             show_date_in_clock: true,
+            theme: default_theme(),
         }
     }
 }
@@ -74,6 +81,13 @@ impl AppConfig {
     /// Toggle show date in clock setting and save
     pub fn toggle_show_date_in_clock(&mut self) {
         self.show_date_in_clock = !self.show_date_in_clock;
+        let _ = self.save();
+    }
+
+    /// Set theme and save
+    #[allow(dead_code)]
+    pub fn set_theme(&mut self, theme_name: String) {
+        self.theme = theme_name;
         let _ = self.save();
     }
 }

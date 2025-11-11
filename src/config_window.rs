@@ -1,5 +1,6 @@
 use crate::charset::Charset;
 use crate::config_manager::AppConfig;
+use crate::theme::Theme;
 use crate::video_buffer::{Cell, VideoBuffer};
 use crossterm::style::Color;
 
@@ -11,6 +12,7 @@ pub enum ConfigAction {
     Close,
     ToggleAutoTiling,
     ToggleShowDate,
+    CycleTheme,
 }
 
 /// Configuration modal window (centered, with border and title)
@@ -21,6 +23,7 @@ pub struct ConfigWindow {
     pub y: u16,
     auto_arrange_row: u16, // Row where auto arrange toggle is rendered
     show_date_row: u16,    // Row where show date toggle is rendered
+    theme_row: u16,        // Row where theme selector is rendered
 }
 
 impl ConfigWindow {
@@ -28,15 +31,16 @@ impl ConfigWindow {
     pub fn new(buffer_width: u16, buffer_height: u16) -> Self {
         // Fixed dimensions for config window
         let width = 60;
-        let height = 10;
+        let height = 12; // Increased to fit theme selector
 
         // Center on screen
         let x = (buffer_width.saturating_sub(width)) / 2;
         let y = (buffer_height.saturating_sub(height)) / 2;
 
-        // Calculate row positions for toggle options
+        // Calculate row positions for options
         let auto_arrange_row = y + 3; // Title at y+1, blank at y+2, first option at y+3
         let show_date_row = y + 5; // Blank at y+4, second option at y+5
+        let theme_row = y + 7; // Blank at y+6, third option at y+7
 
         Self {
             width,
@@ -45,16 +49,23 @@ impl ConfigWindow {
             y,
             auto_arrange_row,
             show_date_row,
+            theme_row,
         }
     }
 
     /// Render the configuration window to the video buffer
-    pub fn render(&self, buffer: &mut VideoBuffer, charset: &Charset, config: &AppConfig) {
-        let title_bg = Color::Blue;
-        let title_fg = Color::White;
-        let border_color = Color::Cyan;
-        let content_bg = Color::Black;
-        let content_fg = Color::White;
+    pub fn render(
+        &self,
+        buffer: &mut VideoBuffer,
+        charset: &Charset,
+        theme: &Theme,
+        config: &AppConfig,
+    ) {
+        let title_bg = theme.config_title_bg;
+        let title_fg = theme.config_title_fg;
+        let border_color = theme.config_border;
+        let content_bg = theme.config_content_bg;
+        let content_fg = theme.config_content_fg;
 
         // Get border characters
         let top_left = charset.border_top_left();
@@ -161,6 +172,9 @@ impl ConfigWindow {
             "On startup Auto Tiling:",
             config.auto_tiling_on_startup,
             charset,
+            theme,
+            content_fg,
+            content_bg,
         );
 
         self.render_option(
@@ -169,6 +183,18 @@ impl ConfigWindow {
             "Show Date in clock:",
             config.show_date_in_clock,
             charset,
+            theme,
+            content_fg,
+            content_bg,
+        );
+
+        // Render theme selector
+        self.render_theme_selector(
+            buffer,
+            self.theme_row,
+            &config.theme,
+            content_fg,
+            content_bg,
         );
 
         // Render instruction at bottom
@@ -180,7 +206,7 @@ impl ConfigWindow {
             buffer.set(
                 instruction_x + i as u16,
                 instruction_y,
-                Cell::new(ch, Color::DarkGrey, content_bg),
+                Cell::new(ch, theme.config_instructions_fg, content_bg),
             );
         }
     }
@@ -193,9 +219,12 @@ impl ConfigWindow {
         label: &str,
         enabled: bool,
         charset: &Charset,
+        theme: &Theme,
+        content_fg: Color,
+        content_bg: Color,
     ) {
-        let fg = Color::White;
-        let bg = Color::Black;
+        let fg = content_fg;
+        let bg = content_bg;
 
         let option_x = self.x + 3; // 3 spaces from left border
 
@@ -211,16 +240,60 @@ impl ConfigWindow {
             // [█ on]
             let toggle_on = format!("[{} on]", charset.block());
             for (i, ch) in toggle_on.chars().enumerate() {
-                let color = if i == 1 { Color::Green } else { fg }; // Block character in green
+                let color = if i == 1 {
+                    theme.config_toggle_on_color
+                } else {
+                    fg
+                }; // Block character in theme color
                 buffer.set(toggle_x + i as u16, row, Cell::new(ch, color, bg));
             }
         } else {
             // [off ░]
             let toggle_off = format!("[off {}]", charset.shade());
             for (i, ch) in toggle_off.chars().enumerate() {
-                let color = if i == 4 { Color::DarkGrey } else { fg }; // Shade character in dark grey
+                let color = if i == 4 {
+                    theme.config_toggle_off_color
+                } else {
+                    fg
+                }; // Shade character in theme color
                 buffer.set(toggle_x + i as u16, row, Cell::new(ch, color, bg));
             }
+        }
+    }
+
+    /// Render theme selector showing current theme with arrows to cycle
+    fn render_theme_selector(
+        &self,
+        buffer: &mut VideoBuffer,
+        row: u16,
+        current_theme: &str,
+        content_fg: Color,
+        content_bg: Color,
+    ) {
+        let fg = content_fg;
+        let bg = content_bg;
+
+        let option_x = self.x + 3; // 3 spaces from left border
+
+        // Render label
+        let label = "Theme:";
+        for (i, ch) in label.chars().enumerate() {
+            buffer.set(option_x + i as u16, row, Cell::new(ch, fg, bg));
+        }
+
+        // Render theme selector: < classic >
+        let theme_display = match current_theme {
+            "classic" => "Classic",
+            "monochrome" => "Monochrome",
+            "dark" => "Dark",
+            _ => "Classic",
+        };
+
+        let selector_x = option_x + label.len() as u16 + 2;
+        let selector_text = format!("< {} >", theme_display);
+
+        for (i, ch) in selector_text.chars().enumerate() {
+            buffer.set(selector_x + i as u16, row, Cell::new(ch, fg, bg));
         }
     }
 
@@ -239,6 +312,14 @@ impl ConfigWindow {
             // Click anywhere on the row toggles the option
             if x >= self.x && x < self.x + self.width {
                 return ConfigAction::ToggleShowDate;
+            }
+        }
+
+        // Check if click is on theme row
+        if y == self.theme_row {
+            // Click anywhere on the row cycles the theme
+            if x >= self.x && x < self.x + self.width {
+                return ConfigAction::CycleTheme;
             }
         }
 

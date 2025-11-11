@@ -1,5 +1,6 @@
 use crate::charset::Charset;
 use crate::terminal_window::TerminalWindow;
+use crate::theme::Theme;
 use crate::video_buffer::VideoBuffer;
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use std::time::Instant;
@@ -638,7 +639,12 @@ impl WindowManager {
 
     /// Render all windows in z-order (bottom to top)
     /// Returns true if any windows were closed (so caller can reposition)
-    pub fn render_all(&mut self, buffer: &mut VideoBuffer, charset: &Charset) -> bool {
+    pub fn render_all(
+        &mut self,
+        buffer: &mut VideoBuffer,
+        charset: &Charset,
+        theme: &Theme,
+    ) -> bool {
         let mut windows_to_close = Vec::new();
 
         for i in 0..self.windows.len() {
@@ -652,7 +658,7 @@ impl WindowManager {
             let is_resizing = self
                 .resizing
                 .is_some_and(|r| r.window_id == self.windows[i].id());
-            self.windows[i].render(buffer, is_resizing, charset);
+            self.windows[i].render(buffer, is_resizing, charset, theme);
         }
 
         // Close windows whose shell processes have exited
@@ -667,9 +673,8 @@ impl WindowManager {
     }
 
     /// Render snap preview overlay (if dragging and snap zone is active)
-    pub fn render_snap_preview(&self, buffer: &mut VideoBuffer, charset: &Charset) {
+    pub fn render_snap_preview(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
         use crate::video_buffer::Cell;
-        use crossterm::style::Color;
 
         // Only render if dragging and a snap zone is active
         if self.dragging.is_none() || self.current_snap_zone.is_none() {
@@ -682,8 +687,8 @@ impl WindowManager {
             self.calculate_snap_rect(snap_zone, buffer_width, buffer_height);
 
         // Use bright yellow for the preview border
-        let border_color = Color::Yellow;
-        let bg_color = Color::Black;
+        let border_color = theme.snap_preview_border;
+        let bg_color = theme.snap_preview_bg;
 
         // Draw top border
         for i in 0..width {

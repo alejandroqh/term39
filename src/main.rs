@@ -10,6 +10,7 @@ mod prompt;
 mod term_grid;
 mod terminal_emulator;
 mod terminal_window;
+mod theme;
 mod video_buffer;
 mod window;
 mod window_manager;
@@ -30,6 +31,7 @@ use prompt::{Prompt, PromptAction, PromptButton, PromptType, TextAlign};
 use std::io::{self, Write};
 use std::time::Duration;
 use std::{thread, time};
+use theme::Theme;
 use video_buffer::{Cell, VideoBuffer};
 use window_manager::{FocusState, WindowManager};
 
@@ -112,10 +114,22 @@ fn main() -> io::Result<()> {
     // Load application configuration
     let mut app_config = AppConfig::load();
     debug_log!(
-        "Config loaded: auto_tiling={}, show_date={}",
+        "Config loaded: auto_tiling={}, show_date={}, theme={}",
         app_config.auto_tiling_on_startup,
-        app_config.show_date_in_clock
+        app_config.show_date_in_clock,
+        app_config.theme
     );
+
+    // Parse command-line arguments for theme (overrides config if provided)
+    let args: Vec<String> = std::env::args().collect();
+    let theme_name = args
+        .iter()
+        .position(|arg| arg == "--theme")
+        .and_then(|i| args.get(i + 1))
+        .map(|s| s.as_str())
+        .unwrap_or(&app_config.theme);
+    let mut theme = Theme::from_name(theme_name);
+    debug_log!("Using theme: {}", theme.name());
 
     let mut stdout = io::stdout();
 
@@ -159,7 +173,7 @@ fn main() -> io::Result<()> {
     let mut active_config_window: Option<ConfigWindow> = None;
 
     // Show splash screen for 1 second
-    show_splash_screen(&mut video_buffer, &mut stdout, &charset)?;
+    show_splash_screen(&mut video_buffer, &mut stdout, &charset, &theme)?;
 
     // Start with desktop focused - no windows yet
     // User can press 't' to create windows
@@ -178,14 +192,20 @@ fn main() -> io::Result<()> {
         }
 
         // Render the background (every frame for consistency)
-        render_background(&mut video_buffer, &charset);
+        render_background(&mut video_buffer, &charset, &theme);
 
         // Render the top bar
         let focus = window_manager.get_focus();
-        render_top_bar(&mut video_buffer, focus, &new_terminal_button, &app_config);
+        render_top_bar(
+            &mut video_buffer,
+            focus,
+            &new_terminal_button,
+            &app_config,
+            &theme,
+        );
 
         // Render all windows (returns true if any were closed)
-        let windows_closed = window_manager.render_all(&mut video_buffer, &charset);
+        let windows_closed = window_manager.render_all(&mut video_buffer, &charset, &theme);
 
         // Auto-reposition remaining windows if any were closed
         if windows_closed && auto_tiling_enabled {
@@ -194,7 +214,7 @@ fn main() -> io::Result<()> {
         }
 
         // Render snap preview overlay (if dragging and snap zone is active)
-        window_manager.render_snap_preview(&mut video_buffer, &charset);
+        window_manager.render_snap_preview(&mut video_buffer, &charset, &theme);
 
         // Render the button bar
         render_button_bar(
@@ -202,21 +222,22 @@ fn main() -> io::Result<()> {
             &window_manager,
             &auto_tiling_button,
             auto_tiling_enabled,
+            &theme,
         );
 
         // Render active prompt (if any) on top of everything
         if let Some(ref prompt) = active_prompt {
-            prompt.render(&mut video_buffer, &charset);
+            prompt.render(&mut video_buffer, &charset, &theme);
         }
 
         // Render active calendar (if any) on top of everything
         if let Some(ref calendar) = active_calendar {
-            render_calendar(&mut video_buffer, calendar, &charset, cols, rows);
+            render_calendar(&mut video_buffer, calendar, &charset, &theme, cols, rows);
         }
 
         // Render active config window (if any) on top of everything
         if let Some(ref config_win) = active_config_window {
-            config_win.render(&mut video_buffer, &charset, &app_config);
+            config_win.render(&mut video_buffer, &charset, &theme, &app_config);
         }
 
         // Present buffer to screen
@@ -736,6 +757,21 @@ fn main() -> io::Result<()> {
                                         app_config.toggle_show_date_in_clock();
                                         handled = true;
                                     }
+                                    ConfigAction::CycleTheme => {
+                                        // Cycle through themes: classic -> monochrome -> dark -> classic
+                                        let next_theme = match app_config.theme.as_str() {
+                                            "classic" => "monochrome",
+                                            "monochrome" => "dark",
+                                            "dark" => "classic",
+                                            _ => "classic",
+                                        };
+                                        app_config.theme = next_theme.to_string();
+                                        let _ = app_config.save();
+                                        // Reload theme
+                                        theme = Theme::from_name(&app_config.theme);
+                                        debug_log!("Theme changed to: {}", theme.name());
+                                        handled = true;
+                                    }
                                     ConfigAction::None => {
                                         // Check if click is inside config window
                                         if config_win
@@ -910,11 +946,11 @@ fn main() -> io::Result<()> {
     Ok(())
 }
 
-fn render_background(buffer: &mut VideoBuffer, charset: &Charset) {
+fn render_background(buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
     let (cols, rows) = buffer.dimensions();
 
     // Use the background character from charset configuration
-    let background_cell = Cell::new(charset.background, Color::White, Color::Blue);
+    let background_cell = Cell::new(charset.background, theme.desktop_fg, theme.desktop_bg);
 
     // Fill entire screen with the background character
     for y in 0..rows {
@@ -929,16 +965,17 @@ fn render_top_bar(
     focus: FocusState,
     new_terminal_button: &Button,
     app_config: &AppConfig,
+    theme: &Theme,
 ) {
     let (cols, _rows) = buffer.dimensions();
 
     // Change background color based on focus
     let bg_color = match focus {
-        FocusState::Desktop => Color::Cyan,
-        FocusState::Window(_) => Color::Black,
+        FocusState::Desktop => theme.topbar_bg_desktop,
+        FocusState::Window(_) => theme.topbar_bg_window,
     };
 
-    let bar_cell = Cell::new(' ', Color::White, bg_color);
+    let bar_cell = Cell::new(' ', theme.topbar_fg, bg_color);
 
     // Create a blank top bar
     for x in 0..cols {
@@ -946,7 +983,7 @@ fn render_top_bar(
     }
 
     // Left section - New Terminal button (always visible)
-    new_terminal_button.render(buffer);
+    new_terminal_button.render(buffer, theme);
 
     // Right section - Clock with dark background
     let now = Local::now();
@@ -970,7 +1007,7 @@ fn render_top_bar(
         buffer.set(
             time_pos + i as u16,
             0,
-            Cell::new(ch, Color::White, Color::DarkGrey),
+            Cell::new(ch, theme.clock_fg, theme.clock_bg),
         );
     }
 }
@@ -979,11 +1016,12 @@ fn show_splash_screen(
     buffer: &mut VideoBuffer,
     stdout: &mut io::Stdout,
     charset: &Charset,
+    theme: &Theme,
 ) -> io::Result<()> {
     let (cols, rows) = buffer.dimensions();
 
     // Clear screen to black
-    let black_cell = Cell::new(' ', Color::White, Color::Black);
+    let black_cell = Cell::new(' ', theme.splash_fg, Color::Black);
     for y in 0..rows {
         for x in 0..cols {
             buffer.set(x, y, black_cell);
@@ -1032,8 +1070,8 @@ fn show_splash_screen(
     let window_x = (cols.saturating_sub(window_width)) / 2;
     let window_y = (rows.saturating_sub(window_height)) / 2;
 
-    let border_color = Color::White;
-    let content_bg = Color::DarkBlue;
+    let border_color = theme.splash_border;
+    let content_bg = theme.splash_bg;
 
     // Draw top border using charset
     buffer.set(
@@ -1068,7 +1106,7 @@ fn show_splash_screen(
             buffer.set(
                 window_x + x,
                 window_y + y,
-                Cell::new(' ', Color::White, content_bg),
+                Cell::new(' ', theme.splash_fg, content_bg),
             );
         }
 
@@ -1101,7 +1139,7 @@ fn show_splash_screen(
 
     // Draw shadow (right and bottom) using charset
     let shadow_char = charset.shadow;
-    let shadow_color = Color::DarkGrey;
+    let shadow_color = theme.window_shadow_color;
 
     // Right shadow
     for y in 1..=window_height {
@@ -1134,7 +1172,7 @@ fn show_splash_screen(
             buffer.set(
                 content_x + j as u16,
                 content_start_y + i as u16,
-                Cell::new(ch, Color::Yellow, content_bg),
+                Cell::new(ch, theme.splash_fg, content_bg),
             );
         }
     }
@@ -1154,7 +1192,7 @@ fn show_splash_screen(
             buffer.set(
                 line_x + j as u16,
                 license_start_y + i as u16,
-                Cell::new(ch, Color::White, content_bg),
+                Cell::new(ch, theme.splash_fg, content_bg),
             );
         }
     }
@@ -1174,27 +1212,46 @@ fn render_button_bar(
     window_manager: &WindowManager,
     auto_tiling_button: &Button,
     auto_tiling_enabled: bool,
+    theme: &Theme,
 ) {
     let (cols, rows) = buffer.dimensions();
     let bar_y = rows - 1;
 
     // Fill button bar with black background
-    let bar_cell = Cell::new(' ', Color::White, Color::Black);
+    let bar_cell = Cell::new(' ', theme.bottombar_fg, theme.bottombar_bg);
     for x in 0..cols {
         buffer.set(x, bar_y, bar_cell);
     }
 
     // Render Auto Tiling toggle on the left side
     let toggle_color = if auto_tiling_enabled {
-        Color::Green
+        theme.toggle_enabled_fg
     } else {
-        Color::White
+        theme.toggle_disabled_fg
     };
 
     let toggle_bg = match auto_tiling_button.state {
-        button::ButtonState::Normal => Color::DarkGrey,
-        button::ButtonState::Hovered => Color::Yellow,
-        button::ButtonState::Pressed => Color::Black,
+        button::ButtonState::Normal => {
+            if auto_tiling_enabled {
+                theme.toggle_enabled_bg_normal
+            } else {
+                theme.toggle_disabled_bg_normal
+            }
+        }
+        button::ButtonState::Hovered => {
+            if auto_tiling_enabled {
+                theme.toggle_enabled_bg_hovered
+            } else {
+                theme.toggle_disabled_bg_hovered
+            }
+        }
+        button::ButtonState::Pressed => {
+            if auto_tiling_enabled {
+                theme.toggle_enabled_bg_pressed
+            } else {
+                theme.toggle_disabled_bg_pressed
+            }
+        }
     };
 
     let mut current_x = 1u16;
@@ -1225,7 +1282,7 @@ fn render_button_bar(
             buffer.set(
                 help_x + i as u16,
                 bar_y,
-                Cell::new(ch, Color::White, Color::Black),
+                Cell::new(ch, theme.bottombar_fg, theme.bottombar_bg),
             );
         }
     }
@@ -1249,13 +1306,28 @@ fn render_button_bar(
         // Use different brackets and colors for minimized windows
         let (open_bracket, close_bracket, button_bg, button_fg) = if is_minimized {
             // Minimized windows: use parentheses and grey color
-            ('(', ')', Color::Black, Color::DarkGrey)
+            (
+                '(',
+                ')',
+                theme.bottombar_button_minimized_bg,
+                theme.bottombar_button_minimized_fg,
+            )
         } else if is_focused {
             // Focused window: cyan background
-            ('[', ']', Color::Cyan, Color::Black)
+            (
+                '[',
+                ']',
+                theme.bottombar_button_focused_bg,
+                theme.bottombar_button_focused_fg,
+            )
         } else {
             // Normal unfocused window: white text
-            ('[', ']', Color::Black, Color::White)
+            (
+                '[',
+                ']',
+                theme.bottombar_button_normal_bg,
+                theme.bottombar_button_normal_fg,
+            )
         };
 
         // Render opening bracket and space
@@ -1305,6 +1377,7 @@ fn render_calendar(
     buffer: &mut VideoBuffer,
     calendar: &CalendarState,
     charset: &Charset,
+    theme: &Theme,
     cols: u16,
     rows: u16,
 ) {
@@ -1337,11 +1410,11 @@ fn render_calendar(
     let first_weekday = first_day.weekday().num_days_from_sunday() as u16;
 
     // Colors
-    let bg_color = Color::Blue;
-    let fg_color = Color::White;
-    let title_color = Color::White;
-    let today_bg = Color::Cyan;
-    let today_fg = Color::Black;
+    let bg_color = theme.calendar_bg;
+    let fg_color = theme.calendar_fg;
+    let title_color = theme.calendar_title_color;
+    let today_bg = theme.calendar_today_bg;
+    let today_fg = theme.calendar_today_fg;
 
     // Fill calendar background
     for cy in 0..height {
@@ -1428,7 +1501,7 @@ fn render_calendar(
             buffer.set(
                 char_x,
                 y + height - 1,
-                Cell::new(ch, Color::DarkGrey, bg_color),
+                Cell::new(ch, theme.config_instructions_fg, bg_color),
             );
         }
     }
@@ -1439,14 +1512,14 @@ fn render_calendar(
         buffer.set(
             x + width,
             y + sy,
-            Cell::new(shadow_char, Color::DarkGrey, Color::Black),
+            Cell::new(shadow_char, theme.window_shadow_color, Color::Black),
         );
     }
     for sx in 1..=width {
         buffer.set(
             x + sx,
             y + height,
-            Cell::new(shadow_char, Color::DarkGrey, Color::Black),
+            Cell::new(shadow_char, theme.window_shadow_color, Color::Black),
         );
     }
 }
