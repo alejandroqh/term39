@@ -25,13 +25,24 @@ jobs:
         id: get_version
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
-      - name: Extract changelog for this version
+      - name: Extract release notes
         id: changelog
         run: |
-          # Extract the changelog section for this version
           version="${{ steps.get_version.outputs.version }}"
-          awk "/^## \[${version}\]/,/^## \[/{if(/^## \[${version}\]/)p=1;else if(/^## \[/)p=0;if(p)print}" CHANGELOG.md > release_notes.txt
-          # If empty, use a default message
+
+          # First, try to get the tag annotation message
+          git fetch --tags --force
+          tag_message=$(git tag -l --format='%(contents)' "v${version}")
+
+          # If tag has an annotation, use it as release notes
+          if [ -n "$tag_message" ] && [ "$tag_message" != "" ]; then
+            echo "$tag_message" > release_notes.txt
+          else
+            # Fall back to extracting from CHANGELOG.md
+            awk "/^## \[${version}\]/,/^## \[/{if(/^## \[${version}\]/)p=1;else if(/^## \[/)p=0;if(p)print}" CHANGELOG.md > release_notes.txt
+          fi
+
+          # If still empty, use a default message
           if [ ! -s release_notes.txt ]; then
             echo "Release v${version}" > release_notes.txt
             echo "" >> release_notes.txt
