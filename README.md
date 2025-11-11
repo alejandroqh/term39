@@ -36,19 +36,87 @@ A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-D
 
 ## Installation
 
-### From crates.io (Recommended)
+### Linux
 
-The easiest way to install TERM39 is via cargo:
+#### Debian/Ubuntu (and derivatives)
+
+Download and install the `.deb` package from the [Releases](https://github.com/alejandroqh/term39/releases/latest) page:
+
+```bash
+# x86_64 (amd64)
+sudo dpkg -i term39_*_amd64.deb
+# or
+sudo apt install ./term39_*_amd64.deb
+
+# ARM64 (aarch64)
+sudo dpkg -i term39_*_arm64.deb
+# or
+sudo apt install ./term39_*_arm64.deb
+```
+
+#### Fedora/RHEL/CentOS/openSUSE
+
+Download and install the `.rpm` package from the [Releases](https://github.com/alejandroqh/term39/releases/latest) page:
+
+```bash
+# x86_64
+sudo rpm -i term39-*.x86_64.rpm
+# or
+sudo dnf install term39-*.x86_64.rpm
+
+# ARM64 (aarch64)
+sudo rpm -i term39-*.aarch64.rpm
+# or
+sudo dnf install term39-*.aarch64.rpm
+```
+
+#### Arch Linux (AUR)
+
+Using an AUR helper (yay, paru, etc.):
+
+```bash
+# Binary package (recommended - faster)
+yay -S term39-bin
+
+# Source package (builds from source)
+yay -S term39
+```
+
+Manual installation:
+
+```bash
+# Binary package
+git clone https://aur.archlinux.org/term39-bin.git
+cd term39-bin
+makepkg -si
+
+# Source package
+git clone https://aur.archlinux.org/term39.git
+cd term39
+makepkg -si
+```
+
+### macOS
+
+Download the binary for your architecture from the [Releases](https://github.com/alejandroqh/term39/releases/latest) page:
+
+```bash
+# Extract and install
+tar xzf term39-*.tar.gz
+sudo mv term39 /usr/local/bin/
+```
+
+### Universal (All Platforms)
+
+#### From crates.io (Recommended)
 
 ```bash
 cargo install term39
 ```
 
-This requires Rust to be installed. [Install Rust](https://rustup.rs/)
+Requires Rust to be installed. [Install Rust](https://rustup.rs/)
 
-### From Source
-
-Ensure you have Rust installed (1.70 or later). [Install Rust](https://rustup.rs/)
+#### From Source
 
 ```bash
 git clone https://github.com/alejandroqh/term39.git
@@ -57,9 +125,7 @@ cargo build --release
 ./target/release/term39
 ```
 
-### Binary Release
-
-Download the latest binary from the [Releases](https://github.com/alejandroqh/term39/releases) page.
+Requires Rust 1.70 or later. [Install Rust](https://rustup.rs/)
 
 ## Usage
 
