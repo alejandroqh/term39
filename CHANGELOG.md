@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-11-11
+
+### Added
+- InfoWindow component for consistent dialog rendering
+  - Help and About dialogs now use same bordered window style as Settings
+  - Title bar with borders and shadows
+  - Consistent black content background across all info dialogs
+  - Color code support for text formatting
+- Shadow rendering to Config Window for visual consistency
+
+### Fixed
+- **Critical**: Window content foreground color now uses theme property instead of hardcoded white
+  - All themes now correctly apply `window_content_fg` color
+  - Removed hardcoded color fields from Window struct
+- Dark theme visibility issues:
+  - Shadow color changed from Black to DarkGrey (now visible on black backgrounds)
+  - Button colors changed from Dark* variants to bright colors for better contrast
+  - Window title bars now have proper color distinction
+- Unfocused window title bars now use DarkGrey instead of Black across all themes
+  - Prevents confusion with top bar when windows are open
+  - Creates clear visual hierarchy between top bar, unfocused windows, and focused windows
+- Clippy warning: Reduced function arguments in config_window.rs from 9 to 7 parameters
+  - Functions now use theme colors directly instead of passing as parameters
+
+### Changed
+- **Dark theme redesigned with Dracula color scheme** (draculatheme.com):
+  - Purple/Magenta accents for focused windows and interactive elements
+  - Cyan accents for info dialogs and splash screen
+  - Bright white foreground for better contrast and readability
+  - Dracula semantic colors: Green (success), Red (danger), Yellow (warning)
+  - Window borders now use Magenta (purple) instead of grey
+  - Clock displays in Magenta (purple accent)
+- Standardized shadow rendering across all window types:
+  - Created shared `render_shadow()` helper function in video_buffer.rs
+  - All dialogs (windows, prompts, config, help, about, splash) use consistent shadow rendering
+  - All shadows now use `charset.shadow` character consistently
+- Theme color consistency improvements:
+  - Monochrome theme: Focused window title uses Grey instead of DarkGrey
+  - Classic theme: Unfocused window title uses DarkGrey instead of Black
+- Removed unused imports and dead code
+
+### Technical Details
+- Code quality improvements for release readiness
+- Zero clippy warnings
+- All tests passing (4/4)
+- Clean release build (1.5 MB binary)
+
 ## [0.4.0] - 2025-11-11
 
 ### Added
@@ -111,6 +158,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - portable-pty 0.8 for PTY support
   - vte 0.13 for ANSI/VT escape sequences
 
+[0.5.0]: https://github.com/alejandroqh/term39/releases/tag/v0.5.0
 [0.4.0]: https://github.com/alejandroqh/term39/releases/tag/v0.4.0
 [0.3.0]: https://github.com/alejandroqh/term39/releases/tag/v0.3.0
 [0.2.1]: https://github.com/alejandroqh/term39/releases/tag/v0.2.1
