@@ -24,6 +24,10 @@ pub struct Charset {
     // Window controls
     pub resize_handle: char,
     pub shadow: char,
+
+    // Configuration window toggles
+    pub block: char, // Full block for "on" state
+    pub shade: char, // Light shade for "off" state
 }
 
 impl Charset {
@@ -40,6 +44,8 @@ impl Charset {
             border_vertical: '║',     // U+2551
             resize_handle: '╬', // U+256C (DOS CP437 206) box drawings double vertical and horizontal
             shadow: '▓',        // U+2593 dark shade
+            block: '█',         // U+2588 full block
+            shade: '░',         // U+2591 light shade
         }
     }
 
@@ -56,6 +62,8 @@ impl Charset {
             border_vertical: '|',   // Pipe for vertical
             resize_handle: '+',     // Plus for resize handle (matches corners)
             shadow: '#',            // Hash for shadow
+            block: '#',             // Hash for "on" state in ASCII mode
+            shade: ' ',             // Space for "off" state in ASCII mode
         }
     }
 
@@ -69,5 +77,39 @@ impl Charset {
         } else {
             Self::unicode()
         }
+    }
+
+    // Accessor methods for border characters
+    pub fn border_top_left(&self) -> char {
+        self.border_top_left
+    }
+
+    pub fn border_top_right(&self) -> char {
+        self.border_top_right
+    }
+
+    pub fn border_bottom_left(&self) -> char {
+        self.border_bottom_left
+    }
+
+    pub fn border_bottom_right(&self) -> char {
+        self.border_bottom_right
+    }
+
+    pub fn border_horizontal(&self) -> char {
+        self.border_horizontal
+    }
+
+    pub fn border_vertical(&self) -> char {
+        self.border_vertical
+    }
+
+    // Accessor methods for toggle characters
+    pub fn block(&self) -> char {
+        self.block
+    }
+
+    pub fn shade(&self) -> char {
+        self.shade
     }
 }

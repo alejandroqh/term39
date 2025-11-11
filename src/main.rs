@@ -4,6 +4,8 @@ mod ansi_handler;
 mod button;
 mod charset;
 mod config;
+mod config_manager;
+mod config_window;
 mod prompt;
 mod term_grid;
 mod terminal_emulator;
@@ -15,6 +17,8 @@ mod window_manager;
 use button::Button;
 use charset::Charset;
 use chrono::{Datelike, Local, NaiveDate};
+use config_manager::AppConfig;
+use config_window::{ConfigAction, ConfigWindow};
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind},
@@ -105,6 +109,14 @@ fn main() -> io::Result<()> {
     let charset = Charset::from_args();
     debug_log!("Using charset mode: {:?}", charset.mode);
 
+    // Load application configuration
+    let mut app_config = AppConfig::load();
+    debug_log!(
+        "Config loaded: auto_tiling={}, show_date={}",
+        app_config.auto_tiling_on_startup,
+        app_config.show_date_in_clock
+    );
+
     let mut stdout = io::stdout();
 
     // Enter raw mode for low-level terminal control
@@ -126,15 +138,25 @@ fn main() -> io::Result<()> {
     // Create the "New Terminal" button
     let mut new_terminal_button = Button::new(1, 0, "+New Terminal".to_string());
 
-    // Auto-arrange toggle state and button
-    let mut auto_arrange_enabled = true;
-    let mut auto_arrange_button = Button::new(40, 0, "█ on] Arrange Windows".to_string());
+    // Auto-tiling toggle state and button (initialized from config)
+    // Button is on bottom bar (rows - 1), left side
+    let (_, initial_rows) = terminal::size()?;
+    let mut auto_tiling_enabled = app_config.auto_tiling_on_startup;
+    let auto_tiling_text = if auto_tiling_enabled {
+        "█ on] Auto Tiling"
+    } else {
+        "off ░] Auto Tiling"
+    };
+    let mut auto_tiling_button = Button::new(1, initial_rows - 1, auto_tiling_text.to_string());
 
     // Prompt state (None when no prompt is active)
     let mut active_prompt: Option<Prompt> = None;
 
     // Calendar state (None when calendar is not shown)
     let mut active_calendar: Option<CalendarState> = None;
+
+    // Config window state (None when not shown)
+    let mut active_config_window: Option<ConfigWindow> = None;
 
     // Show splash screen for 1 second
     show_splash_screen(&mut video_buffer, &mut stdout, &charset)?;
@@ -160,19 +182,13 @@ fn main() -> io::Result<()> {
 
         // Render the top bar
         let focus = window_manager.get_focus();
-        render_top_bar(
-            &mut video_buffer,
-            focus,
-            &new_terminal_button,
-            &auto_arrange_button,
-            auto_arrange_enabled,
-        );
+        render_top_bar(&mut video_buffer, focus, &new_terminal_button, &app_config);
 
         // Render all windows (returns true if any were closed)
         let windows_closed = window_manager.render_all(&mut video_buffer, &charset);
 
         // Auto-reposition remaining windows if any were closed
-        if windows_closed && auto_arrange_enabled {
+        if windows_closed && auto_tiling_enabled {
             let (cols, rows) = terminal::size()?;
             window_manager.auto_position_windows(cols, rows);
         }
@@ -181,7 +197,12 @@ fn main() -> io::Result<()> {
         window_manager.render_snap_preview(&mut video_buffer, &charset);
 
         // Render the button bar
-        render_button_bar(&mut video_buffer, &window_manager);
+        render_button_bar(
+            &mut video_buffer,
+            &window_manager,
+            &auto_tiling_button,
+            auto_tiling_enabled,
+        );
 
         // Render active prompt (if any) on top of everything
         if let Some(ref prompt) = active_prompt {
@@ -191,6 +212,11 @@ fn main() -> io::Result<()> {
         // Render active calendar (if any) on top of everything
         if let Some(ref calendar) = active_calendar {
             render_calendar(&mut video_buffer, calendar, &charset, cols, rows);
+        }
+
+        // Render active config window (if any) on top of everything
+        if let Some(ref config_win) = active_config_window {
+            config_win.render(&mut video_buffer, &charset, &app_config);
         }
 
         // Present buffer to screen
@@ -296,6 +322,21 @@ fn main() -> io::Result<()> {
                         }
                     }
 
+                    // Handle config window keyboard events if config window is active
+                    if active_config_window.is_some() {
+                        match key_event.code {
+                            KeyCode::Esc => {
+                                // ESC dismisses the config window
+                                active_config_window = None;
+                                continue;
+                            }
+                            _ => {
+                                // Ignore other keys when config window is active
+                                continue;
+                            }
+                        }
+                    }
+
                     // Handle ALT+TAB for window cycling
                     if key_event.code == KeyCode::Tab
                         && key_event.modifiers.contains(KeyModifiers::ALT)
@@ -381,6 +422,7 @@ fn main() -> io::Result<()> {
                                     {Y}'q'/ESC{W}   - Exit application (from desktop)\n\
                                     {Y}'h'{W}       - Show this help screen\n\
                                     {Y}'l'{W}       - Show license and about information\n\
+                                    {Y}'s'{W}       - Show settings/configuration window\n\
                                     {Y}'c'{W}       - Show calendar ({Y}\u{2190}\u{2192}{W} months, {Y}\u{2191}\u{2193}{W} years, {Y}t{W} today)\n\
                                     {Y}CTRL+L{W}    - Clear terminal (like 'clear' command)\n\
                                     {Y}ALT+TAB{W}   - Switch between windows\n\
@@ -475,6 +517,16 @@ fn main() -> io::Result<()> {
                                 let _ = window_manager.send_char_to_focused('c');
                             }
                         }
+                        KeyCode::Char('s') => {
+                            // Show settings/config window if desktop is focused
+                            if current_focus == FocusState::Desktop {
+                                let (cols, rows) = terminal::size()?;
+                                active_config_window = Some(ConfigWindow::new(cols, rows));
+                            } else if current_focus != FocusState::Desktop {
+                                // Send 's' to terminal
+                                let _ = window_manager.send_char_to_focused('s');
+                            }
+                        }
                         KeyCode::Char('t') => {
                             // Only create new window if desktop is focused
                             if current_focus == FocusState::Desktop {
@@ -499,7 +551,7 @@ fn main() -> io::Result<()> {
                                 );
 
                                 // Auto-position all windows based on the snap pattern
-                                if auto_arrange_enabled {
+                                if auto_tiling_enabled {
                                     window_manager.auto_position_windows(cols, rows);
                                 }
 
@@ -653,6 +705,50 @@ fn main() -> io::Result<()> {
                         }
                     }
 
+                    // Check if there's an active config window (after prompt, before other events)
+                    if !handled {
+                        if let Some(ref config_win) = active_config_window {
+                            if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
+                                let action =
+                                    config_win.handle_click(mouse_event.column, mouse_event.row);
+                                match action {
+                                    ConfigAction::Close => {
+                                        active_config_window = None;
+                                        handled = true;
+                                    }
+                                    ConfigAction::ToggleAutoTiling => {
+                                        app_config.toggle_auto_tiling_on_startup();
+                                        // Update runtime state to match config
+                                        auto_tiling_enabled = app_config.auto_tiling_on_startup;
+                                        // Update button text
+                                        let (_, rows) = terminal::size()?;
+                                        let auto_tiling_text = if auto_tiling_enabled {
+                                            "█ on] Auto Tiling"
+                                        } else {
+                                            "off ░] Auto Tiling"
+                                        };
+                                        auto_tiling_button =
+                                            Button::new(1, rows - 1, auto_tiling_text.to_string());
+                                        handled = true;
+                                    }
+                                    ConfigAction::ToggleShowDate => {
+                                        app_config.toggle_show_date_in_clock();
+                                        handled = true;
+                                    }
+                                    ConfigAction::None => {
+                                        // Check if click is inside config window
+                                        if config_win
+                                            .contains_point(mouse_event.column, mouse_event.row)
+                                        {
+                                            // Click inside config window but not on an option - consume the event
+                                            handled = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     // Update button hover state on mouse movement (always active)
                     if !handled {
                         if new_terminal_button.contains(mouse_event.column, mouse_event.row) {
@@ -661,19 +757,20 @@ fn main() -> io::Result<()> {
                             new_terminal_button.set_state(button::ButtonState::Normal);
                         }
 
-                        // Calculate center position for toggle button hover detection
-                        let (cols, _) = terminal::size()?;
-                        let button_text_width = auto_arrange_button.label.len() as u16 + 4; // +2 for brackets, +2 for padding
-                        let center_x = (cols.saturating_sub(button_text_width)) / 2;
-                        let button_end_x = center_x + button_text_width;
+                        // Calculate position for toggle button hover detection (bottom bar, left side)
+                        let (_, rows) = terminal::size()?;
+                        let bar_y = rows - 1;
+                        let button_start_x = 1u16;
+                        let button_text_width = auto_tiling_button.label.len() as u16 + 3; // +1 for "[", +1 for label, +1 for " "
+                        let button_end_x = button_start_x + button_text_width;
 
-                        if mouse_event.row == 0
-                            && mouse_event.column >= center_x
+                        if mouse_event.row == bar_y
+                            && mouse_event.column >= button_start_x
                             && mouse_event.column < button_end_x
                         {
-                            auto_arrange_button.set_state(button::ButtonState::Hovered);
+                            auto_tiling_button.set_state(button::ButtonState::Hovered);
                         } else {
-                            auto_arrange_button.set_state(button::ButtonState::Normal);
+                            auto_tiling_button.set_state(button::ButtonState::Normal);
                         }
                     }
 
@@ -702,41 +799,42 @@ fn main() -> io::Result<()> {
                         );
 
                         // Auto-position all windows based on the snap pattern
-                        if auto_arrange_enabled {
+                        if auto_tiling_enabled {
                             window_manager.auto_position_windows(cols, rows);
                         }
 
                         handled = true;
                     }
 
-                    // Check if click is on the Auto-Arrange toggle button (only if no prompt)
+                    // Check if click is on the Auto-Tiling toggle button (only if no prompt)
                     if !handled
                         && active_prompt.is_none()
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
                     {
-                        // Calculate center position for toggle button click detection
-                        let (cols, _) = terminal::size()?;
-                        let button_text_width = auto_arrange_button.label.len() as u16 + 4; // +2 for brackets, +2 for padding
-                        let center_x = (cols.saturating_sub(button_text_width)) / 2;
-                        let button_end_x = center_x + button_text_width;
+                        // Calculate position for toggle button click detection (bottom bar, left side)
+                        let (_, rows) = terminal::size()?;
+                        let bar_y = rows - 1;
+                        let button_start_x = 1u16;
+                        let button_text_width = auto_tiling_button.label.len() as u16 + 3; // +1 for "[", +1 for label, +1 for " "
+                        let button_end_x = button_start_x + button_text_width;
 
-                        if mouse_event.row == 0
-                            && mouse_event.column >= center_x
+                        if mouse_event.row == bar_y
+                            && mouse_event.column >= button_start_x
                             && mouse_event.column < button_end_x
                         {
-                            debug_log!("Auto-Arrange toggle button clicked");
-                            auto_arrange_button.set_state(button::ButtonState::Pressed);
+                            debug_log!("Auto-Tiling toggle button clicked");
+                            auto_tiling_button.set_state(button::ButtonState::Pressed);
 
-                            // Toggle the auto-arrange state
-                            auto_arrange_enabled = !auto_arrange_enabled;
+                            // Toggle the auto-tiling state
+                            auto_tiling_enabled = !auto_tiling_enabled;
 
                             // Update button label to reflect new state
-                            let new_label = if auto_arrange_enabled {
-                                "█ on] Arrange Windows".to_string()
+                            let new_label = if auto_tiling_enabled {
+                                "█ on] Auto Tiling".to_string()
                             } else {
-                                "off ░] Arrange Windows".to_string()
+                                "off ░] Auto Tiling".to_string()
                             };
-                            auto_arrange_button = Button::new(40, 0, new_label);
+                            auto_tiling_button = Button::new(1, bar_y, new_label);
 
                             handled = true;
                         }
@@ -757,7 +855,7 @@ fn main() -> io::Result<()> {
                         let window_closed =
                             window_manager.handle_mouse_event(&mut video_buffer, mouse_event);
                         // Auto-reposition remaining windows if a window was closed
-                        if window_closed && auto_arrange_enabled {
+                        if window_closed && auto_tiling_enabled {
                             let (cols, rows) = terminal::size()?;
                             window_manager.auto_position_windows(cols, rows);
                         }
@@ -792,8 +890,7 @@ fn render_top_bar(
     buffer: &mut VideoBuffer,
     focus: FocusState,
     new_terminal_button: &Button,
-    auto_arrange_button: &Button,
-    auto_arrange_enabled: bool,
+    app_config: &AppConfig,
 ) {
     let (cols, _rows) = buffer.dimensions();
 
@@ -813,47 +910,19 @@ fn render_top_bar(
     // Left section - New Terminal button (always visible)
     new_terminal_button.render(buffer);
 
-    // Center section - Auto-arrange toggle button with custom colors
-    let toggle_color = if auto_arrange_enabled {
-        Color::Green
-    } else {
-        Color::White
-    };
-
-    let toggle_bg = match auto_arrange_button.state {
-        button::ButtonState::Normal => Color::DarkGrey,
-        button::ButtonState::Hovered => Color::Yellow,
-        button::ButtonState::Pressed => Color::Black,
-    };
-
-    // Calculate center position for the toggle button
-    let button_text_width = auto_arrange_button.label.len() as u16 + 4; // +2 for "[ " and "]", +2 for padding
-    let center_x = (cols.saturating_sub(button_text_width)) / 2;
-
-    let mut current_x = center_x;
-
-    // Render left padding space
-    buffer.set(current_x, 0, Cell::new(' ', toggle_color, toggle_bg));
-    current_x += 1;
-
-    // Render "[ "
-    buffer.set(current_x, 0, Cell::new('[', toggle_color, toggle_bg));
-    current_x += 1;
-
-    // Render label
-    for ch in auto_arrange_button.label.chars() {
-        buffer.set(current_x, 0, Cell::new(ch, toggle_color, toggle_bg));
-        current_x += 1;
-    }
-
-    // Render right padding space
-    buffer.set(current_x, 0, Cell::new(' ', toggle_color, toggle_bg));
-
     // Right section - Clock with dark background
     let now = Local::now();
-    let time_str = now.format("%a %b %d, %H:%M").to_string();
 
-    // Format: "| Tue Nov 11, 09:21 " (with separator and trailing space)
+    // Format clock based on configuration
+    let time_str = if app_config.show_date_in_clock {
+        // Show date and time: "Tue Nov 11, 09:21"
+        now.format("%a %b %d, %H:%M").to_string()
+    } else {
+        // Show time only with seconds: "09:21:45"
+        now.format("%H:%M:%S").to_string()
+    };
+
+    // Format: "| Tue Nov 11, 09:21 " or "| 09:21:45 " (with separator and trailing space)
     let clock_with_separator = format!("| {} ", time_str);
     let clock_width = clock_with_separator.len() as u16;
     let time_pos = cols.saturating_sub(clock_width);
@@ -1062,7 +1131,12 @@ fn show_splash_screen(
     Ok(())
 }
 
-fn render_button_bar(buffer: &mut VideoBuffer, window_manager: &WindowManager) {
+fn render_button_bar(
+    buffer: &mut VideoBuffer,
+    window_manager: &WindowManager,
+    auto_tiling_button: &Button,
+    auto_tiling_enabled: bool,
+) {
     let (cols, rows) = buffer.dimensions();
     let bar_y = rows - 1;
 
@@ -1072,8 +1146,40 @@ fn render_button_bar(buffer: &mut VideoBuffer, window_manager: &WindowManager) {
         buffer.set(x, bar_y, bar_cell);
     }
 
+    // Render Auto Tiling toggle on the left side
+    let toggle_color = if auto_tiling_enabled {
+        Color::Green
+    } else {
+        Color::White
+    };
+
+    let toggle_bg = match auto_tiling_button.state {
+        button::ButtonState::Normal => Color::DarkGrey,
+        button::ButtonState::Hovered => Color::Yellow,
+        button::ButtonState::Pressed => Color::Black,
+    };
+
+    let mut current_x = 1u16;
+
+    // Render "[ "
+    buffer.set(current_x, bar_y, Cell::new('[', toggle_color, toggle_bg));
+    current_x += 1;
+
+    // Render label
+    for ch in auto_tiling_button.label.chars() {
+        buffer.set(current_x, bar_y, Cell::new(ch, toggle_color, toggle_bg));
+        current_x += 1;
+    }
+
+    // Render " ]"
+    buffer.set(current_x, bar_y, Cell::new(' ', toggle_color, toggle_bg));
+    current_x += 1;
+
+    // Add spacing after toggle
+    current_x += 2;
+
     // Render help text on the right side
-    let help_text = " > Press 'h' for Help < ";
+    let help_text = " > 'h' Help | 's' Settings < ";
     let help_text_len = help_text.len() as u16;
     if cols > help_text_len {
         let help_x = cols - help_text_len - 1;
@@ -1091,8 +1197,6 @@ fn render_button_bar(buffer: &mut VideoBuffer, window_manager: &WindowManager) {
     if windows.is_empty() {
         return;
     }
-
-    let mut current_x = 1u16; // Start at position 1
 
     for (_id, title, is_focused, is_minimized) in windows {
         // Max button width is 18 chars total
