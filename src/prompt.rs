@@ -18,7 +18,7 @@ impl PromptType {
     /// Get the background color for this prompt type
     pub fn background_color(&self) -> Color {
         match self {
-            PromptType::Info => Color::Blue,
+            PromptType::Info => Color::DarkGrey,
             PromptType::Success => Color::Green,
             PromptType::Warning => Color::Yellow,
             PromptType::Danger => Color::Red,
