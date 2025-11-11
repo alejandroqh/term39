@@ -706,6 +706,7 @@ fn main() -> io::Result<()> {
                     }
 
                     // Check if there's an active config window (after prompt, before other events)
+                    #[allow(clippy::collapsible_if)]
                     if !handled {
                         if let Some(ref config_win) = active_config_window {
                             if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
