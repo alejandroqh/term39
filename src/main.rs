@@ -108,11 +108,14 @@ fn main() -> io::Result<()> {
     debug_log!("Application started");
 
     // Parse command-line arguments for charset configuration
-    let charset = Charset::from_args();
+    let mut charset = Charset::from_args();
     debug_log!("Using charset mode: {:?}", charset.mode);
 
     // Load application configuration
     let mut app_config = AppConfig::load();
+
+    // Set the background character from config
+    charset.set_background(app_config.get_background_char());
     debug_log!(
         "Config loaded: auto_tiling={}, show_date={}, theme={}",
         app_config.auto_tiling_on_startup,
@@ -770,6 +773,17 @@ fn main() -> io::Result<()> {
                                         // Reload theme
                                         theme = Theme::from_name(&app_config.theme);
                                         debug_log!("Theme changed to: {}", theme.name());
+                                        handled = true;
+                                    }
+                                    ConfigAction::CycleBackgroundChar => {
+                                        // Cycle to the next background character
+                                        app_config.cycle_background_char();
+                                        // Update charset with new background character
+                                        charset.set_background(app_config.get_background_char());
+                                        debug_log!(
+                                            "Background character changed to: {}",
+                                            app_config.get_background_char_name()
+                                        );
                                         handled = true;
                                     }
                                     ConfigAction::None => {

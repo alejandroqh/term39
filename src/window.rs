@@ -13,9 +13,12 @@ pub struct Window {
     pub height: u16,
     pub title: String,
 
-    // Colors
+    // Colors (currently unused, reserved for per-window customization)
+    #[allow(dead_code)]
     pub title_bg: Color,
+    #[allow(dead_code)]
     pub title_fg: Color,
+    #[allow(dead_code)]
     pub border_color: Color,
     pub content_bg: Color,
     pub content_fg: Color,

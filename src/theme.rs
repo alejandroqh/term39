@@ -28,6 +28,7 @@ pub struct Theme {
     pub window_title_fg: Color,
     pub window_border: Color,
     pub window_content_bg: Color,
+    #[allow(dead_code)]
     pub window_content_fg: Color,
     pub window_shadow_color: Color,
 

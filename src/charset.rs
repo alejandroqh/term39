@@ -112,4 +112,9 @@ impl Charset {
     pub fn shade(&self) -> char {
         self.shade
     }
+
+    /// Set a custom background character
+    pub fn set_background(&mut self, background_char: char) {
+        self.background = background_char;
+    }
 }

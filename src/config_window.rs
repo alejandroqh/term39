@@ -13,6 +13,7 @@ pub enum ConfigAction {
     ToggleAutoTiling,
     ToggleShowDate,
     CycleTheme,
+    CycleBackgroundChar,
 }
 
 /// Configuration modal window (centered, with border and title)
@@ -21,9 +22,10 @@ pub struct ConfigWindow {
     pub height: u16,
     pub x: u16,
     pub y: u16,
-    auto_arrange_row: u16, // Row where auto arrange toggle is rendered
-    show_date_row: u16,    // Row where show date toggle is rendered
-    theme_row: u16,        // Row where theme selector is rendered
+    auto_arrange_row: u16,    // Row where auto arrange toggle is rendered
+    show_date_row: u16,       // Row where show date toggle is rendered
+    theme_row: u16,           // Row where theme selector is rendered
+    background_char_row: u16, // Row where background character selector is rendered
 }
 
 impl ConfigWindow {
@@ -31,7 +33,7 @@ impl ConfigWindow {
     pub fn new(buffer_width: u16, buffer_height: u16) -> Self {
         // Fixed dimensions for config window
         let width = 60;
-        let height = 12; // Increased to fit theme selector
+        let height = 14; // Increased to fit background character selector
 
         // Center on screen
         let x = (buffer_width.saturating_sub(width)) / 2;
@@ -41,6 +43,7 @@ impl ConfigWindow {
         let auto_arrange_row = y + 3; // Title at y+1, blank at y+2, first option at y+3
         let show_date_row = y + 5; // Blank at y+4, second option at y+5
         let theme_row = y + 7; // Blank at y+6, third option at y+7
+        let background_char_row = y + 9; // Blank at y+8, fourth option at y+9
 
         Self {
             width,
@@ -50,6 +53,7 @@ impl ConfigWindow {
             auto_arrange_row,
             show_date_row,
             theme_row,
+            background_char_row,
         }
     }
 
@@ -197,6 +201,15 @@ impl ConfigWindow {
             content_bg,
         );
 
+        // Render background character selector
+        self.render_background_char_selector(
+            buffer,
+            self.background_char_row,
+            config,
+            content_fg,
+            content_bg,
+        );
+
         // Render instruction at bottom
         let instruction = "Press ESC to close";
         let instruction_x = self.x + (self.width - instruction.len() as u16) / 2;
@@ -297,6 +310,38 @@ impl ConfigWindow {
         }
     }
 
+    /// Render background character selector showing current character with arrows to cycle
+    fn render_background_char_selector(
+        &self,
+        buffer: &mut VideoBuffer,
+        row: u16,
+        config: &AppConfig,
+        content_fg: Color,
+        content_bg: Color,
+    ) {
+        let fg = content_fg;
+        let bg = content_bg;
+
+        let option_x = self.x + 3; // 3 spaces from left border
+
+        // Render label
+        let label = "Background character:";
+        for (i, ch) in label.chars().enumerate() {
+            buffer.set(option_x + i as u16, row, Cell::new(ch, fg, bg));
+        }
+
+        // Render character selector: < Light Shade [░] >
+        let char_name = config.get_background_char_name();
+        let char_sample = config.get_background_char();
+
+        let selector_x = option_x + label.len() as u16 + 2;
+        let selector_text = format!("< {} [{}] >", char_name, char_sample);
+
+        for (i, ch) in selector_text.chars().enumerate() {
+            buffer.set(selector_x + i as u16, row, Cell::new(ch, fg, bg));
+        }
+    }
+
     /// Handle mouse click and return appropriate action
     pub fn handle_click(&self, x: u16, y: u16) -> ConfigAction {
         // Check if click is on auto tiling row
@@ -320,6 +365,14 @@ impl ConfigWindow {
             // Click anywhere on the row cycles the theme
             if x >= self.x && x < self.x + self.width {
                 return ConfigAction::CycleTheme;
+            }
+        }
+
+        // Check if click is on background character row
+        if y == self.background_char_row {
+            // Click anywhere on the row cycles the background character
+            if x >= self.x && x < self.x + self.width {
+                return ConfigAction::CycleBackgroundChar;
             }
         }
 
