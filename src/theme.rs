@@ -355,60 +355,62 @@ impl Theme {
         }
     }
 
-    /// Dark theme with darker palette
+    /// Dark theme inspired by Dracula (draculatheme.com)
+    /// Background: #282A36 (Black), Foreground: #F8F8F2 (White)
+    /// Accent colors: Cyan #8BE9FD, Purple #BD93F9, Pink #FF79C6, Green #50FA7B, Red #FF5555, Yellow #F1FA8C
     pub fn dark() -> Self {
         Self {
             mode: ThemeMode::Dark,
 
-            // Desktop
+            // Desktop - Dracula background
             desktop_bg: Color::Black,
-            desktop_fg: Color::Grey,
+            desktop_fg: Color::White,
 
             // Top bar
             topbar_bg_desktop: Color::DarkGrey,
             topbar_bg_window: Color::Black,
             topbar_fg: Color::White,
             clock_bg: Color::Black,
-            clock_fg: Color::Cyan,
+            clock_fg: Color::Magenta, // Purple accent
 
-            // Windows
+            // Windows - Dracula purple/cyan accents
             window_title_bg: Color::DarkGrey,
-            window_title_bg_focused: Color::Grey,
-            window_title_fg: Color::Cyan,
-            window_border: Color::DarkGrey,
+            window_title_bg_focused: Color::DarkMagenta, // Purple accent for focus
+            window_title_fg: Color::White,
+            window_border: Color::Magenta, // Purple borders
             window_content_bg: Color::Black,
-            window_content_fg: Color::Grey,
+            window_content_fg: Color::White, // Bright foreground like Dracula
             window_shadow_color: Color::DarkGrey,
 
-            // Window controls
-            button_close_color: Color::Red,
-            button_maximize_color: Color::Green,
-            button_minimize_color: Color::Yellow,
+            // Window controls - Dracula semantic colors
+            button_close_color: Color::Red,      // Dracula red #FF5555
+            button_maximize_color: Color::Green, // Dracula green #50FA7B
+            button_minimize_color: Color::Yellow, // Dracula yellow #F1FA8C
             resize_handle_normal_fg: Color::DarkGrey,
             resize_handle_normal_bg: Color::Black,
-            resize_handle_active_fg: Color::Cyan,
+            resize_handle_active_fg: Color::Magenta, // Purple accent
             resize_handle_active_bg: Color::DarkGrey,
 
             // UI Buttons
-            button_normal_fg: Color::Grey,
+            button_normal_fg: Color::White,
             button_normal_bg: Color::DarkGrey,
-            button_hovered_fg: Color::Cyan,
+            button_hovered_fg: Color::Cyan, // Dracula cyan #8BE9FD
             button_hovered_bg: Color::DarkGrey,
             button_pressed_fg: Color::White,
             button_pressed_bg: Color::Black,
 
             // Bottom bar
             bottombar_bg: Color::Black,
-            bottombar_fg: Color::Grey,
-            bottombar_button_normal_fg: Color::Grey,
+            bottombar_fg: Color::White,
+            bottombar_button_normal_fg: Color::White,
             bottombar_button_normal_bg: Color::Black,
-            bottombar_button_focused_fg: Color::Cyan,
-            bottombar_button_focused_bg: Color::DarkGrey,
+            bottombar_button_focused_fg: Color::Black,
+            bottombar_button_focused_bg: Color::Magenta, // Purple accent
             bottombar_button_minimized_fg: Color::DarkGrey,
             bottombar_button_minimized_bg: Color::Black,
 
             // Toggle button
-            toggle_enabled_fg: Color::Cyan,
+            toggle_enabled_fg: Color::Green, // Dracula green
             toggle_enabled_bg_normal: Color::DarkGrey,
             toggle_enabled_bg_hovered: Color::DarkGrey,
             toggle_enabled_bg_pressed: Color::Black,
@@ -419,7 +421,7 @@ impl Theme {
 
             // Prompts/Dialogs
             prompt_info_bg: Color::DarkGrey,
-            prompt_info_fg: Color::Cyan,
+            prompt_info_fg: Color::Cyan, // Dracula cyan
             prompt_success_bg: Color::DarkGreen,
             prompt_success_fg: Color::White,
             prompt_warning_bg: Color::DarkYellow,
@@ -429,45 +431,45 @@ impl Theme {
 
             // Dialog buttons
             dialog_button_primary_info_fg: Color::Black,
-            dialog_button_primary_info_bg: Color::Cyan,
+            dialog_button_primary_info_bg: Color::Cyan, // Dracula cyan
             dialog_button_primary_success_fg: Color::Black,
-            dialog_button_primary_success_bg: Color::Green,
+            dialog_button_primary_success_bg: Color::Green, // Dracula green
             dialog_button_primary_warning_fg: Color::Black,
-            dialog_button_primary_warning_bg: Color::Yellow,
+            dialog_button_primary_warning_bg: Color::Yellow, // Dracula yellow
             dialog_button_primary_danger_fg: Color::White,
-            dialog_button_primary_danger_bg: Color::Red,
-            dialog_button_secondary_fg: Color::Grey,
-            dialog_button_secondary_bg: Color::Black,
+            dialog_button_primary_danger_bg: Color::Red, // Dracula red
+            dialog_button_secondary_fg: Color::White,
+            dialog_button_secondary_bg: Color::DarkGrey,
 
             // Config window
-            config_title_bg: Color::DarkGrey,
-            config_title_fg: Color::Cyan,
-            config_border: Color::DarkGrey,
+            config_title_bg: Color::DarkMagenta, // Purple title
+            config_title_fg: Color::White,
+            config_border: Color::Magenta, // Purple borders
             config_content_bg: Color::Black,
-            config_content_fg: Color::Grey,
+            config_content_fg: Color::White,
             config_instructions_fg: Color::DarkGrey,
-            config_toggle_on_color: Color::Cyan,
+            config_toggle_on_color: Color::Green, // Dracula green
             config_toggle_off_color: Color::DarkGrey,
 
             // Calendar
             calendar_bg: Color::Black,
-            calendar_fg: Color::Grey,
-            calendar_title_color: Color::Cyan,
-            calendar_today_bg: Color::DarkCyan,
+            calendar_fg: Color::White,
+            calendar_title_color: Color::Magenta, // Purple accent
+            calendar_today_bg: Color::DarkMagenta, // Purple highlight
             calendar_today_fg: Color::White,
 
             // Scrollbar
             scrollbar_track_fg: Color::DarkGrey,
-            scrollbar_thumb_fg: Color::Grey,
+            scrollbar_thumb_fg: Color::Magenta, // Purple accent
 
             // Snap preview
-            snap_preview_border: Color::Cyan,
+            snap_preview_border: Color::Cyan, // Dracula cyan
             snap_preview_bg: Color::Black,
 
             // Splash screen
-            splash_border: Color::DarkGrey,
+            splash_border: Color::Magenta, // Purple borders
             splash_bg: Color::Black,
-            splash_fg: Color::Cyan,
+            splash_fg: Color::Cyan, // Dracula cyan
         }
     }
 

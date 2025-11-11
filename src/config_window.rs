@@ -2,7 +2,6 @@ use crate::charset::Charset;
 use crate::config_manager::AppConfig;
 use crate::theme::Theme;
 use crate::video_buffer::{self, Cell, VideoBuffer};
-use crossterm::style::Color;
 
 /// Action to take based on config window interaction
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -69,7 +68,6 @@ impl ConfigWindow {
         let title_fg = theme.config_title_fg;
         let border_color = theme.config_border;
         let content_bg = theme.config_content_bg;
-        let content_fg = theme.config_content_fg;
 
         // Get border characters
         let top_left = charset.border_top_left();
@@ -136,7 +134,7 @@ impl ConfigWindow {
                 buffer.set(
                     self.x + x,
                     self.y + y,
-                    Cell::new(' ', content_fg, content_bg),
+                    Cell::new(' ', theme.config_content_fg, content_bg),
                 );
             }
 
@@ -177,8 +175,6 @@ impl ConfigWindow {
             config.auto_tiling_on_startup,
             charset,
             theme,
-            content_fg,
-            content_bg,
         );
 
         self.render_option(
@@ -188,27 +184,13 @@ impl ConfigWindow {
             config.show_date_in_clock,
             charset,
             theme,
-            content_fg,
-            content_bg,
         );
 
         // Render theme selector
-        self.render_theme_selector(
-            buffer,
-            self.theme_row,
-            &config.theme,
-            content_fg,
-            content_bg,
-        );
+        self.render_theme_selector(buffer, self.theme_row, &config.theme, theme);
 
         // Render background character selector
-        self.render_background_char_selector(
-            buffer,
-            self.background_char_row,
-            config,
-            content_fg,
-            content_bg,
-        );
+        self.render_background_char_selector(buffer, self.background_char_row, config, theme);
 
         // Render instruction at bottom
         let instruction = "Press ESC to close";
@@ -244,11 +226,9 @@ impl ConfigWindow {
         enabled: bool,
         charset: &Charset,
         theme: &Theme,
-        content_fg: Color,
-        content_bg: Color,
     ) {
-        let fg = content_fg;
-        let bg = content_bg;
+        let fg = theme.config_content_fg;
+        let bg = theme.config_content_bg;
 
         let option_x = self.x + 3; // 3 spaces from left border
 
@@ -291,11 +271,10 @@ impl ConfigWindow {
         buffer: &mut VideoBuffer,
         row: u16,
         current_theme: &str,
-        content_fg: Color,
-        content_bg: Color,
+        theme: &Theme,
     ) {
-        let fg = content_fg;
-        let bg = content_bg;
+        let fg = theme.config_content_fg;
+        let bg = theme.config_content_bg;
 
         let option_x = self.x + 3; // 3 spaces from left border
 
@@ -327,11 +306,10 @@ impl ConfigWindow {
         buffer: &mut VideoBuffer,
         row: u16,
         config: &AppConfig,
-        content_fg: Color,
-        content_bg: Color,
+        theme: &Theme,
     ) {
-        let fg = content_fg;
-        let bg = content_bg;
+        let fg = theme.config_content_fg;
+        let bg = theme.config_content_bg;
 
         let option_x = self.x + 3; // 3 spaces from left border
 
