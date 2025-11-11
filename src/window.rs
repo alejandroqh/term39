@@ -1,7 +1,6 @@
 use crate::charset::Charset;
 use crate::theme::Theme;
-use crate::video_buffer::{Cell, VideoBuffer};
-use crossterm::style::Color;
+use crate::video_buffer::{self, Cell, VideoBuffer};
 
 /// Represents a window in the UI
 #[derive(Clone, Debug)]
@@ -12,16 +11,6 @@ pub struct Window {
     pub width: u16,
     pub height: u16,
     pub title: String,
-
-    // Colors (currently unused, reserved for per-window customization)
-    #[allow(dead_code)]
-    pub title_bg: Color,
-    #[allow(dead_code)]
-    pub title_fg: Color,
-    #[allow(dead_code)]
-    pub border_color: Color,
-    pub content_bg: Color,
-    pub content_fg: Color,
 
     // State
     pub is_focused: bool,
@@ -36,7 +25,7 @@ pub struct Window {
 }
 
 impl Window {
-    /// Create a new window with default colors (dark blue content, classic DOS style)
+    /// Create a new window
     pub fn new(id: u32, x: u16, y: u16, width: u16, height: u16, title: String) -> Self {
         // Minimum size to accommodate buttons and resize handle
         let width = width.max(20);
@@ -49,11 +38,6 @@ impl Window {
             width,
             height,
             title,
-            title_bg: Color::Black,
-            title_fg: Color::White,
-            border_color: Color::White,
-            content_bg: Color::DarkBlue, // Use DarkBlue to distinguish from background Blue
-            content_fg: Color::White,
             is_focused: false,
             is_minimized: false,
             is_maximized: false,
@@ -180,10 +164,18 @@ impl Window {
         self.render_title_bar(buffer, theme);
 
         // Draw the content area
-        self.render_content(buffer);
+        self.render_content(buffer, theme);
 
         // Draw the shadow
-        self.render_shadow(buffer, charset, theme);
+        video_buffer::render_shadow(
+            buffer,
+            self.x,
+            self.y,
+            self.width,
+            self.height,
+            charset,
+            theme,
+        );
     }
 
     fn render_frame(
@@ -313,7 +305,7 @@ impl Window {
         }
     }
 
-    fn render_content(&self, buffer: &mut VideoBuffer) {
+    fn render_content(&self, buffer: &mut VideoBuffer, theme: &Theme) {
         // Fill content area with solid background color (no pattern)
         let content_char = ' ';
 
@@ -322,46 +314,12 @@ impl Window {
                 buffer.set(
                     self.x + x,
                     self.y + y,
-                    Cell::new(content_char, self.content_fg, self.content_bg),
+                    Cell::new(
+                        content_char,
+                        theme.window_content_fg,
+                        theme.window_content_bg,
+                    ),
                 );
-            }
-        }
-    }
-
-    fn render_shadow(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
-        // Use shadow character from charset configuration
-        let shadow_char = charset.shadow;
-        let shadow_color_bg = theme.window_shadow_color;
-        let shadow_color_fg = theme.window_shadow_color;
-        let (buffer_width, buffer_height) = buffer.dimensions();
-
-        // Right shadow (1 cell to the right)
-        let shadow_x = self.x + self.width;
-        if shadow_x < buffer_width {
-            for y in 1..=self.height {
-                let shadow_y = self.y + y;
-                if shadow_y < buffer_height {
-                    buffer.set(
-                        shadow_x,
-                        shadow_y,
-                        Cell::new(shadow_char, shadow_color_fg, shadow_color_bg),
-                    );
-                }
-            }
-        }
-
-        // Bottom shadow (1 cell down)
-        let shadow_y = self.y + self.height;
-        if shadow_y < buffer_height {
-            for x in 1..=self.width {
-                let shadow_x = self.x + x;
-                if shadow_x < buffer_width {
-                    buffer.set(
-                        shadow_x,
-                        shadow_y,
-                        Cell::new(shadow_char, shadow_color_fg, shadow_color_bg),
-                    );
-                }
             }
         }
     }

@@ -1,7 +1,7 @@
 use crate::charset::Charset;
 use crate::config_manager::AppConfig;
 use crate::theme::Theme;
-use crate::video_buffer::{Cell, VideoBuffer};
+use crate::video_buffer::{self, Cell, VideoBuffer};
 use crossterm::style::Color;
 
 /// Action to take based on config window interaction
@@ -222,6 +222,17 @@ impl ConfigWindow {
                 Cell::new(ch, theme.config_instructions_fg, content_bg),
             );
         }
+
+        // Render shadow
+        video_buffer::render_shadow(
+            buffer,
+            self.x,
+            self.y,
+            self.width,
+            self.height,
+            charset,
+            theme,
+        );
     }
 
     /// Render a single configuration option with toggle

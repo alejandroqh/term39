@@ -6,6 +6,7 @@ mod charset;
 mod config;
 mod config_manager;
 mod config_window;
+mod info_window;
 mod prompt;
 mod term_grid;
 mod terminal_emulator;
@@ -27,7 +28,8 @@ use crossterm::{
     style::Color,
     terminal::{self, ClearType},
 };
-use prompt::{Prompt, PromptAction, PromptButton, PromptType, TextAlign};
+use info_window::InfoWindow;
+use prompt::{Prompt, PromptAction, PromptButton, PromptType};
 use std::io::{self, Write};
 use std::time::Duration;
 use std::{thread, time};
@@ -175,6 +177,12 @@ fn main() -> io::Result<()> {
     // Config window state (None when not shown)
     let mut active_config_window: Option<ConfigWindow> = None;
 
+    // Help window state (None when not shown)
+    let mut active_help_window: Option<InfoWindow> = None;
+
+    // About window state (None when not shown)
+    let mut active_about_window: Option<InfoWindow> = None;
+
     // Show splash screen for 1 second
     show_splash_screen(&mut video_buffer, &mut stdout, &charset, &theme)?;
 
@@ -241,6 +249,16 @@ fn main() -> io::Result<()> {
         // Render active config window (if any) on top of everything
         if let Some(ref config_win) = active_config_window {
             config_win.render(&mut video_buffer, &charset, &theme, &app_config);
+        }
+
+        // Render active help window (if any)
+        if let Some(ref help_win) = active_help_window {
+            help_win.render(&mut video_buffer, &charset, &theme);
+        }
+
+        // Render active about window (if any)
+        if let Some(ref about_win) = active_about_window {
+            about_win.render(&mut video_buffer, &charset, &theme);
         }
 
         // Present buffer to screen
@@ -341,6 +359,36 @@ fn main() -> io::Result<()> {
                             }
                             _ => {
                                 // Ignore other keys when calendar is active
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Handle help window keyboard events if help window is active
+                    if active_help_window.is_some() {
+                        match key_event.code {
+                            KeyCode::Esc => {
+                                // ESC dismisses the help window
+                                active_help_window = None;
+                                continue;
+                            }
+                            _ => {
+                                // Ignore other keys when help window is active
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Handle about window keyboard events if about window is active
+                    if active_about_window.is_some() {
+                        match key_event.code {
+                            KeyCode::Esc => {
+                                // ESC dismisses the about window
+                                active_about_window = None;
+                                continue;
+                            }
+                            _ => {
+                                // Ignore other keys when about window is active
                                 continue;
                             }
                         }
@@ -466,17 +514,11 @@ fn main() -> io::Result<()> {
                                     {Y}Click window{W}        - Focus window\n\
                                     {Y}Click bottom bar{W}    - Switch windows";
 
-                                active_prompt = Some(Prompt::new_with_alignment(
-                                    PromptType::Info,
-                                    help_message.to_string(),
-                                    vec![PromptButton::new(
-                                        "Close".to_string(),
-                                        PromptAction::Cancel,
-                                        true,
-                                    )],
+                                active_help_window = Some(InfoWindow::new(
+                                    "Help".to_string(),
+                                    help_message,
                                     cols,
                                     rows,
-                                    TextAlign::Left,
                                 ));
                             } else if current_focus != FocusState::Desktop {
                                 // Send 'h' to terminal
@@ -516,14 +558,9 @@ fn main() -> io::Result<()> {
                                     config::REPOSITORY
                                 );
 
-                                active_prompt = Some(Prompt::new(
-                                    PromptType::Info,
-                                    license_message,
-                                    vec![PromptButton::new(
-                                        "Close".to_string(),
-                                        PromptAction::Cancel,
-                                        true,
-                                    )],
+                                active_about_window = Some(InfoWindow::new(
+                                    "About".to_string(),
+                                    &license_message,
                                     cols,
                                     rows,
                                 ));
@@ -1151,31 +1188,16 @@ fn show_splash_screen(
         Cell::new(charset.border_bottom_right, border_color, content_bg),
     );
 
-    // Draw shadow (right and bottom) using charset
-    let shadow_char = charset.shadow;
-    let shadow_color = theme.window_shadow_color;
-
-    // Right shadow
-    for y in 1..=window_height {
-        if window_y + y < rows {
-            buffer.set(
-                window_x + window_width,
-                window_y + y,
-                Cell::new(shadow_char, shadow_color, shadow_color),
-            );
-        }
-    }
-
-    // Bottom shadow
-    for x in 1..=window_width {
-        if window_x + x < cols {
-            buffer.set(
-                window_x + x,
-                window_y + window_height,
-                Cell::new(shadow_char, shadow_color, shadow_color),
-            );
-        }
-    }
+    // Draw shadow (right and bottom) using shared function
+    video_buffer::render_shadow(
+        buffer,
+        window_x,
+        window_y,
+        window_width,
+        window_height,
+        charset,
+        theme,
+    );
 
     // Render ASCII art centered in the window
     let content_start_y = window_y + 2; // Start after top border and padding

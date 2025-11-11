@@ -1,6 +1,6 @@
 use crate::charset::Charset;
 use crate::theme::Theme;
-use crate::video_buffer::{Cell, VideoBuffer};
+use crate::video_buffer::{self, Cell, VideoBuffer};
 use crossterm::style::Color;
 
 /// Prompt types with different visual styles (similar to Bootstrap alerts)
@@ -105,6 +105,7 @@ impl PromptButton {
 /// Text alignment for prompt messages
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TextAlign {
+    #[allow(dead_code)]
     Left,
     Center,
 }
@@ -226,7 +227,7 @@ impl Prompt {
     }
 
     /// Render the prompt to the video buffer
-    pub fn render(&self, buffer: &mut VideoBuffer, _charset: &Charset, theme: &Theme) {
+    pub fn render(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
         let bg_color = self.prompt_type.background_color(theme);
         let default_fg_color = self.prompt_type.foreground_color(theme);
 
@@ -337,43 +338,15 @@ impl Prompt {
         }
 
         // Render shadow
-        self.render_shadow(buffer, theme);
-    }
-
-    fn render_shadow(&self, buffer: &mut VideoBuffer, theme: &Theme) {
-        let shadow_char = '▓'; // Unicode shadow
-        let shadow_color = theme.window_shadow_color;
-        let (buffer_width, buffer_height) = buffer.dimensions();
-
-        // Right shadow
-        let shadow_x = self.x + self.width;
-        if shadow_x < buffer_width {
-            for y in 1..=self.height {
-                let shadow_y = self.y + y;
-                if shadow_y < buffer_height {
-                    buffer.set(
-                        shadow_x,
-                        shadow_y,
-                        Cell::new(shadow_char, shadow_color, shadow_color),
-                    );
-                }
-            }
-        }
-
-        // Bottom shadow
-        let shadow_y = self.y + self.height;
-        if shadow_y < buffer_height {
-            for x in 1..=self.width {
-                let shadow_x = self.x + x;
-                if shadow_x < buffer_width {
-                    buffer.set(
-                        shadow_x,
-                        shadow_y,
-                        Cell::new(shadow_char, shadow_color, shadow_color),
-                    );
-                }
-            }
-        }
+        video_buffer::render_shadow(
+            buffer,
+            self.x,
+            self.y,
+            self.width,
+            self.height,
+            charset,
+            theme,
+        );
     }
 
     /// Check if a click is on a button, return the action if so

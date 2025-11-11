@@ -1,3 +1,5 @@
+use crate::charset::Charset;
+use crate::theme::Theme;
 use crossterm::{
     cursor, execute,
     style::{Color, Print, SetBackgroundColor, SetForegroundColor},
@@ -162,6 +164,52 @@ impl VideoBuffer {
                     self.set(cell_x, cell_y, saved[idx]);
                     idx += 1;
                 }
+            }
+        }
+    }
+}
+
+/// Render a shadow for a rectangular region
+/// Draws a 1-cell shadow on the right side and bottom of the given region
+pub fn render_shadow(
+    buffer: &mut VideoBuffer,
+    x: u16,
+    y: u16,
+    width: u16,
+    height: u16,
+    charset: &Charset,
+    theme: &Theme,
+) {
+    let shadow_char = charset.shadow;
+    let shadow_color = theme.window_shadow_color;
+    let (buffer_width, buffer_height) = buffer.dimensions();
+
+    // Right shadow (1 cell to the right)
+    let shadow_x = x + width;
+    if shadow_x < buffer_width {
+        for dy in 1..=height {
+            let shadow_y = y + dy;
+            if shadow_y < buffer_height {
+                buffer.set(
+                    shadow_x,
+                    shadow_y,
+                    Cell::new(shadow_char, shadow_color, shadow_color),
+                );
+            }
+        }
+    }
+
+    // Bottom shadow (1 cell down)
+    let shadow_y = y + height;
+    if shadow_y < buffer_height {
+        for dx in 1..=width {
+            let shadow_x = x + dx;
+            if shadow_x < buffer_width {
+                buffer.set(
+                    shadow_x,
+                    shadow_y,
+                    Cell::new(shadow_char, shadow_color, shadow_color),
+                );
             }
         }
     }

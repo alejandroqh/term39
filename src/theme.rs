@@ -378,12 +378,12 @@ impl Theme {
             window_border: Color::DarkGrey,
             window_content_bg: Color::Black,
             window_content_fg: Color::Grey,
-            window_shadow_color: Color::Black,
+            window_shadow_color: Color::DarkGrey,
 
             // Window controls
-            button_close_color: Color::DarkRed,
-            button_maximize_color: Color::DarkGreen,
-            button_minimize_color: Color::DarkYellow,
+            button_close_color: Color::Red,
+            button_maximize_color: Color::Green,
+            button_minimize_color: Color::Yellow,
             resize_handle_normal_fg: Color::DarkGrey,
             resize_handle_normal_bg: Color::Black,
             resize_handle_active_fg: Color::Cyan,
