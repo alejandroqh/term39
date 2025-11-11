@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2025-11-11
+
+### Added
+- Distribution packaging support:
+  - Debian/Ubuntu (.deb) packages for x86_64 and arm64
+  - RPM packages for Fedora/RHEL/CentOS/openSUSE (x86_64 and aarch64)
+  - AUR PKGBUILD files for Arch Linux (source and binary packages)
+- GitHub Actions workflow for automated package building on release
+- cargo-deb metadata configuration in Cargo.toml
+- cargo-generate-rpm metadata configuration in Cargo.toml
+
+### Changed
+- Release workflow now automatically builds and publishes .deb and .rpm packages
+- AUR packages available in `aur/` directory with installation instructions
+
 ## [0.5.0] - 2025-11-11
 
 ### Added

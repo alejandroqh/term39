@@ -142,3 +142,129 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: ./term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz
+
+  build-deb:
+    name: Build Debian Package (${{ matrix.target }})
+    needs: create-release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # x86_64 (amd64)
+          - target: x86_64-unknown-linux-gnu
+            arch: amd64
+          # ARM64 (arm64)
+          - target: aarch64-unknown-linux-gnu
+            arch: arm64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Zig (for cross-compilation)
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.13.0
+
+      - name: Install cargo-zigbuild and cargo-deb
+        run: |
+          cargo install cargo-zigbuild
+          cargo install cargo-deb
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build binary
+        run: cargo zigbuild --release --target ${{ matrix.target }}
+
+      - name: Build .deb package
+        run: cargo deb --target ${{ matrix.target }} --no-build
+
+      - name: Get .deb filename
+        id: deb_file
+        run: |
+          DEB_FILE=$(ls target/${{ matrix.target }}/debian/*.deb | head -n 1)
+          echo "path=$DEB_FILE" >> $GITHUB_OUTPUT
+          echo "name=$(basename $DEB_FILE)" >> $GITHUB_OUTPUT
+
+      - name: Upload .deb to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.deb_file.outputs.path }}
+
+  build-rpm:
+    name: Build RPM Package (${{ matrix.target }})
+    needs: create-release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # x86_64
+          - target: x86_64-unknown-linux-gnu
+            arch: x86_64
+          # ARM64 (aarch64)
+          - target: aarch64-unknown-linux-gnu
+            arch: aarch64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Zig (for cross-compilation)
+        uses: goto-bus-stop/setup-zig@v2
+        with:
+          version: 0.13.0
+
+      - name: Install cargo-zigbuild and cargo-generate-rpm
+        run: |
+          cargo install cargo-zigbuild
+          cargo install cargo-generate-rpm
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build binary
+        run: cargo zigbuild --release --target ${{ matrix.target }}
+
+      - name: Build .rpm package
+        run: cargo generate-rpm --target ${{ matrix.target }}
+
+      - name: Get .rpm filename
+        id: rpm_file
+        run: |
+          RPM_FILE=$(ls target/${{ matrix.target }}/generate-rpm/*.rpm | head -n 1)
+          echo "path=$RPM_FILE" >> $GITHUB_OUTPUT
+          echo "name=$(basename $RPM_FILE)" >> $GITHUB_OUTPUT
+
+      - name: Upload .rpm to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.rpm_file.outputs.path }}
