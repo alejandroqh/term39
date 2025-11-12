@@ -1,3 +1,5 @@
+#![allow(clippy::collapsible_if)]
+
 mod ansi_handler;
 mod button;
 mod charset;
