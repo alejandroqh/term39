@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.5] - 2025-11-12
+
+### Fixed
+- **Color theme setting persistence**: Fixed issue where color theme selection in settings window wasn't being properly saved to configuration
+- **GPM (General Purpose Mouse) handling improvements**:
+  - Simplified GPM integration and removed complex build-time detection
+  - Improved GPM handler robustness and error handling
+  - Better fallback behavior when GPM is unavailable
+
+### Changed
+- **AUR package deployment**: Updated .gitignore for better AUR package management
+
+### Technical Details
+- Zero clippy warnings with -D warnings flag
+- All tests passing (7/7)
+- Clean code formatting
+
 ## [0.6.0] - 2025-11-12
 
 ### Added
@@ -224,6 +241,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - portable-pty 0.8 for PTY support
   - vte 0.13 for ANSI/VT escape sequences
 
+[0.6.5]: https://github.com/alejandroqh/term39/releases/tag/v0.6.5
 [0.6.0]: https://github.com/alejandroqh/term39/releases/tag/v0.6.0
 [0.5.1]: https://github.com/alejandroqh/term39/releases/tag/v0.5.1
 [0.5.0]: https://github.com/alejandroqh/term39/releases/tag/v0.5.0
