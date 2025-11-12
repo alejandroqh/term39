@@ -93,10 +93,13 @@ const GPM_DOWN_MODE: c_ushort = 4;
 const GPM_UP_MODE: c_ushort = 8;
 
 // External C functions from libgpm
-extern "C" {
+// Using raw-dylib on non-Windows platforms isn't supported, so we use a stub library approach
+#[link(name = "gpm")]
+unsafe extern "C" {
     fn Gpm_Open(conn: *mut GpmConnect, flag: c_int) -> c_int;
     fn Gpm_Close() -> c_int;
     fn Gpm_GetEvent(event: *mut GpmEvent) -> c_int;
+    #[allow(dead_code)]
     fn Gpm_Getc(f: *mut libc::FILE) -> c_int;
 }
 
@@ -160,6 +163,7 @@ impl GpmConnection {
 
     /// Get the file descriptor for the GPM connection
     /// This can be used for polling
+    #[allow(dead_code)]
     pub fn fd(&self) -> c_int {
         self.fd
     }
@@ -256,6 +260,7 @@ impl GpmConnection {
     }
 
     /// Check if connected to GPM
+    #[allow(dead_code)]
     pub fn is_connected(&self) -> bool {
         self.connected
     }
@@ -269,6 +274,7 @@ impl Drop for GpmConnection {
 
 /// Check if GPM is available on the system
 /// This tries to open a connection and immediately closes it
+#[allow(dead_code)]
 pub fn is_gpm_available() -> bool {
     if let Some(mut conn) = GpmConnection::open() {
         conn.close();
