@@ -1,6 +1,6 @@
 # Maintainer: Alejandro Quintanar
 pkgname=term39
-pkgver=0.5.1
+pkgver=0.6.5
 pkgrel=1
 pkgdesc="A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-DOS)"
 arch=('x86_64' 'aarch64')
