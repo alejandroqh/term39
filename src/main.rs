@@ -368,9 +368,9 @@ fn main() -> io::Result<()> {
             None
         };
 
-        // Process GPM event if available
+        // Process GPM event if available - convert to Event::Mouse and fall through
         #[cfg(target_os = "linux")]
-        if let Some(gpm_evt) = gpm_event {
+        let injected_event = if let Some(gpm_evt) = gpm_event {
             // Convert GPM event to crossterm MouseEvent format
             use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
@@ -425,25 +425,28 @@ fn main() -> io::Result<()> {
                 },
             };
 
-            // Process the mouse event (reuse existing mouse handling code)
-            // For now, we'll just pass it to the window manager
-            // This duplicates the mouse handling logic below, but we'll refactor it later
-            if active_prompt.is_none() {
-                let window_closed =
-                    window_manager.handle_mouse_event(&mut video_buffer, mouse_event);
-                if window_closed && auto_tiling_enabled {
-                    let (cols, rows) = terminal::size()?;
-                    window_manager.auto_position_windows(cols, rows);
-                }
-            }
+            Some(Event::Mouse(mouse_event))
+        } else {
+            None
+        };
 
-            // Continue to next frame to avoid processing crossterm events in same frame
-            continue;
-        }
+        // Process injected GPM event or poll for crossterm event
+        #[cfg(target_os = "linux")]
+        let has_event = injected_event.is_some() || event::poll(Duration::from_millis(16))?;
+        #[cfg(not(target_os = "linux"))]
+        let has_event = event::poll(Duration::from_millis(16))?;
 
-        // Check for input (non-blocking with ~60fps)
-        if event::poll(Duration::from_millis(16))? {
-            match event::read()? {
+        if has_event {
+            #[cfg(target_os = "linux")]
+            let current_event = if let Some(evt) = injected_event {
+                evt
+            } else {
+                event::read()?
+            };
+            #[cfg(not(target_os = "linux"))]
+            let current_event = event::read()?;
+
+            match current_event {
                 Event::Key(key_event) => {
                     let current_focus = window_manager.get_focus();
 
