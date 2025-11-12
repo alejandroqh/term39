@@ -42,8 +42,6 @@
 //! This module uses FFI (Foreign Function Interface) to communicate with the
 //! libgpm C library. The implementation follows the standard GPM client protocol.
 
-#![cfg(target_os = "linux")]
-
 use libc::{c_int, c_short, c_ushort};
 use std::ptr;
 
