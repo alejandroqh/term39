@@ -462,12 +462,246 @@ impl Theme {
         }
     }
 
+    /// Green Phosphor theme inspired by classic green monochrome terminals (IBM 5151, VT220)
+    /// Resembles the glow of green phosphor CRT displays
+    pub fn green_phosphor() -> Self {
+        Self {
+            // Desktop - black CRT screen with green phosphor
+            desktop_bg: Color::Black,
+            desktop_fg: Color::Green,
+
+            // Top bar
+            topbar_bg_desktop: Color::DarkGreen,
+            topbar_bg_window: Color::Black,
+            topbar_fg: Color::Green,
+            clock_bg: Color::Black,
+            clock_fg: Color::Green,
+
+            // Windows
+            window_title_bg: Color::DarkGreen,
+            window_title_bg_focused: Color::Green, // Bright green for focus
+            window_title_fg: Color::Black,
+            window_border: Color::Green,
+            window_content_bg: Color::Black,
+            window_content_fg: Color::Green,
+            window_shadow_color: Color::DarkGreen,
+
+            // Window controls
+            button_close_color: Color::Green,
+            button_maximize_color: Color::Green,
+            button_minimize_color: Color::Green,
+            button_bg: Color::Black,
+            resize_handle_normal_fg: Color::DarkGreen,
+            resize_handle_normal_bg: Color::Black,
+            resize_handle_active_fg: Color::Green,
+            resize_handle_active_bg: Color::DarkGreen,
+
+            // UI Buttons
+            button_normal_fg: Color::Black,
+            button_normal_bg: Color::Green,
+            button_hovered_fg: Color::Green,
+            button_hovered_bg: Color::DarkGreen,
+            button_pressed_fg: Color::Green,
+            button_pressed_bg: Color::Black,
+
+            // Bottom bar
+            bottombar_bg: Color::Black,
+            bottombar_fg: Color::Green,
+            bottombar_button_normal_fg: Color::Green,
+            bottombar_button_normal_bg: Color::Black,
+            bottombar_button_focused_fg: Color::Black,
+            bottombar_button_focused_bg: Color::Green,
+            bottombar_button_minimized_fg: Color::DarkGreen,
+            bottombar_button_minimized_bg: Color::Black,
+
+            // Toggle button
+            toggle_enabled_fg: Color::Green,
+            toggle_enabled_bg_normal: Color::DarkGreen,
+            toggle_enabled_bg_hovered: Color::Green,
+            toggle_enabled_bg_pressed: Color::Black,
+            toggle_disabled_fg: Color::DarkGreen,
+            toggle_disabled_bg_normal: Color::Black,
+            toggle_disabled_bg_hovered: Color::DarkGreen,
+            toggle_disabled_bg_pressed: Color::Black,
+
+            // Prompts/Dialogs
+            prompt_info_bg: Color::DarkGreen,
+            prompt_info_fg: Color::Green,
+            prompt_success_bg: Color::Green,
+            prompt_success_fg: Color::Black,
+            prompt_warning_bg: Color::DarkGreen,
+            prompt_warning_fg: Color::Green,
+            prompt_danger_bg: Color::DarkGreen,
+            prompt_danger_fg: Color::Green,
+
+            // Dialog buttons
+            dialog_button_primary_info_fg: Color::Black,
+            dialog_button_primary_info_bg: Color::Green,
+            dialog_button_primary_success_fg: Color::Black,
+            dialog_button_primary_success_bg: Color::Green,
+            dialog_button_primary_warning_fg: Color::Black,
+            dialog_button_primary_warning_bg: Color::DarkGreen,
+            dialog_button_primary_danger_fg: Color::Green,
+            dialog_button_primary_danger_bg: Color::Black,
+            dialog_button_secondary_fg: Color::Green,
+            dialog_button_secondary_bg: Color::DarkGreen,
+
+            // Config window
+            config_title_bg: Color::DarkGreen,
+            config_title_fg: Color::Green,
+            config_border: Color::Green,
+            config_content_bg: Color::Black,
+            config_content_fg: Color::Green,
+            config_instructions_fg: Color::DarkGreen,
+            config_toggle_on_color: Color::Green,
+            config_toggle_off_color: Color::DarkGreen,
+
+            // Calendar
+            calendar_bg: Color::Black,
+            calendar_fg: Color::Green,
+            calendar_title_color: Color::Green,
+            calendar_today_bg: Color::Green,
+            calendar_today_fg: Color::Black,
+
+            // Scrollbar
+            scrollbar_track_fg: Color::DarkGreen,
+            scrollbar_thumb_fg: Color::Green,
+
+            // Snap preview
+            snap_preview_border: Color::Green,
+            snap_preview_bg: Color::Black,
+
+            // Splash screen
+            splash_border: Color::Green,
+            splash_bg: Color::Black,
+            splash_fg: Color::Green,
+        }
+    }
+
+    /// Amber theme inspired by classic amber monochrome terminals (DEC VT100, Wyse terminals)
+    /// Resembles the warm glow of amber phosphor CRT displays
+    pub fn amber() -> Self {
+        Self {
+            // Desktop - black CRT screen with amber phosphor
+            desktop_bg: Color::Black,
+            desktop_fg: Color::Yellow,
+
+            // Top bar
+            topbar_bg_desktop: Color::DarkYellow,
+            topbar_bg_window: Color::Black,
+            topbar_fg: Color::Yellow,
+            clock_bg: Color::Black,
+            clock_fg: Color::Yellow,
+
+            // Windows
+            window_title_bg: Color::DarkYellow,
+            window_title_bg_focused: Color::Yellow, // Bright amber for focus
+            window_title_fg: Color::Black,
+            window_border: Color::Yellow,
+            window_content_bg: Color::Black,
+            window_content_fg: Color::Yellow,
+            window_shadow_color: Color::DarkYellow,
+
+            // Window controls
+            button_close_color: Color::Yellow,
+            button_maximize_color: Color::Yellow,
+            button_minimize_color: Color::Yellow,
+            button_bg: Color::Black,
+            resize_handle_normal_fg: Color::DarkYellow,
+            resize_handle_normal_bg: Color::Black,
+            resize_handle_active_fg: Color::Yellow,
+            resize_handle_active_bg: Color::DarkYellow,
+
+            // UI Buttons
+            button_normal_fg: Color::Black,
+            button_normal_bg: Color::Yellow,
+            button_hovered_fg: Color::Yellow,
+            button_hovered_bg: Color::DarkYellow,
+            button_pressed_fg: Color::Yellow,
+            button_pressed_bg: Color::Black,
+
+            // Bottom bar
+            bottombar_bg: Color::Black,
+            bottombar_fg: Color::Yellow,
+            bottombar_button_normal_fg: Color::Yellow,
+            bottombar_button_normal_bg: Color::Black,
+            bottombar_button_focused_fg: Color::Black,
+            bottombar_button_focused_bg: Color::Yellow,
+            bottombar_button_minimized_fg: Color::DarkYellow,
+            bottombar_button_minimized_bg: Color::Black,
+
+            // Toggle button
+            toggle_enabled_fg: Color::Yellow,
+            toggle_enabled_bg_normal: Color::DarkYellow,
+            toggle_enabled_bg_hovered: Color::Yellow,
+            toggle_enabled_bg_pressed: Color::Black,
+            toggle_disabled_fg: Color::DarkYellow,
+            toggle_disabled_bg_normal: Color::Black,
+            toggle_disabled_bg_hovered: Color::DarkYellow,
+            toggle_disabled_bg_pressed: Color::Black,
+
+            // Prompts/Dialogs
+            prompt_info_bg: Color::DarkYellow,
+            prompt_info_fg: Color::Yellow,
+            prompt_success_bg: Color::Yellow,
+            prompt_success_fg: Color::Black,
+            prompt_warning_bg: Color::DarkYellow,
+            prompt_warning_fg: Color::Yellow,
+            prompt_danger_bg: Color::DarkYellow,
+            prompt_danger_fg: Color::Yellow,
+
+            // Dialog buttons
+            dialog_button_primary_info_fg: Color::Black,
+            dialog_button_primary_info_bg: Color::Yellow,
+            dialog_button_primary_success_fg: Color::Black,
+            dialog_button_primary_success_bg: Color::Yellow,
+            dialog_button_primary_warning_fg: Color::Black,
+            dialog_button_primary_warning_bg: Color::DarkYellow,
+            dialog_button_primary_danger_fg: Color::Yellow,
+            dialog_button_primary_danger_bg: Color::Black,
+            dialog_button_secondary_fg: Color::Yellow,
+            dialog_button_secondary_bg: Color::DarkYellow,
+
+            // Config window
+            config_title_bg: Color::DarkYellow,
+            config_title_fg: Color::Yellow,
+            config_border: Color::Yellow,
+            config_content_bg: Color::Black,
+            config_content_fg: Color::Yellow,
+            config_instructions_fg: Color::DarkYellow,
+            config_toggle_on_color: Color::Yellow,
+            config_toggle_off_color: Color::DarkYellow,
+
+            // Calendar
+            calendar_bg: Color::Black,
+            calendar_fg: Color::Yellow,
+            calendar_title_color: Color::Yellow,
+            calendar_today_bg: Color::Yellow,
+            calendar_today_fg: Color::Black,
+
+            // Scrollbar
+            scrollbar_track_fg: Color::DarkYellow,
+            scrollbar_thumb_fg: Color::Yellow,
+
+            // Snap preview
+            snap_preview_border: Color::Yellow,
+            snap_preview_bg: Color::Black,
+
+            // Splash screen
+            splash_border: Color::Yellow,
+            splash_bg: Color::Black,
+            splash_fg: Color::Yellow,
+        }
+    }
+
     /// Create a theme from a name string, falling back to Classic if invalid
     pub fn from_name(name: &str) -> Self {
         match name.to_lowercase().as_str() {
             "classic" => Self::classic(),
             "monochrome" => Self::monochrome(),
             "dark" => Self::dark(),
+            "green" | "green_phosphor" | "greenphosphor" => Self::green_phosphor(),
+            "amber" | "orange" => Self::amber(),
             _ => {
                 eprintln!("Unknown theme '{}', falling back to 'classic'", name);
                 Self::classic()

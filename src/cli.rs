@@ -49,12 +49,14 @@ pub struct Cli {
     #[arg(long, help = "Use ASCII-compatible characters instead of Unicode")]
     pub ascii: bool,
 
-    /// Set the color theme (classic, monochrome, dark)
+    /// Set the color theme (classic, monochrome, dark, green_phosphor, amber)
     ///
     /// Available themes:
-    ///   - classic:    DOS-inspired blue and cyan colors (default)
-    ///   - monochrome: Grayscale theme with black and white
-    ///   - dark:       Dark theme inspired by Dracula color scheme
+    ///   - classic:        DOS-inspired blue and cyan colors (default)
+    ///   - monochrome:     Grayscale theme with black and white
+    ///   - dark:           Dark theme inspired by Dracula color scheme
+    ///   - green_phosphor: Green monochrome resembling classic CRT terminals (IBM 5151, VT220)
+    ///   - amber:          Amber/orange monochrome resembling classic terminals (DEC VT100)
     #[arg(
         long,
         value_name = "THEME",

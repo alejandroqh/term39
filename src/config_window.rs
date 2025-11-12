@@ -289,6 +289,8 @@ impl ConfigWindow {
             "classic" => "Classic",
             "monochrome" => "Monochrome",
             "dark" => "Dark",
+            "green_phosphor" => "Green Phosphor",
+            "amber" => "Amber",
             _ => "Classic",
         };
 

@@ -861,11 +861,13 @@ fn main() -> io::Result<()> {
                                         handled = true;
                                     }
                                     ConfigAction::CycleTheme => {
-                                        // Cycle through themes: classic -> monochrome -> dark -> classic
+                                        // Cycle through themes: classic -> monochrome -> dark -> green_phosphor -> amber -> classic
                                         let next_theme = match app_config.theme.as_str() {
                                             "classic" => "monochrome",
                                             "monochrome" => "dark",
-                                            "dark" => "classic",
+                                            "dark" => "green_phosphor",
+                                            "green_phosphor" => "amber",
+                                            "amber" => "classic",
                                             _ => "classic",
                                         };
                                         app_config.theme = next_theme.to_string();
