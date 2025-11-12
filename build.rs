@@ -7,12 +7,50 @@ fn main() {
 
     // Only handle GPM linking for Linux targets
     if target.contains("linux") {
-        // If we're cross-compiling (host != target), create a stub library
-        if host != target {
+        // Check if libgpm is available on the system
+        let gpm_available = is_libgpm_available();
+
+        // If we're cross-compiling OR GPM is not available, create a stub library
+        if host != target || !gpm_available {
             create_stub_libgpm();
         }
-        // The actual libgpm.so will be required at runtime on Linux
+        // The actual libgpm.so will be required at runtime on Linux (if available)
     }
+}
+
+/// Check if libgpm is available on the system
+fn is_libgpm_available() -> bool {
+    // Try to compile and link a simple program that uses libgpm
+    let test_code = r#"
+        int main() {
+            extern int Gpm_Open(void*, int);
+            return 0;
+        }
+    "#;
+
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let test_c = out_dir.join("test_gpm.c");
+    let test_out = out_dir.join("test_gpm");
+
+    // Write test code
+    if std::fs::write(&test_c, test_code).is_err() {
+        return false;
+    }
+
+    // Try to compile and link with -lgpm
+    let output = std::process::Command::new("cc")
+        .args(["-o"])
+        .arg(&test_out)
+        .arg(&test_c)
+        .arg("-lgpm")
+        .output();
+
+    // Clean up test files
+    let _ = std::fs::remove_file(test_c);
+    let _ = std::fs::remove_file(test_out);
+
+    // Check if compilation succeeded
+    output.is_ok_and(|o| o.status.success())
 }
 
 fn create_stub_libgpm() {
