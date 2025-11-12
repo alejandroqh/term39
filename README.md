@@ -27,6 +27,8 @@ A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-D
 - **Retro DOS Aesthetic**: Classic blue-and-white color scheme with box-drawing characters
 - **Multiple Terminal Windows**: Create, manage, and switch between multiple terminal sessions
 - **Window Management**: Drag, resize, minimize, and maximize windows with mouse or keyboard
+- **Tiling Windows**: Automatic window tiling and layout management
+- **Snap Corners**: Snap windows to screen corners for quick positioning
 - **Configuration System**: Persistent settings with auto-tiling and UI customization options
 - **Double-Buffered Rendering**: Smooth, flicker-free display at ~60fps
 - **Cross-Platform**: Works on Linux, macOS, and Windows
@@ -290,6 +292,8 @@ Contributions are welcome! Whether you're fixing bugs, adding features, or impro
 ## Roadmap
 
 - [x] Configuration file support (colors, keybindings)
+- [x] Tiling windows
+- [x] Snap corners
 - [ ] Custom themes
 - [ ] Session persistence (save/restore windows)
 - [ ] Tab completion
