@@ -10,6 +10,8 @@ pub struct AppConfig {
     pub theme: String,
     #[serde(default = "default_background_char_index")]
     pub background_char_index: usize,
+    #[serde(default = "default_tint_terminal")]
+    pub tint_terminal: bool,
 }
 
 fn default_theme() -> String {
@@ -20,6 +22,10 @@ fn default_background_char_index() -> usize {
     0 // Default to first option (light shade)
 }
 
+fn default_tint_terminal() -> bool {
+    false // Default to false (preserve native ANSI colors)
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -27,6 +33,7 @@ impl Default for AppConfig {
             show_date_in_clock: true,
             theme: default_theme(),
             background_char_index: default_background_char_index(),
+            tint_terminal: default_tint_terminal(),
         }
     }
 }
@@ -135,6 +142,12 @@ impl AppConfig {
     pub fn cycle_background_char(&mut self) {
         self.background_char_index =
             (self.background_char_index + 1) % Self::BACKGROUND_CHARS.len();
+        let _ = self.save();
+    }
+
+    /// Toggle terminal tinting setting and save
+    pub fn toggle_tint_terminal(&mut self) {
+        self.tint_terminal = !self.tint_terminal;
         let _ = self.save();
     }
 }

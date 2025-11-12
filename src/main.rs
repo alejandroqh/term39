@@ -190,8 +190,8 @@ fn main() -> io::Result<()> {
     };
     let mut auto_tiling_button = Button::new(1, initial_rows - 1, auto_tiling_text.to_string());
 
-    // Terminal tinting toggle state (initialized from CLI args)
-    let mut tint_terminal = cli_args.tint_terminal;
+    // Terminal tinting toggle state (initialized from config, CLI arg can override)
+    let mut tint_terminal = app_config.tint_terminal || cli_args.tint_terminal;
 
     // Prompt state (None when no prompt is active)
     let mut active_prompt: Option<Prompt> = None;
@@ -1015,8 +1015,9 @@ fn main() -> io::Result<()> {
                                         handled = true;
                                     }
                                     ConfigAction::ToggleTintTerminal => {
-                                        // Toggle terminal tinting
-                                        tint_terminal = !tint_terminal;
+                                        // Toggle terminal tinting and save
+                                        app_config.toggle_tint_terminal();
+                                        tint_terminal = app_config.tint_terminal;
                                         handled = true;
                                     }
                                     ConfigAction::None => {

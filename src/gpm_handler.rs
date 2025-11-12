@@ -306,11 +306,11 @@ impl GpmConnection {
             // Use ONLY the buttons field - event_type has overlapping bit values!
             // Note: Some GPM configurations have left/right swapped, so we swap them here
             let button = if (event.buttons as c_int & GPM_B_LEFT) != 0 {
-                Some(GpmButton::Right)  // Swapped!
+                Some(GpmButton::Right) // Swapped!
             } else if (event.buttons as c_int & GPM_B_MIDDLE) != 0 {
                 Some(GpmButton::Middle)
             } else if (event.buttons as c_int & GPM_B_RIGHT) != 0 {
-                Some(GpmButton::Left)   // Swapped!
+                Some(GpmButton::Left) // Swapped!
             } else {
                 None
             };
