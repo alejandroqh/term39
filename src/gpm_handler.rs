@@ -169,7 +169,7 @@ fn load_gpm_library() -> Option<GpmLibrary> {
 
 /// Get the GPM library (loads it on first call)
 fn get_gpm_lib() -> Option<&'static GpmLibrary> {
-    GPM_LIB.get_or_init(|| load_gpm_library()).as_ref()
+    GPM_LIB.get_or_init(load_gpm_library).as_ref()
 }
 
 /// GPM Connection handle
