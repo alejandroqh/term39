@@ -644,6 +644,7 @@ impl WindowManager {
         buffer: &mut VideoBuffer,
         charset: &Charset,
         theme: &Theme,
+        tint_terminal: bool,
     ) -> bool {
         let mut windows_to_close = Vec::new();
 
@@ -658,7 +659,7 @@ impl WindowManager {
             let is_resizing = self
                 .resizing
                 .is_some_and(|r| r.window_id == self.windows[i].id());
-            self.windows[i].render(buffer, is_resizing, charset, theme);
+            self.windows[i].render(buffer, is_resizing, charset, theme, tint_terminal);
         }
 
         // Close windows whose shell processes have exited

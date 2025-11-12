@@ -162,6 +162,9 @@ fn main() -> io::Result<()> {
     };
     let mut auto_tiling_button = Button::new(1, initial_rows - 1, auto_tiling_text.to_string());
 
+    // Terminal tinting toggle state (initialized from CLI args)
+    let mut tint_terminal = cli_args.tint_terminal;
+
     // Prompt state (None when no prompt is active)
     let mut active_prompt: Option<Prompt> = None;
 
@@ -210,7 +213,8 @@ fn main() -> io::Result<()> {
         );
 
         // Render all windows (returns true if any were closed)
-        let windows_closed = window_manager.render_all(&mut video_buffer, &charset, &theme);
+        let windows_closed =
+            window_manager.render_all(&mut video_buffer, &charset, &theme, tint_terminal);
 
         // Auto-reposition remaining windows if any were closed
         if windows_closed && auto_tiling_enabled {
@@ -242,7 +246,13 @@ fn main() -> io::Result<()> {
 
         // Render active config window (if any) on top of everything
         if let Some(ref config_win) = active_config_window {
-            config_win.render(&mut video_buffer, &charset, &theme, &app_config);
+            config_win.render(
+                &mut video_buffer,
+                &charset,
+                &theme,
+                &app_config,
+                tint_terminal,
+            );
         }
 
         // Render active help window (if any)
@@ -881,6 +891,11 @@ fn main() -> io::Result<()> {
                                         app_config.cycle_background_char();
                                         // Update charset with new background character
                                         charset.set_background(app_config.get_background_char());
+                                        handled = true;
+                                    }
+                                    ConfigAction::ToggleTintTerminal => {
+                                        // Toggle terminal tinting
+                                        tint_terminal = !tint_terminal;
                                         handled = true;
                                     }
                                     ConfigAction::None => {

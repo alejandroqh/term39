@@ -64,6 +64,14 @@ pub struct Cli {
         help = "Set the color theme"
     )]
     pub theme: String,
+
+    /// Apply theme-based color tinting to terminal content
+    ///
+    /// When enabled, terminal output colors will be transformed to match the current
+    /// theme's color palette. This provides a cohesive aesthetic but may alter the
+    /// appearance of terminal programs. Disabled by default to preserve native ANSI colors.
+    #[arg(long, help = "Apply theme-based tinting to terminal content")]
+    pub tint_terminal: bool,
 }
 
 impl Cli {

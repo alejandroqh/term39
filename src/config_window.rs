@@ -13,6 +13,7 @@ pub enum ConfigAction {
     ToggleShowDate,
     CycleTheme,
     CycleBackgroundChar,
+    ToggleTintTerminal,
 }
 
 /// Configuration modal window (centered, with border and title)
@@ -25,6 +26,7 @@ pub struct ConfigWindow {
     show_date_row: u16,       // Row where show date toggle is rendered
     theme_row: u16,           // Row where theme selector is rendered
     background_char_row: u16, // Row where background character selector is rendered
+    tint_terminal_row: u16,   // Row where tint terminal toggle is rendered
 }
 
 impl ConfigWindow {
@@ -32,7 +34,7 @@ impl ConfigWindow {
     pub fn new(buffer_width: u16, buffer_height: u16) -> Self {
         // Fixed dimensions for config window
         let width = 60;
-        let height = 14; // Increased to fit background character selector
+        let height = 16; // Increased to fit all options including tint terminal
 
         // Center on screen
         let x = (buffer_width.saturating_sub(width)) / 2;
@@ -43,6 +45,7 @@ impl ConfigWindow {
         let show_date_row = y + 5; // Blank at y+4, second option at y+5
         let theme_row = y + 7; // Blank at y+6, third option at y+7
         let background_char_row = y + 9; // Blank at y+8, fourth option at y+9
+        let tint_terminal_row = y + 11; // Blank at y+10, fifth option at y+11
 
         Self {
             width,
@@ -53,6 +56,7 @@ impl ConfigWindow {
             show_date_row,
             theme_row,
             background_char_row,
+            tint_terminal_row,
         }
     }
 
@@ -63,6 +67,7 @@ impl ConfigWindow {
         charset: &Charset,
         theme: &Theme,
         config: &AppConfig,
+        tint_terminal: bool,
     ) {
         let title_bg = theme.config_title_bg;
         let title_fg = theme.config_title_fg;
@@ -191,6 +196,16 @@ impl ConfigWindow {
 
         // Render background character selector
         self.render_background_char_selector(buffer, self.background_char_row, config, theme);
+
+        // Render tint terminal toggle
+        self.render_option(
+            buffer,
+            self.tint_terminal_row,
+            "Tint terminal content:",
+            tint_terminal,
+            charset,
+            theme,
+        );
 
         // Render instruction at bottom
         let instruction = "Press ESC to close";
@@ -364,6 +379,14 @@ impl ConfigWindow {
             // Click anywhere on the row cycles the background character
             if x >= self.x && x < self.x + self.width {
                 return ConfigAction::CycleBackgroundChar;
+            }
+        }
+
+        // Check if click is on tint terminal row
+        if y == self.tint_terminal_row {
+            // Click anywhere on the row toggles the option
+            if x >= self.x && x < self.x + self.width {
+                return ConfigAction::ToggleTintTerminal;
             }
         }
 

@@ -98,18 +98,24 @@ impl TerminalWindow {
         is_resizing: bool,
         charset: &Charset,
         theme: &Theme,
+        tint_terminal: bool,
     ) {
         // Render the window frame and title bar
         self.window.render(buffer, is_resizing, charset, theme);
 
         // Render the terminal content
-        self.render_terminal_content(buffer);
+        self.render_terminal_content(buffer, theme, tint_terminal);
 
         // Render the scrollbar
         self.render_scrollbar(buffer, charset, theme);
     }
 
-    fn render_terminal_content(&self, buffer: &mut VideoBuffer) {
+    fn render_terminal_content(
+        &self,
+        buffer: &mut VideoBuffer,
+        theme: &Theme,
+        tint_terminal: bool,
+    ) {
         if self.window.is_minimized {
             return;
         }
@@ -155,7 +161,7 @@ impl TerminalWindow {
 
                 // Render the cell
                 if let Some(term_cell) = term_cell {
-                    let cell = convert_terminal_cell(term_cell);
+                    let cell = convert_terminal_cell(term_cell, theme, tint_terminal);
                     buffer.set(content_x + col, content_y + row, cell);
                 }
             }
@@ -396,9 +402,15 @@ impl TerminalWindow {
 }
 
 /// Convert a terminal cell to a video buffer cell
-fn convert_terminal_cell(term_cell: &TerminalCell) -> Cell {
-    let fg = convert_color(&term_cell.fg);
-    let bg = convert_color(&term_cell.bg);
+fn convert_terminal_cell(term_cell: &TerminalCell, theme: &Theme, tint_terminal: bool) -> Cell {
+    let mut fg = convert_color(&term_cell.fg);
+    let mut bg = convert_color(&term_cell.bg);
+
+    // Apply theme-based tinting if enabled
+    if tint_terminal {
+        fg = apply_theme_tint(fg, theme, true);
+        bg = apply_theme_tint(bg, theme, false);
+    }
 
     Cell::new(term_cell.c, fg, bg)
 }
@@ -430,5 +442,118 @@ fn convert_color(color: &TermColor) -> Color {
             g: *g,
             b: *b,
         },
+    }
+}
+
+/// Apply theme-based color tinting to terminal colors
+fn apply_theme_tint(color: Color, theme: &Theme, is_foreground: bool) -> Color {
+    // Map terminal colors to theme colors
+    match color {
+        // Background colors - map to theme background
+        Color::Black | Color::DarkGrey if !is_foreground => theme.window_content_bg,
+
+        // Foreground colors - map to theme foreground variations
+        Color::Black | Color::DarkGrey if is_foreground => {
+            // Dark colors map to a darker version of foreground
+            darken_color(theme.window_content_fg, 0.6)
+        }
+
+        // Bright colors - keep as foreground
+        Color::White | Color::Grey => theme.window_content_fg,
+
+        // Red colors - map to theme button close or a red-ish tint
+        Color::Red | Color::DarkRed => theme.button_close_color,
+
+        // Green colors - map to theme button maximize or a green-ish tint
+        Color::Green | Color::DarkGreen => theme.button_maximize_color,
+
+        // Yellow colors - map to theme button minimize or a yellow-ish tint
+        Color::Yellow | Color::DarkYellow => theme.button_minimize_color,
+
+        // Blue colors - map to theme accent colors
+        Color::Blue | Color::DarkBlue => theme.topbar_bg_window,
+
+        // Cyan colors - map to theme border or cyan-ish tint
+        Color::Cyan | Color::DarkCyan => theme.window_border,
+
+        // Magenta colors - map to a magenta-ish variation
+        Color::Magenta | Color::DarkMagenta => theme.resize_handle_active_fg,
+
+        // RGB colors - apply a theme-based tint transformation
+        Color::Rgb { r, g, b } => {
+            if is_foreground {
+                // For foreground, blend with theme foreground color
+                blend_with_theme_color(Color::Rgb { r, g, b }, theme.window_content_fg, 0.7)
+            } else {
+                // For background, blend with theme background color
+                blend_with_theme_color(Color::Rgb { r, g, b }, theme.window_content_bg, 0.7)
+            }
+        }
+
+        // Indexed colors (256-color palette)
+        Color::AnsiValue(idx) => {
+            // Map 256-color palette to theme colors based on brightness
+            if idx < 8 {
+                // Standard colors (0-7): map to theme colors
+                match idx {
+                    0 => theme.window_content_bg,       // Black
+                    1 => theme.button_close_color,      // Red
+                    2 => theme.button_maximize_color,   // Green
+                    3 => theme.button_minimize_color,   // Yellow
+                    4 => theme.topbar_bg_window,        // Blue
+                    5 => theme.resize_handle_active_fg, // Magenta
+                    6 => theme.window_border,           // Cyan
+                    7 => theme.window_content_fg,       // White
+                    _ => color,
+                }
+            } else if idx < 16 {
+                // Bright colors (8-15): map to brighter theme variations
+                theme.window_content_fg
+            } else {
+                // Extended colors: blend with theme
+                if is_foreground {
+                    theme.window_content_fg
+                } else {
+                    theme.window_content_bg
+                }
+            }
+        }
+
+        _ => color,
+    }
+}
+
+/// Darken a color by a factor (0.0 = black, 1.0 = original)
+fn darken_color(color: Color, factor: f32) -> Color {
+    match color {
+        Color::Rgb { r, g, b } => Color::Rgb {
+            r: (r as f32 * factor) as u8,
+            g: (g as f32 * factor) as u8,
+            b: (b as f32 * factor) as u8,
+        },
+        _ => color,
+    }
+}
+
+/// Blend a color with a theme color
+fn blend_with_theme_color(original: Color, theme_color: Color, blend_factor: f32) -> Color {
+    match (original, theme_color) {
+        (
+            Color::Rgb {
+                r: r1,
+                g: g1,
+                b: b1,
+            },
+            Color::Rgb {
+                r: r2,
+                g: g2,
+                b: b2,
+            },
+        ) => Color::Rgb {
+            r: (r1 as f32 * blend_factor + r2 as f32 * (1.0 - blend_factor)) as u8,
+            g: (g1 as f32 * blend_factor + g2 as f32 * (1.0 - blend_factor)) as u8,
+            b: (b1 as f32 * blend_factor + b2 as f32 * (1.0 - blend_factor)) as u8,
+        },
+        _ => original,
     }
 }
