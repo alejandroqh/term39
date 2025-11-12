@@ -49,10 +49,8 @@ fn create_stub_libgpm() {
         .arg(&stub_c)
         .output();
 
-    if let Ok(output) = output {
-        if output.status.success() {
-            tried_zig = true;
-        }
+    if output.is_ok_and(|o| o.status.success()) {
+        tried_zig = true;
     }
 
     // If zig compilation didn't work, try gcc
