@@ -18,7 +18,7 @@ exclude = [
 
 [dependencies]
 chrono = "0.4.42"
-crossterm = "0.29.0"
+crossterm = { version = "0.29.0", default-features = false, features = ["events", "bracketed-paste"] }
 portable-pty = "0.8"
 vte = "0.13"
 libc = "0.2"
