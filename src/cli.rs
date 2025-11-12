@@ -57,13 +57,8 @@ pub struct Cli {
     ///   - dark:           Dark theme inspired by Dracula color scheme
     ///   - green_phosphor: Green monochrome resembling classic CRT terminals (IBM 5151, VT220)
     ///   - amber:          Amber/orange monochrome resembling classic terminals (DEC VT100)
-    #[arg(
-        long,
-        value_name = "THEME",
-        default_value = "classic",
-        help = "Set the color theme"
-    )]
-    pub theme: String,
+    #[arg(long, value_name = "THEME", help = "Set the color theme")]
+    pub theme: Option<String>,
 
     /// Apply theme-based color tinting to terminal content
     ///

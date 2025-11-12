@@ -130,8 +130,8 @@ fn main() -> io::Result<()> {
     // Set the background character from config
     charset.set_background(app_config.get_background_char());
 
-    // Use theme from CLI args (takes precedence over config)
-    let theme_name = &cli_args.theme;
+    // Use theme from CLI args if provided, otherwise use config theme
+    let theme_name = cli_args.theme.as_ref().unwrap_or(&app_config.theme);
     let mut theme = Theme::from_name(theme_name);
 
     let mut stdout = io::stdout();

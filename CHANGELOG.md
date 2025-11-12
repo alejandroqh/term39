@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.6] - 2025-11-12
+
+### Fixed
+- **Theme loading on startup**: Fixed issue where selected theme from settings was saved but not loaded on application boot
+  - CLI `--theme` argument is now optional (no default value)
+  - Application now properly loads saved theme from config file on startup
+  - CLI theme argument still takes precedence when explicitly provided
+
+### Technical Details
+- Zero clippy warnings
+- All tests passing
+- Clean code formatting
+
 ## [0.6.5] - 2025-11-12
 
 ### Fixed
@@ -241,6 +254,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - portable-pty 0.8 for PTY support
   - vte 0.13 for ANSI/VT escape sequences
 
+[0.6.6]: https://github.com/alejandroqh/term39/releases/tag/v0.6.6
 [0.6.5]: https://github.com/alejandroqh/term39/releases/tag/v0.6.5
 [0.6.0]: https://github.com/alejandroqh/term39/releases/tag/v0.6.0
 [0.5.1]: https://github.com/alejandroqh/term39/releases/tag/v0.5.1
