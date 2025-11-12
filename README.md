@@ -29,12 +29,22 @@ A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-D
 - **Window Management**: Drag, resize, minimize, and maximize windows with mouse or keyboard
 - **Tiling Windows**: Automatic window tiling and layout management
 - **Snap Corners**: Snap windows to screen corners for quick positioning
+- **Clipboard Support**: Full copy/paste functionality with system clipboard integration
+  - Mouse drag to select text in terminals
+  - Ctrl+Shift+C to copy, Ctrl+Shift+V to paste
+  - Right-click context menu for clipboard operations
+  - Top bar buttons for quick clipboard access
+- **Customizable Themes**: Multiple built-in color schemes
+  - Classic (default DOS blue/cyan), Dark (Dracula-inspired), Monochrome (grayscale)
+  - Green Phosphor (classic green terminal), Amber (vintage amber terminal)
+  - Select via `--theme` flag or settings window
 - **Configuration System**: Persistent settings with auto-tiling and UI customization options
 - **Double-Buffered Rendering**: Smooth, flicker-free display at ~60fps
 - **Cross-Platform**: Works on Linux, macOS, and Windows
 - **ASCII Compatibility Mode**: Optional `--ascii` flag for maximum terminal compatibility
-- **Full Terminal Emulation**: Complete VT100/ANSI escape sequence support
+- **Full Terminal Emulation**: Complete VT100/ANSI escape sequence support with true color
 - **Mouse & Keyboard Support**: Intuitive interface with both input methods
+- **GPM Support**: Native mouse support in Linux virtual consoles (TTY)
 
 ## Installation
 
@@ -139,6 +149,13 @@ Requires Rust 1.70 or later. [Install Rust](https://rustup.rs/)
 
 # Run with ASCII-only characters for compatibility
 ./term39 --ascii
+
+# Run with a specific theme
+./term39 --theme dark
+./term39 --theme green_phosphor
+
+# Available themes:
+# classic, dark, monochrome, green_phosphor, amber
 ```
 
 ### Keyboard Shortcuts
@@ -153,6 +170,8 @@ Requires Rust 1.70 or later. [Install Rust](https://rustup.rs/)
 | `l` | Show license and about information |
 | `c` | Show calendar |
 | `ALT+TAB` | Switch between windows |
+| `Ctrl+Shift+C` | Copy selected text to clipboard |
+| `Ctrl+Shift+V` | Paste from clipboard |
 
 ### Dialog Controls
 
@@ -178,6 +197,9 @@ Requires Rust 1.70 or later. [Install Rust](https://rustup.rs/)
 - **Drag ╬ handle** - Resize window (bottom-right corner)
 - **Click window** - Focus window
 - **Click bottom bar** - Switch between windows
+- **Drag in terminal** - Select text
+- **Right-click in terminal** - Open context menu (copy/paste/close)
+- **Click top bar buttons** - Quick clipboard access (copy/paste/clear)
 
 ### Window Controls
 
@@ -294,13 +316,14 @@ Contributions are welcome! Whether you're fixing bugs, adding features, or impro
 - [x] Configuration file support (colors, keybindings)
 - [x] Tiling windows
 - [x] Snap corners
-- [ ] Custom themes
+- [x] Custom themes
+- [x] Copy/paste support with system clipboard
+- [x] Scrollback buffer
 - [ ] Session persistence (save/restore windows)
 - [ ] Tab completion
 - [ ] Split panes within windows
-- [x] Scrollback buffer
-- [ ] Search functionality
-- [ ] Copy/paste support
+- [ ] Search functionality in scrollback
+- [ ] Advanced selection modes (line, word)
 
 ## Dependencies
 
@@ -308,6 +331,7 @@ Contributions are welcome! Whether you're fixing bugs, adding features, or impro
 - [chrono](https://github.com/chronotope/chrono) - Date and time library
 - [portable-pty](https://github.com/wez/wezterm/tree/main/pty) - Cross-platform PTY support
 - [vte](https://github.com/alacritty/vte) - ANSI/VT parser
+- [arboard](https://github.com/1Password/arboard) - Cross-platform clipboard access
 
 ## Similar Projects
 

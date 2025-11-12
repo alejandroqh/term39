@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2025-11-12
+
+### Added
+- **Clipboard support** with full copy/paste functionality:
+  - System clipboard integration via arboard library
+  - Text selection in terminal windows (mouse drag to select)
+  - Copy selected text with Ctrl+Shift+C or right-click context menu
+  - Paste from clipboard with Ctrl+Shift+V or right-click context menu
+  - Visual selection highlighting with inverted colors
+  - Top bar clipboard buttons (Copy/Paste/Clear) for easy access
+  - Block selection mode for rectangular text regions
+  - Internal clipboard fallback when system clipboard unavailable
+- **Context menu** on right-click in terminal windows:
+  - Copy selected text
+  - Paste from clipboard
+  - Select all (placeholder for future implementation)
+  - Copy entire window content (placeholder for future implementation)
+  - Close window
+- **Additional themes** for enhanced visual customization:
+  - Green Phosphor - Classic green monochrome terminal (IBM 5151, VT220 inspired)
+  - Amber - Vintage amber monochrome terminal (DEC VT100, Wyse inspired)
+  - Existing themes: Classic (DOS blue/cyan), Dark (Dracula), Monochrome (grayscale)
+  - Command-line `--theme` option to select theme at startup
+  - Theme selector in settings window
+- **Tint terminal color improvements**:
+  - Enhanced 256-color palette rendering
+  - Better color accuracy for terminal applications
+  - Improved true color (24-bit RGB) support
+  - More accurate ANSI color rendering
+- **GPM (General Purpose Mouse) support for Linux console**:
+  - Native mouse support in Linux virtual consoles (TTY)
+  - Automatic GPM detection and initialization
+  - Fallback to crossterm when GPM unavailable
+  - Build-time GPM library detection
+
+### Changed
+- Command-line help now shows all available themes
+- Settings window includes theme selection dropdown
+- Improved color rendering consistency across themes
+
+### Fixed
+- Clippy warnings resolved with `#![allow(clippy::collapsible_if)]` attribute
+- Code quality improvements for stable Rust compatibility
+
+### Technical Details
+- New dependencies:
+  - arboard 3.4 for clipboard operations
+- Zero clippy warnings with -D warnings flag
+- All tests passing (7/7)
+- Clean release build
+
 ## [0.5.1] - 2025-11-11
 
 ### Added
@@ -173,6 +224,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - portable-pty 0.8 for PTY support
   - vte 0.13 for ANSI/VT escape sequences
 
+[0.6.0]: https://github.com/alejandroqh/term39/releases/tag/v0.6.0
+[0.5.1]: https://github.com/alejandroqh/term39/releases/tag/v0.5.1
 [0.5.0]: https://github.com/alejandroqh/term39/releases/tag/v0.5.0
 [0.4.0]: https://github.com/alejandroqh/term39/releases/tag/v0.4.0
 [0.3.0]: https://github.com/alejandroqh/term39/releases/tag/v0.3.0
