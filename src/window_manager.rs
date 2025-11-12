@@ -907,6 +907,98 @@ impl WindowManager {
         // Focus the next window
         self.focus_window(next_window_id);
     }
+
+    /// Get selected text from a window
+    pub fn get_selected_text(&self, window_id: u32) -> Option<String> {
+        self.windows
+            .iter()
+            .find(|w| w.id() == window_id)?
+            .get_selected_text()
+    }
+
+    /// Paste text to a window
+    pub fn paste_to_window(&mut self, window_id: u32, text: &str) -> std::io::Result<()> {
+        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+            window.paste_text(text)?;
+        }
+        Ok(())
+    }
+
+    /// Clear selection in a window
+    pub fn clear_selection(&mut self, window_id: u32) {
+        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+            window.clear_selection();
+        }
+    }
+
+    /// Start selection in a window
+    pub fn start_selection(
+        &mut self,
+        window_id: u32,
+        x: u16,
+        y: u16,
+        selection_type: crate::selection::SelectionType,
+    ) {
+        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+            window.start_selection(x, y, selection_type);
+        }
+    }
+
+    /// Update selection in a window
+    pub fn update_selection(&mut self, window_id: u32, x: u16, y: u16) {
+        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+            window.update_selection(x, y);
+        }
+    }
+
+    /// Complete selection in a window
+    pub fn complete_selection(&mut self, window_id: u32) {
+        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+            window.complete_selection();
+        }
+    }
+
+    /// Expand selection to word in a window
+    pub fn expand_selection_to_word(&mut self, window_id: u32) {
+        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+            window.expand_selection_to_word();
+        }
+    }
+
+    /// Expand selection to line in a window
+    pub fn expand_selection_to_line(&mut self, window_id: u32) {
+        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+            window.expand_selection_to_line();
+        }
+    }
+
+    /// Check if the focused window has a selection
+    #[allow(dead_code)]
+    pub fn focused_window_has_selection(&self) -> bool {
+        if let FocusState::Window(window_id) = self.focus {
+            self.windows
+                .iter()
+                .find(|w| w.id() == window_id)
+                .map(|w| w.has_selection())
+                .unwrap_or(false)
+        } else {
+            false
+        }
+    }
+
+    /// Check if the focused window has a meaningful selection (more than 1 character)
+    pub fn focused_window_has_meaningful_selection(&self) -> bool {
+        if let FocusState::Window(window_id) = self.focus {
+            self.windows
+                .iter()
+                .find(|w| w.id() == window_id)
+                .and_then(|w| w.get_selected_text())
+                .map(|text| text.len() > 1)
+                .unwrap_or(false)
+        } else {
+            false
+        }
+    }
 }
 
 impl Default for WindowManager {

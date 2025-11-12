@@ -1,4 +1,5 @@
 use crate::charset::{Charset, CharsetMode};
+use crate::selection::{Position, Selection, SelectionType};
 use crate::term_grid::{Color as TermColor, NamedColor, TerminalCell};
 use crate::terminal_emulator::TerminalEmulator;
 use crate::theme::Theme;
@@ -10,7 +11,8 @@ use crossterm::style::Color;
 pub struct TerminalWindow {
     pub window: Window,
     emulator: TerminalEmulator,
-    scroll_offset: usize, // For scrollback navigation
+    scroll_offset: usize,         // For scrollback navigation
+    selection: Option<Selection>, // Current text selection
 }
 
 impl TerminalWindow {
@@ -38,6 +40,7 @@ impl TerminalWindow {
             window,
             emulator,
             scroll_offset: 0,
+            selection: None,
         })
     }
 
@@ -161,7 +164,17 @@ impl TerminalWindow {
 
                 // Render the cell
                 if let Some(term_cell) = term_cell {
-                    let cell = convert_terminal_cell(term_cell, theme, tint_terminal);
+                    let mut cell = convert_terminal_cell(term_cell, theme, tint_terminal);
+
+                    // Apply selection highlighting if this cell is selected
+                    if let Some(selection) = &self.selection {
+                        let pos = Position::new(col, row);
+                        if selection.contains(pos) {
+                            // Invert colors for DOS-style selection
+                            cell = cell.inverted();
+                        }
+                    }
+
                     buffer.set(content_x + col, content_y + row, cell);
                 }
             }
@@ -398,6 +411,179 @@ impl TerminalWindow {
     /// Get the current scroll offset
     pub fn get_scroll_offset(&self) -> usize {
         self.scroll_offset
+    }
+
+    /// Convert screen coordinates to terminal grid position
+    fn screen_to_grid_pos(&self, screen_x: u16, screen_y: u16) -> Option<Position> {
+        let content_x = self.window.x + 1;
+        let content_y = self.window.y + 1;
+        let content_width = self.window.width.saturating_sub(2);
+        let content_height = self.window.height.saturating_sub(2);
+
+        // Check if coordinates are within content area
+        if screen_x < content_x
+            || screen_x >= content_x + content_width
+            || screen_y < content_y
+            || screen_y >= content_y + content_height
+        {
+            return None;
+        }
+
+        let col = screen_x - content_x;
+        let row = screen_y - content_y;
+
+        Some(Position::new(col, row))
+    }
+
+    /// Start a new selection
+    pub fn start_selection(&mut self, screen_x: u16, screen_y: u16, selection_type: SelectionType) {
+        if let Some(pos) = self.screen_to_grid_pos(screen_x, screen_y) {
+            self.selection = Some(Selection::new(pos, selection_type));
+        }
+    }
+
+    /// Update selection end position
+    pub fn update_selection(&mut self, screen_x: u16, screen_y: u16) {
+        if let Some(pos) = self.screen_to_grid_pos(screen_x, screen_y) {
+            if let Some(selection) = &mut self.selection {
+                selection.update_end(pos);
+            }
+        }
+    }
+
+    /// Complete the selection
+    pub fn complete_selection(&mut self) {
+        if let Some(selection) = &mut self.selection {
+            selection.complete();
+        }
+    }
+
+    /// Clear the selection
+    pub fn clear_selection(&mut self) {
+        self.selection = None;
+    }
+
+    /// Expand selection to word boundaries
+    pub fn expand_selection_to_word(&mut self) {
+        if let Some(selection) = &mut self.selection {
+            let grid = self.emulator.grid();
+            let grid = grid.lock().unwrap();
+
+            selection.expand_to_word(|pos| {
+                grid.get_cell(pos.col as usize, pos.row as usize)
+                    .map(|cell| cell.c)
+            });
+        }
+    }
+
+    /// Expand selection to line
+    pub fn expand_selection_to_line(&mut self) {
+        if let Some(selection) = &mut self.selection {
+            let content_width = self.window.width.saturating_sub(2);
+            selection.expand_to_line(content_width);
+        }
+    }
+
+    /// Get selected text
+    pub fn get_selected_text(&self) -> Option<String> {
+        let selection = self.selection.as_ref()?;
+        if selection.is_empty() {
+            return None;
+        }
+
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+
+        let (start, end) = selection.normalized_bounds();
+
+        let mut result = String::new();
+
+        match selection.selection_type {
+            SelectionType::Block => {
+                // Rectangle selection
+                let min_col = start.col.min(end.col);
+                let max_col = start.col.max(end.col);
+                let min_row = start.row.min(end.row);
+                let max_row = start.row.max(end.row);
+
+                for row in min_row..=max_row {
+                    for col in min_col..=max_col {
+                        if let Some(cell) = grid.get_cell(col as usize, row as usize) {
+                            result.push(cell.c);
+                        }
+                    }
+                    if row < max_row {
+                        result.push('\n');
+                    }
+                }
+            }
+            _ => {
+                // Linear selection (character, word, line)
+                if start.row == end.row {
+                    // Single line
+                    for col in start.col..=end.col {
+                        if let Some(cell) = grid.get_cell(col as usize, start.row as usize) {
+                            result.push(cell.c);
+                        }
+                    }
+                } else {
+                    // Multiple lines
+                    // First line (from start.col to end of line)
+                    let content_width = self.window.width.saturating_sub(2);
+                    for col in start.col..content_width {
+                        if let Some(cell) = grid.get_cell(col as usize, start.row as usize) {
+                            result.push(cell.c);
+                        }
+                    }
+                    result.push('\n');
+
+                    // Middle lines (full lines)
+                    for row in (start.row + 1)..end.row {
+                        for col in 0..content_width {
+                            if let Some(cell) = grid.get_cell(col as usize, row as usize) {
+                                result.push(cell.c);
+                            }
+                        }
+                        result.push('\n');
+                    }
+
+                    // Last line (from start to end.col)
+                    for col in 0..=end.col {
+                        if let Some(cell) = grid.get_cell(col as usize, end.row as usize) {
+                            result.push(cell.c);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Clean up trailing spaces and return
+        let result = result.trim_end().to_string();
+        if result.is_empty() {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    /// Paste text to terminal
+    pub fn paste_text(&mut self, text: &str) -> std::io::Result<()> {
+        self.emulator.send_str(text)
+    }
+
+    /// Check if there's an active selection
+    pub fn has_selection(&self) -> bool {
+        self.selection.is_some()
+    }
+
+    /// Get the content area bounds (for hit testing)
+    #[allow(dead_code)]
+    pub fn get_content_bounds(&self) -> (u16, u16, u16, u16) {
+        let content_x = self.window.x + 1;
+        let content_y = self.window.y + 1;
+        let content_width = self.window.width.saturating_sub(2);
+        let content_height = self.window.height.saturating_sub(2);
+        (content_x, content_y, content_width, content_height)
     }
 }
 

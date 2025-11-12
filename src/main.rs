@@ -2,13 +2,16 @@ mod ansi_handler;
 mod button;
 mod charset;
 mod cli;
+mod clipboard_manager;
 mod config;
 mod config_manager;
 mod config_window;
+mod context_menu;
 #[cfg(target_os = "linux")]
 mod gpm_handler;
 mod info_window;
 mod prompt;
+mod selection;
 mod term_grid;
 mod terminal_emulator;
 mod terminal_window;
@@ -20,8 +23,10 @@ mod window_manager;
 use button::Button;
 use charset::Charset;
 use chrono::{Datelike, Local, NaiveDate};
+use clipboard_manager::ClipboardManager;
 use config_manager::AppConfig;
 use config_window::{ConfigAction, ConfigWindow};
+use context_menu::{ContextMenu, MenuAction};
 use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind},
@@ -31,8 +36,9 @@ use crossterm::{
 };
 use info_window::InfoWindow;
 use prompt::{Prompt, PromptAction, PromptButton, PromptType};
+use selection::SelectionType;
 use std::io::{self, Write};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{thread, time};
 use theme::Theme;
 use video_buffer::{Cell, VideoBuffer};
@@ -151,9 +157,29 @@ fn main() -> io::Result<()> {
     // Create the "New Terminal" button
     let mut new_terminal_button = Button::new(1, 0, "+New Terminal".to_string());
 
+    // Create clipboard-related buttons (centered in top bar)
+    let (initial_cols, initial_rows) = terminal::size()?;
+
+    // Paste button
+    let paste_label = "Paste".to_string();
+    let paste_button_width = (paste_label.len() as u16) + 4; // "[ Label ]"
+    let paste_x = (initial_cols.saturating_sub(paste_button_width + 5)) / 2; // +5 for [ X ] button
+    let mut paste_button = Button::new(paste_x, 0, paste_label);
+
+    // Clear clipboard button (X)
+    let clear_label = "X".to_string();
+    let mut clear_clipboard_button = Button::new(paste_x + paste_button_width, 0, clear_label);
+
+    // Copy button (shows when text is selected)
+    let copy_label = "Copy".to_string();
+    let mut copy_button = Button::new(0, 0, copy_label);
+
+    // Clear selection button (X) (shows when text is selected)
+    let clear_selection_label = "X".to_string();
+    let mut clear_selection_button = Button::new(0, 0, clear_selection_label);
+
     // Auto-tiling toggle state and button (initialized from config)
     // Button is on bottom bar (rows - 1), left side
-    let (_, initial_rows) = terminal::size()?;
     let mut auto_tiling_enabled = app_config.auto_tiling_on_startup;
     let auto_tiling_text = if auto_tiling_enabled {
         "█ on] Auto Tiling"
@@ -180,6 +206,17 @@ fn main() -> io::Result<()> {
     // About window state (None when not shown)
     let mut active_about_window: Option<InfoWindow> = None;
 
+    // Clipboard manager
+    let mut clipboard_manager = ClipboardManager::new();
+
+    // Context menu state (None when not shown)
+    let mut context_menu = ContextMenu::new(0, 0);
+
+    // Selection state
+    let mut selection_active = false;
+    let mut last_click_time: Option<Instant> = None;
+    let mut click_count = 0;
+
     // Show splash screen for 1 second
     show_splash_screen(&mut video_buffer, &mut stdout, &charset, &theme)?;
 
@@ -202,12 +239,55 @@ fn main() -> io::Result<()> {
         // Render the background (every frame for consistency)
         render_background(&mut video_buffer, &charset, &theme);
 
+        // Update clipboard buttons state and position
+        let has_clipboard_content = clipboard_manager.has_content();
+        let has_selection = window_manager.focused_window_has_meaningful_selection();
+
+        paste_button.enabled = has_clipboard_content;
+        clear_clipboard_button.enabled = has_clipboard_content;
+        copy_button.enabled = has_selection;
+        clear_selection_button.enabled = has_selection;
+
+        // Calculate button positions (centered)
+        let paste_width = paste_button.width();
+        let clear_clip_width = clear_clipboard_button.width();
+        let copy_width = copy_button.width();
+        let clear_sel_width = clear_selection_button.width();
+
+        // Position paste and clear clipboard buttons together in center
+        let paste_clear_total_width = paste_width + clear_clip_width;
+        let paste_x = (cols.saturating_sub(paste_clear_total_width)) / 2;
+        paste_button.x = paste_x;
+        clear_clipboard_button.x = paste_x + paste_width;
+
+        // Position copy and clear selection buttons
+        if has_selection && has_clipboard_content {
+            // Both visible: put copy[X] to the left of paste[X]
+            let copy_clear_sel_width = copy_width + clear_sel_width;
+            let total_width = copy_clear_sel_width + 1 + paste_clear_total_width; // +1 for gap
+            let start_x = (cols.saturating_sub(total_width)) / 2;
+            copy_button.x = start_x;
+            clear_selection_button.x = start_x + copy_width;
+            paste_button.x = start_x + copy_clear_sel_width + 1;
+            clear_clipboard_button.x = paste_button.x + paste_width;
+        } else if has_selection {
+            // Only copy[X] visible: center it
+            let copy_clear_sel_width = copy_width + clear_sel_width;
+            let start_x = (cols.saturating_sub(copy_clear_sel_width)) / 2;
+            copy_button.x = start_x;
+            clear_selection_button.x = start_x + copy_width;
+        }
+
         // Render the top bar
         let focus = window_manager.get_focus();
         render_top_bar(
             &mut video_buffer,
             focus,
             &new_terminal_button,
+            &paste_button,
+            &clear_clipboard_button,
+            &copy_button,
+            &clear_selection_button,
             &app_config,
             &theme,
         );
@@ -263,6 +343,11 @@ fn main() -> io::Result<()> {
         // Render active about window (if any)
         if let Some(ref about_win) = active_about_window {
             about_win.render(&mut video_buffer, &charset, &theme);
+        }
+
+        // Render context menu (if visible)
+        if context_menu.visible {
+            context_menu.render(&mut video_buffer, &charset);
         }
 
         // Present buffer to screen
@@ -513,6 +598,37 @@ fn main() -> io::Result<()> {
                             // Send Ctrl+L (form feed, 0x0c) to the shell
                             // Most shells (bash, zsh, etc.) interpret this as "clear screen"
                             let _ = window_manager.send_to_focused("\x0c");
+                        }
+                        continue;
+                    }
+
+                    // Handle Ctrl+Shift+C to copy selection
+                    if key_event.code == KeyCode::Char('C')
+                        && key_event.modifiers.contains(KeyModifiers::CONTROL)
+                        && key_event.modifiers.contains(KeyModifiers::SHIFT)
+                    {
+                        if let FocusState::Window(window_id) = current_focus {
+                            if let Some(text) = window_manager.get_selected_text(window_id) {
+                                if clipboard_manager.copy(text).is_ok() {
+                                    // Clear selection after copying
+                                    window_manager.clear_selection(window_id);
+                                }
+                            }
+                        }
+                        continue;
+                    }
+
+                    // Handle Ctrl+Shift+V to paste
+                    if key_event.code == KeyCode::Char('V')
+                        && key_event.modifiers.contains(KeyModifiers::CONTROL)
+                        && key_event.modifiers.contains(KeyModifiers::SHIFT)
+                    {
+                        if let FocusState::Window(window_id) = current_focus {
+                            if let Ok(text) = clipboard_manager.paste() {
+                                let _ = window_manager.paste_to_window(window_id, &text);
+                                // Clear selection after paste
+                                window_manager.clear_selection(window_id);
+                            }
                         }
                         continue;
                     }
@@ -920,6 +1036,31 @@ fn main() -> io::Result<()> {
                             new_terminal_button.set_state(button::ButtonState::Normal);
                         }
 
+                        // Clipboard buttons hover state
+                        if paste_button.contains(mouse_event.column, mouse_event.row) {
+                            paste_button.set_state(button::ButtonState::Hovered);
+                        } else {
+                            paste_button.set_state(button::ButtonState::Normal);
+                        }
+
+                        if clear_clipboard_button.contains(mouse_event.column, mouse_event.row) {
+                            clear_clipboard_button.set_state(button::ButtonState::Hovered);
+                        } else {
+                            clear_clipboard_button.set_state(button::ButtonState::Normal);
+                        }
+
+                        if copy_button.contains(mouse_event.column, mouse_event.row) {
+                            copy_button.set_state(button::ButtonState::Hovered);
+                        } else {
+                            copy_button.set_state(button::ButtonState::Normal);
+                        }
+
+                        if clear_selection_button.contains(mouse_event.column, mouse_event.row) {
+                            clear_selection_button.set_state(button::ButtonState::Hovered);
+                        } else {
+                            clear_selection_button.set_state(button::ButtonState::Normal);
+                        }
+
                         // Calculate position for toggle button hover detection (bottom bar, left side)
                         let (_, rows) = terminal::size()?;
                         let bar_y = rows - 1;
@@ -964,6 +1105,74 @@ fn main() -> io::Result<()> {
                         if auto_tiling_enabled {
                             window_manager.auto_position_windows(cols, rows);
                         }
+
+                        handled = true;
+                    }
+
+                    // Check if click is on the Copy button in the top bar (only if no prompt)
+                    if !handled
+                        && active_prompt.is_none()
+                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+                        && copy_button.contains(mouse_event.column, mouse_event.row)
+                    {
+                        copy_button.set_state(button::ButtonState::Pressed);
+
+                        // Copy selected text to clipboard and clear selection
+                        if let FocusState::Window(window_id) = window_manager.get_focus() {
+                            if let Some(text) = window_manager.get_selected_text(window_id) {
+                                let _ = clipboard_manager.copy(text);
+                                // Clear selection after copying
+                                window_manager.clear_selection(window_id);
+                            }
+                        }
+
+                        handled = true;
+                    }
+
+                    // Check if click is on the Clear Selection (X) button in the top bar
+                    if !handled
+                        && active_prompt.is_none()
+                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+                        && clear_selection_button.contains(mouse_event.column, mouse_event.row)
+                    {
+                        clear_selection_button.set_state(button::ButtonState::Pressed);
+
+                        // Clear the selection
+                        if let FocusState::Window(window_id) = window_manager.get_focus() {
+                            window_manager.clear_selection(window_id);
+                        }
+
+                        handled = true;
+                    }
+
+                    // Check if click is on the Paste button in the top bar (only if no prompt)
+                    if !handled
+                        && active_prompt.is_none()
+                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+                        && paste_button.contains(mouse_event.column, mouse_event.row)
+                    {
+                        paste_button.set_state(button::ButtonState::Pressed);
+
+                        // Paste clipboard content to focused window
+                        if let FocusState::Window(window_id) = window_manager.get_focus() {
+                            if let Ok(text) = clipboard_manager.paste() {
+                                let _ = window_manager.paste_to_window(window_id, &text);
+                            }
+                        }
+
+                        handled = true;
+                    }
+
+                    // Check if click is on the Clear (X) button in the top bar (only if no prompt)
+                    if !handled
+                        && active_prompt.is_none()
+                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+                        && clear_clipboard_button.contains(mouse_event.column, mouse_event.row)
+                    {
+                        clear_clipboard_button.set_state(button::ButtonState::Pressed);
+
+                        // Clear the clipboard
+                        clipboard_manager.clear();
 
                         handled = true;
                     }
@@ -1047,8 +1256,163 @@ fn main() -> io::Result<()> {
                             .is_some();
                     }
 
+                    // Handle right-click for context menu
+                    if !handled
+                        && active_prompt.is_none()
+                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Right)
+                    {
+                        if let FocusState::Window(_) = window_manager.get_focus() {
+                            context_menu.show(mouse_event.column, mouse_event.row);
+                            handled = true;
+                        }
+                    }
+
+                    // Handle context menu interactions
+                    if !handled && context_menu.visible {
+                        if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
+                            if context_menu.contains_point(mouse_event.column, mouse_event.row) {
+                                if let Some(action) = context_menu.get_selected_action() {
+                                    if let FocusState::Window(window_id) =
+                                        window_manager.get_focus()
+                                    {
+                                        match action {
+                                            MenuAction::Copy => {
+                                                if let Some(text) =
+                                                    window_manager.get_selected_text(window_id)
+                                                {
+                                                    let _ = clipboard_manager.copy(text);
+                                                    // Clear selection after copying
+                                                    window_manager.clear_selection(window_id);
+                                                }
+                                            }
+                                            MenuAction::Paste => {
+                                                if let Ok(text) = clipboard_manager.paste() {
+                                                    let _ = window_manager
+                                                        .paste_to_window(window_id, &text);
+                                                }
+                                            }
+                                            MenuAction::SelectAll => {
+                                                // TODO: Implement select all
+                                            }
+                                            MenuAction::CopyWindow => {
+                                                // TODO: Implement copy window
+                                            }
+                                            MenuAction::Close => {}
+                                        }
+                                    }
+                                }
+                                context_menu.hide();
+                                handled = true;
+                            } else {
+                                // Clicked outside menu - hide it
+                                context_menu.hide();
+                            }
+                        } else if mouse_event.kind == MouseEventKind::Moved {
+                            // Update menu selection on hover
+                            if context_menu.contains_point(mouse_event.column, mouse_event.row) {
+                                // TODO: Update hover state if needed
+                            }
+                        }
+                    }
+
+                    // Handle selection events (left-click, drag)
+                    if !handled && active_prompt.is_none() && !context_menu.visible {
+                        match mouse_event.kind {
+                            MouseEventKind::Down(MouseButton::Left) => {
+                                // Check if click is in a window content area
+                                if let FocusState::Window(window_id) = window_manager.get_focus() {
+                                    // Track click timing for double/triple-click detection
+                                    let now = Instant::now();
+                                    let is_multi_click = if let Some(last_time) = last_click_time {
+                                        now.duration_since(last_time).as_millis() < 500
+                                    } else {
+                                        false
+                                    };
+
+                                    if is_multi_click {
+                                        click_count += 1;
+                                    } else {
+                                        click_count = 1;
+                                    }
+                                    last_click_time = Some(now);
+
+                                    // Start or expand selection based on click count
+                                    let selection_type = match click_count {
+                                        2 => {
+                                            window_manager.start_selection(
+                                                window_id,
+                                                mouse_event.column,
+                                                mouse_event.row,
+                                                SelectionType::Character,
+                                            );
+                                            window_manager.expand_selection_to_word(window_id);
+                                            window_manager.complete_selection(window_id);
+                                            SelectionType::Word
+                                        }
+                                        3 => {
+                                            window_manager.start_selection(
+                                                window_id,
+                                                mouse_event.column,
+                                                mouse_event.row,
+                                                SelectionType::Character,
+                                            );
+                                            window_manager.expand_selection_to_line(window_id);
+                                            window_manager.complete_selection(window_id);
+                                            SelectionType::Line
+                                        }
+                                        _ => {
+                                            let sel_type = if mouse_event
+                                                .modifiers
+                                                .contains(KeyModifiers::ALT)
+                                            {
+                                                SelectionType::Block
+                                            } else {
+                                                SelectionType::Character
+                                            };
+                                            window_manager.start_selection(
+                                                window_id,
+                                                mouse_event.column,
+                                                mouse_event.row,
+                                                sel_type,
+                                            );
+                                            sel_type
+                                        }
+                                    };
+
+                                    if click_count <= 1 || selection_type == SelectionType::Block {
+                                        selection_active = true;
+                                    }
+                                }
+                            }
+                            MouseEventKind::Drag(MouseButton::Left) => {
+                                if selection_active {
+                                    if let FocusState::Window(window_id) =
+                                        window_manager.get_focus()
+                                    {
+                                        window_manager.update_selection(
+                                            window_id,
+                                            mouse_event.column,
+                                            mouse_event.row,
+                                        );
+                                    }
+                                }
+                            }
+                            MouseEventKind::Up(MouseButton::Left) => {
+                                if selection_active {
+                                    if let FocusState::Window(window_id) =
+                                        window_manager.get_focus()
+                                    {
+                                        window_manager.complete_selection(window_id);
+                                    }
+                                    selection_active = false;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+
                     // If not handled by buttons, let window manager handle it (only if no prompt)
-                    if !handled && active_prompt.is_none() {
+                    if !handled && active_prompt.is_none() && !context_menu.visible {
                         let window_closed =
                             window_manager.handle_mouse_event(&mut video_buffer, mouse_event);
                         // Auto-reposition remaining windows if a window was closed
@@ -1083,10 +1447,15 @@ fn render_background(buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme)
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_top_bar(
     buffer: &mut VideoBuffer,
     focus: FocusState,
     new_terminal_button: &Button,
+    paste_button: &Button,
+    clear_clipboard_button: &Button,
+    copy_button: &Button,
+    clear_selection_button: &Button,
     app_config: &AppConfig,
     theme: &Theme,
 ) {
@@ -1107,6 +1476,12 @@ fn render_top_bar(
 
     // Left section - New Terminal button (always visible)
     new_terminal_button.render(buffer, theme);
+
+    // Center section - Copy/Paste/Clear buttons (visible based on state)
+    copy_button.render(buffer, theme);
+    clear_selection_button.render(buffer, theme);
+    paste_button.render(buffer, theme);
+    clear_clipboard_button.render(buffer, theme);
 
     // Right section - Clock with dark background
     let now = Local::now();

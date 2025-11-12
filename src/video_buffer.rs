@@ -22,6 +22,15 @@ impl Cell {
             bg_color,
         }
     }
+
+    /// Create a new cell with inverted colors (for selection highlighting)
+    pub fn inverted(&self) -> Self {
+        Self {
+            character: self.character,
+            fg_color: self.bg_color,
+            bg_color: self.fg_color,
+        }
+    }
 }
 
 impl Default for Cell {
