@@ -467,14 +467,22 @@ fn apply_theme_tint(color: Color, theme: &Theme, is_foreground: bool) -> Color {
         // Green colors - map to theme button maximize or a green-ish tint
         Color::Green | Color::DarkGreen => theme.button_maximize_color,
 
-        // Yellow colors - map to theme button minimize or a yellow-ish tint
-        Color::Yellow | Color::DarkYellow => theme.button_minimize_color,
+        // Yellow colors - improve contrast for monochrome theme
+        Color::Yellow | Color::DarkYellow => {
+            // Monochrome uses DarkGrey which has poor contrast on Black
+            // Use Grey instead for better visibility
+            match theme.button_minimize_color {
+                Color::DarkGrey => Color::Grey,
+                _ => theme.button_minimize_color,
+            }
+        }
 
-        // Blue colors - map to theme accent colors
-        Color::Blue | Color::DarkBlue => theme.topbar_bg_window,
+        // Blue colors - use border color for visibility (avoid mapping to Black)
+        // This ensures blue text is visible across all themes
+        Color::Blue | Color::DarkBlue => theme.window_border,
 
-        // Cyan colors - map to theme border or cyan-ish tint
-        Color::Cyan | Color::DarkCyan => theme.window_border,
+        // Cyan colors - map to content foreground for differentiation from blue
+        Color::Cyan | Color::DarkCyan => theme.window_content_fg,
 
         // Magenta colors - map to a magenta-ish variation
         Color::Magenta | Color::DarkMagenta => theme.resize_handle_active_fg,
@@ -496,14 +504,20 @@ fn apply_theme_tint(color: Color, theme: &Theme, is_foreground: bool) -> Color {
             if idx < 8 {
                 // Standard colors (0-7): map to theme colors
                 match idx {
-                    0 => theme.window_content_bg,       // Black
-                    1 => theme.button_close_color,      // Red
-                    2 => theme.button_maximize_color,   // Green
-                    3 => theme.button_minimize_color,   // Yellow
-                    4 => theme.topbar_bg_window,        // Blue
+                    0 => theme.window_content_bg,     // Black
+                    1 => theme.button_close_color,    // Red
+                    2 => theme.button_maximize_color, // Green
+                    3 => {
+                        // Yellow - improve contrast for monochrome theme
+                        match theme.button_minimize_color {
+                            Color::DarkGrey => Color::Grey,
+                            _ => theme.button_minimize_color,
+                        }
+                    }
+                    4 => theme.window_border, // Blue - use border for visibility
                     5 => theme.resize_handle_active_fg, // Magenta
-                    6 => theme.window_border,           // Cyan
-                    7 => theme.window_content_fg,       // White
+                    6 => theme.window_content_fg, // Cyan - differentiate from blue
+                    7 => theme.window_content_fg, // White
                     _ => color,
                 }
             } else if idx < 16 {
