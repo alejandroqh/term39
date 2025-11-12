@@ -27,6 +27,7 @@ pub struct Theme {
     pub button_close_color: Color,
     pub button_maximize_color: Color,
     pub button_minimize_color: Color,
+    pub button_bg: Color, // Consistent background for title bar buttons
     pub resize_handle_normal_fg: Color,
     pub resize_handle_normal_bg: Color,
     pub resize_handle_active_fg: Color,
@@ -141,6 +142,7 @@ impl Theme {
             button_close_color: Color::Red,
             button_maximize_color: Color::Green,
             button_minimize_color: Color::Yellow,
+            button_bg: Color::Black, // Consistent button background
             resize_handle_normal_fg: Color::Grey,
             resize_handle_normal_bg: Color::Black,
             resize_handle_active_fg: Color::Yellow,
@@ -255,6 +257,7 @@ impl Theme {
             button_close_color: Color::White,
             button_maximize_color: Color::Grey,
             button_minimize_color: Color::DarkGrey,
+            button_bg: Color::Black, // Consistent button background
             resize_handle_normal_fg: Color::Grey,
             resize_handle_normal_bg: Color::Black,
             resize_handle_active_fg: Color::White,
@@ -371,6 +374,7 @@ impl Theme {
             button_close_color: Color::Red,      // Dracula red #FF5555
             button_maximize_color: Color::Green, // Dracula green #50FA7B
             button_minimize_color: Color::Yellow, // Dracula yellow #F1FA8C
+            button_bg: Color::Black,             // Consistent button background
             resize_handle_normal_fg: Color::DarkGrey,
             resize_handle_normal_bg: Color::Black,
             resize_handle_active_fg: Color::Magenta, // Purple accent

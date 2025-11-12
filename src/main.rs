@@ -1,6 +1,7 @@
 mod ansi_handler;
 mod button;
 mod charset;
+mod cli;
 mod config;
 mod config_manager;
 mod config_window;
@@ -105,8 +106,15 @@ impl CalendarState {
 }
 
 fn main() -> io::Result<()> {
-    // Parse command-line arguments for charset configuration
-    let mut charset = Charset::from_args();
+    // Parse command-line arguments
+    let cli_args = cli::Cli::parse_args();
+
+    // Create charset based on CLI arguments
+    let mut charset = if cli_args.ascii {
+        Charset::ascii()
+    } else {
+        Charset::unicode()
+    };
 
     // Load application configuration
     let mut app_config = AppConfig::load();
@@ -114,14 +122,8 @@ fn main() -> io::Result<()> {
     // Set the background character from config
     charset.set_background(app_config.get_background_char());
 
-    // Parse command-line arguments for theme (overrides config if provided)
-    let args: Vec<String> = std::env::args().collect();
-    let theme_name = args
-        .iter()
-        .position(|arg| arg == "--theme")
-        .and_then(|i| args.get(i + 1))
-        .map(|s| s.as_str())
-        .unwrap_or(&app_config.theme);
+    // Use theme from CLI args (takes precedence over config)
+    let theme_name = &cli_args.theme;
     let mut theme = Theme::from_name(theme_name);
 
     let mut stdout = io::stdout();

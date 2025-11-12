@@ -67,18 +67,6 @@ impl Charset {
         }
     }
 
-    /// Create charset from command-line arguments
-    pub fn from_args() -> Self {
-        let args: Vec<String> = std::env::args().collect();
-
-        // Check for --ascii flag
-        if args.iter().any(|arg| arg == "--ascii") {
-            Self::ascii()
-        } else {
-            Self::unicode()
-        }
-    }
-
     // Accessor methods for border characters
     pub fn border_top_left(&self) -> char {
         self.border_top_left

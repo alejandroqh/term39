@@ -274,15 +274,16 @@ impl Window {
         let buttons = "[X][+][_] ";
         let mut x_offset = 1;
 
-        // Render buttons with colored characters
+        // Render buttons with colored characters and consistent background
         for (i, ch) in buttons.chars().enumerate() {
-            let color = match ch {
-                'X' => theme.button_close_color,
-                '+' => theme.button_maximize_color,
-                '_' => theme.button_minimize_color,
-                _ => theme.window_title_fg,
+            let (fg_color, bg_color) = match ch {
+                'X' => (theme.button_close_color, theme.button_bg),
+                '+' => (theme.button_maximize_color, theme.button_bg),
+                '_' => (theme.button_minimize_color, theme.button_bg),
+                '[' | ']' => (theme.window_title_fg, theme.button_bg),
+                _ => (theme.window_title_fg, title_bg), // Space between buttons uses title background
             };
-            buffer.set(self.x + x_offset, self.y, Cell::new(ch, color, title_bg));
+            buffer.set(self.x + x_offset, self.y, Cell::new(ch, fg_color, bg_color));
             x_offset += 1;
 
             // After each button group, there's a space

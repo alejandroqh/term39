@@ -104,7 +104,7 @@ impl AppConfig {
         ' ', // 1: Empty/space (clean)
         '▒', // 2: Medium shade
         '▓', // 3: Dark shade
-        '·', // 4: Middle dot (subtle)
+        '█', // 4: Full block (100% solid)
     ];
 
     /// Available background character names for display
@@ -113,7 +113,7 @@ impl AppConfig {
         "Empty",
         "Medium Shade",
         "Dark Shade",
-        "Dot Pattern",
+        "Full Block",
     ];
 
     /// Get the current background character
