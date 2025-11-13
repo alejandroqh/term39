@@ -117,9 +117,7 @@ impl TerminalEmulator {
                 let mut grid = self.grid.lock().unwrap();
                 let mut handler = AnsiHandler::new(&mut grid);
 
-                for &byte in &data {
-                    self.parser.advance(&mut handler, byte);
-                }
+                self.parser.advance(&mut handler, &data);
 
                 Ok(true)
             }
