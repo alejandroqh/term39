@@ -318,16 +318,19 @@ fn main() -> io::Result<()> {
 
         // Render active prompt (if any) on top of everything
         if let Some(ref prompt) = active_prompt {
+            video_buffer::render_fullscreen_shadow(&mut video_buffer);
             prompt.render(&mut video_buffer, &charset, &theme);
         }
 
         // Render active calendar (if any) on top of everything
         if let Some(ref calendar) = active_calendar {
+            video_buffer::render_fullscreen_shadow(&mut video_buffer);
             render_calendar(&mut video_buffer, calendar, &charset, &theme, cols, rows);
         }
 
         // Render active config window (if any) on top of everything
         if let Some(ref config_win) = active_config_window {
+            video_buffer::render_fullscreen_shadow(&mut video_buffer);
             config_win.render(
                 &mut video_buffer,
                 &charset,
@@ -339,11 +342,13 @@ fn main() -> io::Result<()> {
 
         // Render active help window (if any)
         if let Some(ref help_win) = active_help_window {
+            video_buffer::render_fullscreen_shadow(&mut video_buffer);
             help_win.render(&mut video_buffer, &charset, &theme);
         }
 
         // Render active about window (if any)
         if let Some(ref about_win) = active_about_window {
+            video_buffer::render_fullscreen_shadow(&mut video_buffer);
             about_win.render(&mut video_buffer, &charset, &theme);
         }
 
@@ -857,7 +862,29 @@ fn main() -> io::Result<()> {
                         KeyCode::Char(c) => {
                             // Send character to focused terminal
                             if current_focus != FocusState::Desktop {
-                                let _ = window_manager.send_char_to_focused(c);
+                                // Check if CTRL is pressed (but not handled by specific shortcuts above)
+                                if key_event.modifiers.contains(KeyModifiers::CONTROL) {
+                                    // Convert to control character (Ctrl+A = 0x01, Ctrl+B = 0x02, etc.)
+                                    // Ctrl+letter maps to ASCII 1-26 for a-z (case insensitive)
+                                    if c.is_ascii_alphabetic() {
+                                        let control_char = match c.to_ascii_lowercase() {
+                                            'a'..='z' => {
+                                                // Ctrl+A = 1, Ctrl+B = 2, ..., Ctrl+Z = 26
+                                                (c.to_ascii_lowercase() as u8 - b'a' + 1) as char
+                                            }
+                                            _ => c,
+                                        };
+                                        let _ = window_manager
+                                            .send_to_focused(&control_char.to_string());
+                                    } else {
+                                        // For non-alphabetic characters with Ctrl, send as-is
+                                        // This handles cases like Ctrl+[ which is ESC
+                                        let _ = window_manager.send_char_to_focused(c);
+                                    }
+                                } else {
+                                    // Normal character without Ctrl
+                                    let _ = window_manager.send_char_to_focused(c);
+                                }
                             }
                         }
                         KeyCode::Enter => {

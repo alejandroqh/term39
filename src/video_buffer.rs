@@ -74,7 +74,6 @@ impl VideoBuffer {
     }
 
     /// Get cell at position from back buffer
-    #[allow(dead_code)]
     pub fn get(&self, x: u16, y: u16) -> Option<&Cell> {
         self.index(x, y).map(|i| &self.back_buffer[i])
     }
@@ -179,31 +178,36 @@ impl VideoBuffer {
 }
 
 /// Render a shadow for a rectangular region
-/// Draws a 1-cell shadow on the right side and bottom of the given region
+/// Draws a 2-cell shadow on the right side and 1-cell shadow on the bottom of the given region
+/// Instead of drawing with a shadow character, this preserves the existing character
+/// and modifies its colors to create a "shadowed" effect (black bg, dark grey fg)
 pub fn render_shadow(
     buffer: &mut VideoBuffer,
     x: u16,
     y: u16,
     width: u16,
     height: u16,
-    charset: &Charset,
-    theme: &Theme,
+    _charset: &Charset,
+    _theme: &Theme,
 ) {
-    let shadow_char = charset.shadow;
-    let shadow_color = theme.window_shadow_color;
+    let shadow_fg = Color::DarkGrey;
+    let shadow_bg = Color::Black;
     let (buffer_width, buffer_height) = buffer.dimensions();
 
-    // Right shadow (1 cell to the right)
-    let shadow_x = x + width;
-    if shadow_x < buffer_width {
-        for dy in 1..=height {
-            let shadow_y = y + dy;
-            if shadow_y < buffer_height {
-                buffer.set(
-                    shadow_x,
-                    shadow_y,
-                    Cell::new(shadow_char, shadow_color, shadow_color),
-                );
+    // Right shadow (2 cells wide to the right)
+    for shadow_offset in 0..2 {
+        let shadow_x = x + width + shadow_offset;
+        if shadow_x < buffer_width {
+            for dy in 1..=height {
+                let shadow_y = y + dy;
+                if shadow_y < buffer_height {
+                    // Get existing cell and preserve its character
+                    if let Some(existing_cell) = buffer.get(shadow_x, shadow_y) {
+                        let shadowed_cell =
+                            Cell::new(existing_cell.character, shadow_fg, shadow_bg);
+                        buffer.set(shadow_x, shadow_y, shadowed_cell);
+                    }
+                }
             }
         }
     }
@@ -214,11 +218,31 @@ pub fn render_shadow(
         for dx in 1..=width {
             let shadow_x = x + dx;
             if shadow_x < buffer_width {
-                buffer.set(
-                    shadow_x,
-                    shadow_y,
-                    Cell::new(shadow_char, shadow_color, shadow_color),
-                );
+                // Get existing cell and preserve its character
+                if let Some(existing_cell) = buffer.get(shadow_x, shadow_y) {
+                    let shadowed_cell = Cell::new(existing_cell.character, shadow_fg, shadow_bg);
+                    buffer.set(shadow_x, shadow_y, shadowed_cell);
+                }
+            }
+        }
+    }
+}
+
+/// Render a full-screen shadow overlay (for modal dialogs)
+/// This shadows the entire screen to indicate that only the modal dialog is interactive
+/// Preserves existing characters and only modifies colors (black bg, dark grey fg)
+pub fn render_fullscreen_shadow(buffer: &mut VideoBuffer) {
+    let shadow_fg = Color::DarkGrey;
+    let shadow_bg = Color::Black;
+    let (width, height) = buffer.dimensions();
+
+    // Shadow every cell in the buffer
+    for y in 0..height {
+        for x in 0..width {
+            // Get existing cell and preserve its character
+            if let Some(existing_cell) = buffer.get(x, y) {
+                let shadowed_cell = Cell::new(existing_cell.character, shadow_fg, shadow_bg);
+                buffer.set(x, y, shadowed_cell);
             }
         }
     }
