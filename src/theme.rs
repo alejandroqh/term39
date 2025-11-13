@@ -1,5 +1,10 @@
 use crossterm::style::Color;
 
+// Custom color constants for better readability and maintainability
+const PURE_BLACK: Color = Color::Rgb { r: 0, g: 0, b: 0 };
+const LIGHT_AMBER: Color = Color::Rgb { r: 200, g: 175, b: 120 };
+const DARK_GREEN_PHOSPHOR: Color = Color::Rgb { r: 0, g: 120, b: 0 };
+
 #[derive(Debug, Clone)]
 pub struct Theme {
     // Desktop
@@ -526,25 +531,25 @@ impl Theme {
 
             // Prompts/Dialogs
             prompt_info_bg: Color::DarkGreen,
-            prompt_info_fg: Color::Green,
+            prompt_info_fg: PURE_BLACK, // Black text for contrast
             prompt_success_bg: Color::Green,
-            prompt_success_fg: Color::Black,
+            prompt_success_fg: PURE_BLACK,
             prompt_warning_bg: Color::DarkGreen,
-            prompt_warning_fg: Color::Green,
+            prompt_warning_fg: PURE_BLACK,
             prompt_danger_bg: Color::DarkGreen,
-            prompt_danger_fg: Color::Green,
+            prompt_danger_fg: PURE_BLACK, // Black text on green for readability
 
             // Dialog buttons
-            dialog_button_primary_info_fg: Color::Black,
+            dialog_button_primary_info_fg: PURE_BLACK, // Pure black for maximum contrast
             dialog_button_primary_info_bg: Color::Green,
-            dialog_button_primary_success_fg: Color::Black,
+            dialog_button_primary_success_fg: PURE_BLACK,
             dialog_button_primary_success_bg: Color::Green,
-            dialog_button_primary_warning_fg: Color::Black,
+            dialog_button_primary_warning_fg: PURE_BLACK,
             dialog_button_primary_warning_bg: Color::DarkGreen,
-            dialog_button_primary_danger_fg: Color::Green,
-            dialog_button_primary_danger_bg: Color::Black,
-            dialog_button_secondary_fg: Color::Green,
-            dialog_button_secondary_bg: Color::DarkGreen,
+            dialog_button_primary_danger_fg: PURE_BLACK, // Pure black for Exit button
+            dialog_button_primary_danger_bg: DARK_GREEN_PHOSPHOR, // Subtle, de-emphasized
+            dialog_button_secondary_fg: PURE_BLACK, // Black text for Cancel button
+            dialog_button_secondary_bg: Color::Green, // Bright, emphasized as safe option
 
             // Config window
             config_title_bg: Color::DarkGreen,
@@ -642,25 +647,25 @@ impl Theme {
 
             // Prompts/Dialogs
             prompt_info_bg: Color::DarkYellow,
-            prompt_info_fg: Color::Yellow,
+            prompt_info_fg: PURE_BLACK, // Black text for contrast
             prompt_success_bg: Color::Yellow,
-            prompt_success_fg: Color::Black,
+            prompt_success_fg: PURE_BLACK,
             prompt_warning_bg: Color::DarkYellow,
-            prompt_warning_fg: Color::Yellow,
+            prompt_warning_fg: PURE_BLACK,
             prompt_danger_bg: Color::DarkYellow,
-            prompt_danger_fg: Color::Yellow,
+            prompt_danger_fg: PURE_BLACK, // Black text on amber for readability
 
             // Dialog buttons
-            dialog_button_primary_info_fg: Color::Black,
+            dialog_button_primary_info_fg: PURE_BLACK, // Pure black for maximum contrast
             dialog_button_primary_info_bg: Color::Yellow,
-            dialog_button_primary_success_fg: Color::Black,
+            dialog_button_primary_success_fg: PURE_BLACK,
             dialog_button_primary_success_bg: Color::Yellow,
-            dialog_button_primary_warning_fg: Color::Black,
+            dialog_button_primary_warning_fg: PURE_BLACK,
             dialog_button_primary_warning_bg: Color::DarkYellow,
-            dialog_button_primary_danger_fg: Color::Yellow,
-            dialog_button_primary_danger_bg: Color::Black,
-            dialog_button_secondary_fg: Color::Yellow,
-            dialog_button_secondary_bg: Color::DarkYellow,
+            dialog_button_primary_danger_fg: PURE_BLACK, // Pure black for Exit button
+            dialog_button_primary_danger_bg: LIGHT_AMBER, // Subtle, de-emphasized
+            dialog_button_secondary_fg: PURE_BLACK, // Black text for Cancel button
+            dialog_button_secondary_bg: Color::Yellow, // Bright, emphasized as safe option
 
             // Config window
             config_title_bg: Color::DarkYellow,
