@@ -16,6 +16,14 @@ pub enum TextModeKind {
     Mode80x43,
     /// 80 columns x 50 rows (8x8 character cells) - High density mode
     Mode80x50,
+    /// 160 columns x 50 rows (8x16 character cells) - Double-wide standard
+    Mode160x50,
+    /// 160 columns x 100 rows (8x16 character cells) - High resolution
+    Mode160x100,
+    /// 320 columns x 100 rows (8x16 character cells) - Ultra-wide
+    Mode320x100,
+    /// 320 columns x 200 rows (8x8 character cells) - Maximum resolution
+    Mode320x200,
 }
 
 impl TextModeKind {
@@ -26,6 +34,10 @@ impl TextModeKind {
             "80x25" => Some(TextModeKind::Mode80x25),
             "80x43" => Some(TextModeKind::Mode80x43),
             "80x50" => Some(TextModeKind::Mode80x50),
+            "160x50" => Some(TextModeKind::Mode160x50),
+            "160x100" => Some(TextModeKind::Mode160x100),
+            "320x100" => Some(TextModeKind::Mode320x100),
+            "320x200" => Some(TextModeKind::Mode320x200),
             _ => None,
         }
     }
@@ -38,6 +50,10 @@ impl TextModeKind {
             TextModeKind::Mode80x25,
             TextModeKind::Mode80x43,
             TextModeKind::Mode80x50,
+            TextModeKind::Mode160x50,
+            TextModeKind::Mode160x100,
+            TextModeKind::Mode320x100,
+            TextModeKind::Mode320x200,
         ]
     }
 }
@@ -49,6 +65,10 @@ impl fmt::Display for TextModeKind {
             TextModeKind::Mode80x25 => write!(f, "80x25"),
             TextModeKind::Mode80x43 => write!(f, "80x43"),
             TextModeKind::Mode80x50 => write!(f, "80x50"),
+            TextModeKind::Mode160x50 => write!(f, "160x50"),
+            TextModeKind::Mode160x100 => write!(f, "160x100"),
+            TextModeKind::Mode320x100 => write!(f, "320x100"),
+            TextModeKind::Mode320x200 => write!(f, "320x200"),
         }
     }
 }
@@ -76,6 +96,10 @@ impl TextMode {
             TextModeKind::Mode80x25 => (80, 25, 8, 16),
             TextModeKind::Mode80x43 => (80, 43, 8, 11),
             TextModeKind::Mode80x50 => (80, 50, 8, 8),
+            TextModeKind::Mode160x50 => (160, 50, 8, 16),
+            TextModeKind::Mode160x100 => (160, 100, 8, 16),
+            TextModeKind::Mode320x100 => (320, 100, 8, 16),
+            TextModeKind::Mode320x200 => (320, 200, 8, 8),
         };
 
         TextMode {

@@ -17,6 +17,13 @@ pub trait RenderBackend {
 
     /// Check if the backend has been resized
     fn check_resize(&mut self) -> io::Result<Option<(u16, u16)>>;
+
+    /// Scale mouse coordinates from TTY/input space to backend space
+    /// For terminal backend: returns coordinates as-is
+    /// For framebuffer backend: scales from TTY dimensions to framebuffer dimensions
+    fn scale_mouse_coords(&self, col: u16, row: u16) -> (u16, u16) {
+        (col, row) // Default: no scaling
+    }
 }
 
 /// Terminal-based rendering backend (using crossterm)
@@ -66,15 +73,30 @@ impl RenderBackend for TerminalBackend {
 #[cfg(feature = "framebuffer-backend")]
 pub struct FramebufferBackend {
     renderer: crate::framebuffer::FramebufferRenderer,
+    tty_cols: u16, // Actual TTY dimensions for mouse coordinate scaling
+    tty_rows: u16,
 }
 
 #[cfg(feature = "framebuffer-backend")]
 impl FramebufferBackend {
-    /// Create a new framebuffer backend with specified text mode and optional scale
-    pub fn new(mode: crate::framebuffer::TextMode, scale: Option<usize>) -> io::Result<Self> {
-        let renderer = crate::framebuffer::FramebufferRenderer::new(mode, scale)?;
+    /// Create a new framebuffer backend with specified text mode, optional scale, and optional font
+    pub fn new(
+        mode: crate::framebuffer::TextMode,
+        scale: Option<usize>,
+        font_name: Option<&str>,
+    ) -> io::Result<Self> {
+        use crossterm::terminal;
 
-        Ok(Self { renderer })
+        let renderer = crate::framebuffer::FramebufferRenderer::new(mode, scale, font_name)?;
+
+        // Get actual TTY dimensions for mouse coordinate scaling
+        let (tty_cols, tty_rows) = terminal::size()?;
+
+        Ok(Self {
+            renderer,
+            tty_cols,
+            tty_rows,
+        })
     }
 }
 
@@ -93,5 +115,29 @@ impl RenderBackend for FramebufferBackend {
     fn check_resize(&mut self) -> io::Result<Option<(u16, u16)>> {
         // Framebuffer doesn't resize - mode is fixed
         Ok(None)
+    }
+
+    fn scale_mouse_coords(&self, col: u16, row: u16) -> (u16, u16) {
+        // Scale mouse coordinates from TTY space to framebuffer space
+        let (fb_cols, fb_rows) = self.dimensions();
+
+        // If TTY dimensions match framebuffer dimensions, no scaling needed
+        if self.tty_cols == fb_cols && self.tty_rows == fb_rows {
+            return (col, row);
+        }
+
+        // Calculate scaling factors
+        let col_scale = fb_cols as f32 / self.tty_cols as f32;
+        let row_scale = fb_rows as f32 / self.tty_rows as f32;
+
+        // Apply scaling
+        let scaled_col = (col as f32 * col_scale).round() as u16;
+        let scaled_row = (row as f32 * row_scale).round() as u16;
+
+        // Clamp to framebuffer dimensions
+        let clamped_col = scaled_col.min(fb_cols.saturating_sub(1));
+        let clamped_row = scaled_row.min(fb_rows.saturating_sub(1));
+
+        (clamped_col, clamped_row)
     }
 }

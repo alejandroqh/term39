@@ -123,6 +123,37 @@ fn main() -> io::Result<()> {
     // Parse command-line arguments
     let cli_args = cli::Cli::parse_args();
 
+    // Handle --fb-list-fonts flag (exit after listing)
+    #[cfg(feature = "framebuffer-backend")]
+    if cli_args.fb_list_fonts {
+        use framebuffer::font_manager::FontManager;
+
+        println!("Available console fonts:\n");
+        let fonts = FontManager::list_available_fonts();
+
+        if fonts.is_empty() {
+            println!("No console fonts found in:");
+            println!("  - /usr/share/consolefonts/");
+            println!("  - /usr/share/kbd/consolefonts/");
+            println!("\nInstall fonts with: sudo apt install kbd unifont");
+        } else {
+            // Group by dimensions
+            let mut current_dim = (0, 0);
+            for (name, width, height) in fonts {
+                if (width, height) != current_dim {
+                    if current_dim != (0, 0) {
+                        println!();
+                    }
+                    println!("{}×{} fonts:", width, height);
+                    current_dim = (width, height);
+                }
+                println!("  {}", name);
+            }
+            println!("\nUse with: term39 -f --fb-font=FONT_NAME");
+        }
+        return Ok(());
+    }
+
     // Create charset based on CLI arguments
     let mut charset = if cli_args.ascii {
         Charset::ascii()
@@ -165,8 +196,11 @@ fn main() -> io::Result<()> {
             }
         });
 
+        // Get font name from CLI args
+        let font_name = cli_args.fb_font.as_deref();
+
         // Try to initialize framebuffer backend
-        match FramebufferBackend::new(mode, scale) {
+        match FramebufferBackend::new(mode, scale, font_name) {
             Ok(fb_backend) => {
                 println!("Framebuffer backend initialized: {}", mode_kind);
                 Box::new(fb_backend)
@@ -351,7 +385,7 @@ fn main() -> io::Result<()> {
 
         // Auto-reposition remaining windows if any were closed
         if windows_closed && auto_tiling_enabled {
-            let (cols, rows) = terminal::size()?;
+            let (cols, rows) = backend.dimensions();
             window_manager.auto_position_windows(cols, rows);
         }
 
@@ -430,6 +464,9 @@ fn main() -> io::Result<()> {
             // Convert GPM event to crossterm MouseEvent format
             use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
+            // Scale mouse coordinates from TTY space to backend space
+            let (scaled_col, scaled_row) = backend.scale_mouse_coords(gpm_evt.x, gpm_evt.y);
+
             let mouse_event = match gpm_evt.event_type {
                 gpm_handler::GpmEventType::Down => {
                     let button = match gpm_evt.button {
@@ -440,8 +477,8 @@ fn main() -> io::Result<()> {
                     };
                     MouseEvent {
                         kind: MouseEventKind::Down(button),
-                        column: gpm_evt.x,
-                        row: gpm_evt.y,
+                        column: scaled_col,
+                        row: scaled_row,
                         modifiers: KeyModifiers::empty(),
                     }
                 }
@@ -454,8 +491,8 @@ fn main() -> io::Result<()> {
                     };
                     MouseEvent {
                         kind: MouseEventKind::Up(button),
-                        column: gpm_evt.x,
-                        row: gpm_evt.y,
+                        column: scaled_col,
+                        row: scaled_row,
                         modifiers: KeyModifiers::empty(),
                     }
                 }
@@ -468,15 +505,15 @@ fn main() -> io::Result<()> {
                     };
                     MouseEvent {
                         kind: MouseEventKind::Drag(button),
-                        column: gpm_evt.x,
-                        row: gpm_evt.y,
+                        column: scaled_col,
+                        row: scaled_row,
                         modifiers: KeyModifiers::empty(),
                     }
                 }
                 gpm_handler::GpmEventType::Move => MouseEvent {
                     kind: MouseEventKind::Moved,
-                    column: gpm_evt.x,
-                    row: gpm_evt.y,
+                    column: scaled_col,
+                    row: scaled_row,
                     modifiers: KeyModifiers::empty(),
                 },
             };
@@ -700,7 +737,7 @@ fn main() -> io::Result<()> {
                             if current_focus == FocusState::Desktop {
                                 // If windows are open, show confirmation
                                 if window_manager.window_count() > 0 {
-                                    let (cols, rows) = terminal::size()?;
+                                    let (cols, rows) = backend.dimensions();
                                     active_prompt = Some(Prompt::new(
                                         PromptType::Danger,
                                         "Exit with open windows?\nAll terminal sessions will be closed.".to_string(),
@@ -725,7 +762,7 @@ fn main() -> io::Result<()> {
                             if current_focus == FocusState::Desktop {
                                 // If windows are open, show confirmation
                                 if window_manager.window_count() > 0 {
-                                    let (cols, rows) = terminal::size()?;
+                                    let (cols, rows) = backend.dimensions();
                                     active_prompt = Some(Prompt::new(
                                         PromptType::Danger,
                                         "Exit with open windows?\nAll terminal sessions will be closed.".to_string(),
@@ -748,7 +785,7 @@ fn main() -> io::Result<()> {
                         KeyCode::Char('h') => {
                             // Show help if desktop is focused (prompts are handled above)
                             if current_focus == FocusState::Desktop {
-                                let (cols, rows) = terminal::size()?;
+                                let (cols, rows) = backend.dimensions();
                                 let help_message = "{C}KEYBOARD SHORTCUTS{W}\n\
                                     \n\
                                     {Y}'t'{W}       - Create new terminal window\n\
@@ -790,7 +827,7 @@ fn main() -> io::Result<()> {
                         KeyCode::Char('l') => {
                             // Show license and about if desktop is focused
                             if current_focus == FocusState::Desktop {
-                                let (cols, rows) = terminal::size()?;
+                                let (cols, rows) = backend.dimensions();
                                 let license_message = format!(
                                     "TERM39 - Terminal UI Windows Manager\n\
                                     \n\
@@ -843,7 +880,7 @@ fn main() -> io::Result<()> {
                         KeyCode::Char('s') => {
                             // Show settings/config window if desktop is focused
                             if current_focus == FocusState::Desktop {
-                                let (cols, rows) = terminal::size()?;
+                                let (cols, rows) = backend.dimensions();
                                 active_config_window = Some(ConfigWindow::new(cols, rows));
                             } else if current_focus != FocusState::Desktop {
                                 // Send 's' to terminal
@@ -854,7 +891,7 @@ fn main() -> io::Result<()> {
                             // Only create new window if desktop is focused
                             if current_focus == FocusState::Desktop {
                                 // Create a new terminal window
-                                let (cols, rows) = terminal::size()?;
+                                let (cols, rows) = backend.dimensions();
 
                                 // Window size: 2.5x larger (60*2.5=150, 20*2.5=50)
                                 let width = 150;
@@ -885,7 +922,7 @@ fn main() -> io::Result<()> {
                             // Only create maximized window if desktop is focused
                             if current_focus == FocusState::Desktop {
                                 // Create a new terminal window
-                                let (cols, rows) = terminal::size()?;
+                                let (cols, rows) = backend.dimensions();
 
                                 // Window size: 2.5x larger (60*2.5=150, 20*2.5=50)
                                 let width = 150;
@@ -1006,8 +1043,14 @@ fn main() -> io::Result<()> {
                         _ => {}
                     }
                 }
-                Event::Mouse(mouse_event) => {
-                    let (_, rows) = terminal::size()?;
+                Event::Mouse(mut mouse_event) => {
+                    // Scale mouse coordinates from TTY space to backend space
+                    let (scaled_col, scaled_row) =
+                        backend.scale_mouse_coords(mouse_event.column, mouse_event.row);
+                    mouse_event.column = scaled_col;
+                    mouse_event.row = scaled_row;
+
+                    let (_, rows) = backend.dimensions();
                     let bar_y = rows - 1;
 
                     let mut handled = false;
@@ -1055,7 +1098,7 @@ fn main() -> io::Result<()> {
                                         // Update runtime state to match config
                                         auto_tiling_enabled = app_config.auto_tiling_on_startup;
                                         // Update button text
-                                        let (_, rows) = terminal::size()?;
+                                        let (_, rows) = backend.dimensions();
                                         let auto_tiling_text = if auto_tiling_enabled {
                                             "█ on] Auto Tiling"
                                         } else {
@@ -1146,7 +1189,7 @@ fn main() -> io::Result<()> {
                         }
 
                         // Calculate position for toggle button hover detection (bottom bar, left side)
-                        let (_, rows) = terminal::size()?;
+                        let (_, rows) = backend.dimensions();
                         let bar_y = rows - 1;
                         let button_start_x = 1u16;
                         let button_text_width = auto_tiling_button.label.len() as u16 + 3; // +1 for "[", +1 for label, +1 for " "
@@ -1171,7 +1214,7 @@ fn main() -> io::Result<()> {
                         new_terminal_button.set_state(button::ButtonState::Pressed);
 
                         // Create a new terminal window (same as pressing 't')
-                        let (cols, rows) = terminal::size()?;
+                        let (cols, rows) = backend.dimensions();
                         let width = 150;
                         let height = 50;
                         let x = (cols.saturating_sub(width)) / 2;
@@ -1268,7 +1311,7 @@ fn main() -> io::Result<()> {
                         && mouse_event.row == 0
                     {
                         // Calculate clock position (same logic as render_top_bar)
-                        let (cols, _) = terminal::size()?;
+                        let (cols, _) = backend.dimensions();
                         let now = Local::now();
                         let time_str = if app_config.show_date_in_clock {
                             now.format("%a %b %d, %H:%M").to_string()
@@ -1293,7 +1336,7 @@ fn main() -> io::Result<()> {
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
                     {
                         // Calculate position for toggle button click detection (bottom bar, left side)
-                        let (_, rows) = terminal::size()?;
+                        let (_, rows) = backend.dimensions();
                         let bar_y = rows - 1;
                         let button_start_x = 1u16;
                         let button_text_width = auto_tiling_button.label.len() as u16 + 3; // +1 for "[", +1 for label, +1 for " "
@@ -1501,7 +1544,7 @@ fn main() -> io::Result<()> {
                             window_manager.handle_mouse_event(&mut video_buffer, mouse_event);
                         // Auto-reposition remaining windows if a window was closed
                         if window_closed && auto_tiling_enabled {
-                            let (cols, rows) = terminal::size()?;
+                            let (cols, rows) = backend.dimensions();
                             window_manager.auto_position_windows(cols, rows);
                         }
                     }

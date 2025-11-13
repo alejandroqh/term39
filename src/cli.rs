@@ -84,11 +84,19 @@ pub struct Cli {
 
     /// Framebuffer text mode (Linux console only, requires --features framebuffer-backend)
     ///
-    /// Select DOS-like text mode for framebuffer rendering:
-    ///   - 40x25:  40 columns × 25 rows (16×16 character cells)
-    ///   - 80x25:  80 columns × 25 rows (8×16 character cells) - Standard DOS mode (default)
-    ///   - 80x43:  80 columns × 43 rows (8×11 character cells)
-    ///   - 80x50:  80 columns × 50 rows (8×8 character cells) - High density mode
+    /// Select text mode for framebuffer rendering:
+    ///
+    /// Classic DOS modes:
+    ///   - 40x25:   40 columns × 25 rows (16×16 character cells)
+    ///   - 80x25:   80 columns × 25 rows (8×16 character cells) - Standard DOS mode (default)
+    ///   - 80x43:   80 columns × 43 rows (8×11 character cells)
+    ///   - 80x50:   80 columns × 50 rows (8×8 character cells) - High density mode
+    ///
+    /// High-resolution modes:
+    ///   - 160x50:  160 columns × 50 rows (8×16 character cells) - Double-wide standard
+    ///   - 160x100: 160 columns × 100 rows (8×16 character cells) - High resolution
+    ///   - 320x100: 320 columns × 100 rows (8×16 character cells) - Ultra-wide
+    ///   - 320x200: 320 columns × 200 rows (8×8 character cells) - Maximum resolution
     ///
     /// Note: Only takes effect when --framebuffer/-f is specified.
     #[cfg(feature = "framebuffer-backend")]
@@ -96,7 +104,7 @@ pub struct Cli {
         long,
         value_name = "MODE",
         default_value = "80x25",
-        help = "Framebuffer text mode (40x25, 80x25, 80x43, 80x50)"
+        help = "Framebuffer text mode"
     )]
     pub fb_mode: String,
 
@@ -119,6 +127,40 @@ pub struct Cli {
         help = "Pixel scale factor (1, 2, 3, 4, or auto)"
     )]
     pub fb_scale: Option<String>,
+
+    /// Framebuffer font name (Linux console only, requires --features framebuffer-backend)
+    ///
+    /// Specify a console font to use for framebuffer rendering.
+    /// If not specified, automatically selects a font matching the text mode dimensions.
+    ///
+    /// Examples:
+    ///   - Uni3-Terminus16      (Good all-around font, 8×16)
+    ///   - Unifont-APL8x16      (Excellent Unicode coverage, 8×16)
+    ///   - Uni3-TerminusBold16  (Bold variant, 8×16)
+    ///   - Unifont              (16×16 full Unicode support)
+    ///
+    /// Use --fb-list-fonts to see all available fonts on your system.
+    ///
+    /// Note: Only takes effect when --framebuffer/-f is specified.
+    #[cfg(feature = "framebuffer-backend")]
+    #[arg(
+        long,
+        value_name = "FONT",
+        help = "Console font name (e.g., Unifont-APL8x16)"
+    )]
+    pub fb_font: Option<String>,
+
+    /// List available console fonts and exit (Linux console only, requires --features framebuffer-backend)
+    ///
+    /// Scans /usr/share/consolefonts/ and /usr/share/kbd/consolefonts/ for available
+    /// PSF format fonts and displays them with their dimensions.
+    ///
+    /// Output format: FONT_NAME (WIDTHxHEIGHT)
+    ///
+    /// Note: Only available when compiled with framebuffer-backend feature.
+    #[cfg(feature = "framebuffer-backend")]
+    #[arg(long, help = "List available console fonts and exit")]
+    pub fb_list_fonts: bool,
 }
 
 impl Cli {

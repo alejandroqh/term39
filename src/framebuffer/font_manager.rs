@@ -308,6 +308,7 @@ impl FontManager {
             // 8x16 fonts (80x25 mode)
             ("Uni3-Terminus16", 8, 16),
             ("Uni3-TerminusBold16", 8, 16),
+            ("Unifont-APL8x16", 8, 16), // GNU Unifont - excellent Unicode coverage
             ("Lat2-Terminus16", 8, 16), // Fallback for older systems
             ("ter-116n", 8, 16),
             ("default8x16", 8, 16),
@@ -325,6 +326,7 @@ impl FontManager {
             ("Uni3-Terminus32x16", 16, 32),
             ("Uni3-TerminusBold32x16", 16, 32),
             ("Uni2-VGA28x16", 16, 28),
+            ("Unifont", 16, 16), // GNU Unifont 16x16 variant
             // 12x24 fonts (alternative for 40x25)
             ("Uni3-Terminus24x12", 12, 24),
             ("Uni3-TerminusBold24x12", 12, 24),
@@ -387,6 +389,55 @@ impl FontManager {
         }
 
         (glyph_data[byte_index] & (1 << bit_index)) != 0
+    }
+
+    /// List all available console fonts in the system
+    pub fn list_available_fonts() -> Vec<(String, usize, usize)> {
+        use std::fs;
+
+        let base_paths = ["/usr/share/consolefonts", "/usr/share/kbd/consolefonts"];
+
+        let mut fonts = Vec::new();
+
+        for base_path in &base_paths {
+            if let Ok(entries) = fs::read_dir(base_path) {
+                for entry in entries.flatten() {
+                    if let Ok(file_name) = entry.file_name().into_string() {
+                        // Check if it's a PSF font file
+                        if file_name.ends_with(".psf")
+                            || file_name.ends_with(".psfu")
+                            || file_name.ends_with(".psf.gz")
+                        {
+                            // Try to load the font to get its dimensions
+                            let font_name = file_name
+                                .trim_end_matches(".psf.gz")
+                                .trim_end_matches(".psfu")
+                                .trim_end_matches(".psf")
+                                .to_string();
+
+                            if let Ok(font) = Self::load_console_font(&font_name) {
+                                fonts.push((font_name, font.width, font.height));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort by dimensions, then by name
+        fonts.sort_by(|a, b| {
+            let dim_cmp = (a.1, a.2).cmp(&(b.1, b.2));
+            if dim_cmp == std::cmp::Ordering::Equal {
+                a.0.cmp(&b.0)
+            } else {
+                dim_cmp
+            }
+        });
+
+        // Deduplicate
+        fonts.dedup_by(|a, b| a.0 == b.0);
+
+        fonts
     }
 }
 

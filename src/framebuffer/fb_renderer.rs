@@ -47,9 +47,10 @@ pub struct FramebufferRenderer {
 }
 
 impl FramebufferRenderer {
-    /// Initialize framebuffer renderer with specified text mode and optional scale
+    /// Initialize framebuffer renderer with specified text mode, optional scale, and optional font
     /// If scale is None, automatically calculates the best integer scale that fits the screen
-    pub fn new(mode: TextMode, scale: Option<usize>) -> io::Result<Self> {
+    /// If font_name is None, automatically selects a font matching the text mode dimensions
+    pub fn new(mode: TextMode, scale: Option<usize>, font_name: Option<&str>) -> io::Result<Self> {
         // Open framebuffer device
         let framebuffer = Framebuffer::new("/dev/fb0").map_err(|e| {
             io::Error::new(
@@ -70,19 +71,30 @@ impl FramebufferRenderer {
         let fix_screen_info = framebuffer.fix_screen_info.clone();
         let line_length = fix_screen_info.line_length as usize;
 
-        // Load appropriate font for this text mode
-        let font = FontManager::load_for_dimensions(mode.char_width, mode.char_height)
-            .or_else(|_| {
-                // Fallback: try to load any 8x16 font
-                FontManager::load_console_font("Lat2-Terminus16")
-                    .or_else(|_| FontManager::load_console_font("default8x16"))
+        // Load font: try specified font first, then auto-detect
+        let font = if let Some(name) = font_name {
+            // Try to load the specified font
+            FontManager::load_console_font(name).or_else(|e| {
+                eprintln!("Warning: Failed to load font '{}': {}", name, e);
+                eprintln!("Falling back to auto-detection...");
+                // Fall back to auto-detection
+                FontManager::load_for_dimensions(mode.char_width, mode.char_height)
             })
-            .map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    format!("Failed to load console font: {}", e),
-                )
-            })?;
+        } else {
+            // Auto-detect font for text mode dimensions
+            FontManager::load_for_dimensions(mode.char_width, mode.char_height)
+        }
+        .or_else(|_| {
+            // Final fallback: try to load any 8x16 font
+            FontManager::load_console_font("Lat2-Terminus16")
+                .or_else(|_| FontManager::load_console_font("default8x16"))
+        })
+        .map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Failed to load console font: {}", e),
+            )
+        })?;
 
         // Calculate base content dimensions (without scaling)
         let base_width = mode.cols * font.width;

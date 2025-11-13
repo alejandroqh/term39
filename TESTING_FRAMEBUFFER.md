@@ -76,6 +76,7 @@ term39 -f --fb-mode=80x25
 
 #### 3. Test Different Modes
 
+**Classic DOS Modes:**
 ```bash
 # Standard DOS mode (80x25)
 sudo term39 -f --fb-mode=80x25
@@ -88,6 +89,33 @@ sudo term39 -f --fb-mode=40x25
 
 # Medium density (80x43)
 sudo term39 -f --fb-mode=80x43
+```
+
+**High-Resolution Modes:**
+```bash
+# Double-wide standard (160x50)
+sudo term39 -f --fb-mode=160x50
+
+# High resolution (160x100)
+sudo term39 -f --fb-mode=160x100
+
+# Ultra-wide (320x100)
+sudo term39 -f --fb-mode=320x100
+
+# Maximum resolution (320x200) - for high-res displays
+sudo term39 -f --fb-mode=320x200
+```
+
+**With Scaling:**
+```bash
+# Auto-scale (automatically calculates best fit)
+sudo term39 -f --fb-mode=320x200
+
+# Explicit scaling (e.g., 2x scale)
+sudo term39 -f --fb-mode=160x50 --fb-scale=2
+
+# For 2560x1600 displays, 320x200 with auto-scale fills the screen perfectly!
+sudo term39 -f --fb-mode=320x200
 ```
 
 #### 4. Test Without Framebuffer
