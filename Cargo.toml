@@ -16,6 +16,10 @@ exclude = [
     ".git/*",
 ]
 
+[features]
+default = []
+framebuffer-backend = ["dep:framebuffer", "dep:memmap2", "dep:flate2"]
+
 [dependencies]
 chrono = "0.4.42"
 crossterm = { version = "0.29.0", default-features = false, features = ["events", "bracketed-paste"] }
@@ -28,6 +32,11 @@ toml = "0.9"
 dirs = "6.0"
 clap = { version = "4.5", features = ["derive"] }
 arboard = "3.4"
+
+# Framebuffer backend dependencies (Linux only)
+framebuffer = { version = "0.3", optional = true }
+memmap2 = { version = "0.9", optional = true }
+flate2 = { version = "1.0", optional = true }
 
 [package.metadata.deb]
 maintainer = "Alejandro Quintanar"

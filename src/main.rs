@@ -9,10 +9,13 @@ mod config;
 mod config_manager;
 mod config_window;
 mod context_menu;
+#[cfg(feature = "framebuffer-backend")]
+mod framebuffer;
 #[cfg(target_os = "linux")]
 mod gpm_handler;
 mod info_window;
 mod prompt;
+mod render_backend;
 mod selection;
 mod term_grid;
 mod terminal_emulator;
@@ -38,6 +41,9 @@ use crossterm::{
 };
 use info_window::InfoWindow;
 use prompt::{Prompt, PromptAction, PromptButton, PromptType};
+#[cfg(feature = "framebuffer-backend")]
+use render_backend::FramebufferBackend;
+use render_backend::{RenderBackend, TerminalBackend};
 use selection::SelectionType;
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
@@ -134,6 +140,52 @@ fn main() -> io::Result<()> {
     let theme_name = cli_args.theme.as_ref().unwrap_or(&app_config.theme);
     let mut theme = Theme::from_name(theme_name);
 
+    // Initialize rendering backend (framebuffer or terminal)
+    #[cfg(feature = "framebuffer-backend")]
+    let mut backend: Box<dyn RenderBackend> = if cli_args.framebuffer {
+        use framebuffer::text_modes::{TextMode, TextModeKind};
+
+        // Parse the framebuffer mode from CLI args
+        let mode_kind = TextModeKind::from_str(&cli_args.fb_mode).unwrap_or_else(|| {
+            eprintln!(
+                "Warning: Invalid framebuffer mode '{}', using default 80x25",
+                cli_args.fb_mode
+            );
+            TextModeKind::Mode80x25
+        });
+
+        let mode = TextMode::new(mode_kind);
+
+        // Parse the scale factor from CLI args
+        let scale = cli_args.fb_scale.as_ref().and_then(|s| {
+            if s == "auto" {
+                None // Auto-calculate scale
+            } else {
+                s.parse::<usize>().ok().filter(|&n| (1..=8).contains(&n))
+            }
+        });
+
+        // Try to initialize framebuffer backend
+        match FramebufferBackend::new(mode, scale) {
+            Ok(fb_backend) => {
+                println!("Framebuffer backend initialized: {}", mode_kind);
+                Box::new(fb_backend)
+            }
+            Err(e) => {
+                eprintln!("Failed to initialize framebuffer: {}", e);
+                eprintln!("Falling back to terminal backend...");
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                Box::new(TerminalBackend::new()?)
+            }
+        }
+    } else {
+        // Framebuffer feature is enabled but flag not set - use terminal backend
+        Box::new(TerminalBackend::new()?)
+    };
+
+    #[cfg(not(feature = "framebuffer-backend"))]
+    let mut backend: Box<dyn RenderBackend> = Box::new(TerminalBackend::new()?);
+
     let mut stdout = io::stdout();
 
     // Enter raw mode for low-level terminal control
@@ -149,8 +201,8 @@ fn main() -> io::Result<()> {
     // Clear the screen
     execute!(stdout, terminal::Clear(ClearType::All))?;
 
-    // Initialize video buffer
-    let (cols, rows) = terminal::size()?;
+    // Initialize video buffer using backend dimensions
+    let (cols, rows) = backend.dimensions();
     let mut video_buffer = VideoBuffer::new(cols, rows);
 
     // Initialize window manager
@@ -160,7 +212,7 @@ fn main() -> io::Result<()> {
     let mut new_terminal_button = Button::new(1, 0, "+New Terminal".to_string());
 
     // Create clipboard-related buttons (centered in top bar)
-    let (initial_cols, initial_rows) = terminal::size()?;
+    let (initial_cols, initial_rows) = backend.dimensions();
 
     // Paste button
     let paste_label = "Paste".to_string();
@@ -220,23 +272,22 @@ fn main() -> io::Result<()> {
     let mut click_count = 0;
 
     // Show splash screen for 1 second
-    show_splash_screen(&mut video_buffer, &mut stdout, &charset, &theme)?;
+    show_splash_screen(&mut video_buffer, &mut backend, &charset, &theme)?;
 
     // Start with desktop focused - no windows yet
     // User can press 't' to create windows
 
     // Main loop
     loop {
-        // Get current terminal size
-        let (cols, rows) = terminal::size()?;
-
-        // Check if terminal was resized and recreate buffer if needed
-        let (buffer_cols, buffer_rows) = video_buffer.dimensions();
-        if cols != buffer_cols || rows != buffer_rows {
+        // Check if backend was resized and recreate buffer if needed
+        if let Some((new_cols, new_rows)) = backend.check_resize()? {
             // Clear the terminal screen to remove artifacts
             execute!(stdout, terminal::Clear(ClearType::All))?;
-            video_buffer = VideoBuffer::new(cols, rows);
+            video_buffer = VideoBuffer::new(new_cols, new_rows);
         }
+
+        // Get current dimensions from backend
+        let (cols, rows) = backend.dimensions();
 
         // Render the background (every frame for consistency)
         render_background(&mut video_buffer, &charset, &theme);
@@ -357,8 +408,8 @@ fn main() -> io::Result<()> {
             context_menu.render(&mut video_buffer, &charset);
         }
 
-        // Present buffer to screen
-        video_buffer.present(&mut stdout)?;
+        // Present buffer to screen via rendering backend
+        backend.present(&mut video_buffer)?;
         stdout.flush()?;
 
         // Check for GPM events first (Linux console mouse support)
@@ -1545,7 +1596,7 @@ fn render_top_bar(
 
 fn show_splash_screen(
     buffer: &mut VideoBuffer,
-    stdout: &mut io::Stdout,
+    backend: &mut Box<dyn RenderBackend>,
     charset: &Charset,
     theme: &Theme,
 ) -> io::Result<()> {
@@ -1714,8 +1765,7 @@ fn show_splash_screen(
     }
 
     // Present to screen
-    buffer.present(stdout)?;
-    stdout.flush()?;
+    backend.present(&mut *buffer)?;
 
     // Wait for 1 second
     thread::sleep(time::Duration::from_secs(1));

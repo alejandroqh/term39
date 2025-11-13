@@ -67,6 +67,58 @@ pub struct Cli {
     /// appearance of terminal programs. Disabled by default to preserve native ANSI colors.
     #[arg(long, help = "Apply theme-based tinting to terminal content")]
     pub tint_terminal: bool,
+
+    /// Enable framebuffer mode (Linux console only, requires --features framebuffer-backend)
+    ///
+    /// Use direct framebuffer rendering on Linux console (TTY) for pixel-perfect DOS-like display.
+    /// Requires /dev/fb0 access and running on physical console (not SSH or terminal emulators).
+    ///
+    /// Note: Only available when compiled with framebuffer-backend feature.
+    #[cfg(feature = "framebuffer-backend")]
+    #[arg(
+        long = "framebuffer",
+        short = 'f',
+        help = "Enable framebuffer mode (Linux console only)"
+    )]
+    pub framebuffer: bool,
+
+    /// Framebuffer text mode (Linux console only, requires --features framebuffer-backend)
+    ///
+    /// Select DOS-like text mode for framebuffer rendering:
+    ///   - 40x25:  40 columns × 25 rows (16×16 character cells)
+    ///   - 80x25:  80 columns × 25 rows (8×16 character cells) - Standard DOS mode (default)
+    ///   - 80x43:  80 columns × 43 rows (8×11 character cells)
+    ///   - 80x50:  80 columns × 50 rows (8×8 character cells) - High density mode
+    ///
+    /// Note: Only takes effect when --framebuffer/-f is specified.
+    #[cfg(feature = "framebuffer-backend")]
+    #[arg(
+        long,
+        value_name = "MODE",
+        default_value = "80x25",
+        help = "Framebuffer text mode (40x25, 80x25, 80x43, 80x50)"
+    )]
+    pub fb_mode: String,
+
+    /// Framebuffer pixel scale factor (Linux console only, requires --features framebuffer-backend)
+    ///
+    /// Integer scaling factor for framebuffer rendering:
+    ///   - 1:  Native resolution (640×400 for 80x25 mode)
+    ///   - 2:  2x scaling (1280×800 for 80x25 mode)
+    ///   - 3:  3x scaling (1920×1200 for 80x25 mode)
+    ///   - 4:  4x scaling (2560×1600 for 80x25 mode)
+    ///
+    /// Higher scale values make the display larger. Auto-calculated if not specified
+    /// to use the maximum scale that fits your screen.
+    ///
+    /// Note: Only takes effect when --framebuffer/-f is specified.
+    #[cfg(feature = "framebuffer-backend")]
+    #[arg(
+        long,
+        value_name = "SCALE",
+        help = "Pixel scale factor (1, 2, 3, 4, or auto)"
+    )]
+    pub fb_scale: Option<String>,
 }
 
 impl Cli {
