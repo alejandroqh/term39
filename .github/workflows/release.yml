@@ -76,14 +76,14 @@ jobs:
             os: macos-latest
             name: macos-x86_64
 
-          # Linux x86_64
-          - target: x86_64-unknown-linux-gnu
+          # Linux x86_64 (musl - static, works on all Linux distros including Alpine)
+          - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             name: linux-x86_64
             use_zigbuild: true
 
-          # Linux ARM64
-          - target: aarch64-unknown-linux-gnu
+          # Linux ARM64 (musl - static, works on all Linux distros including Alpine)
+          - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
             name: linux-arm64
             use_zigbuild: true
@@ -152,11 +152,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # x86_64 (amd64)
-          - target: x86_64-unknown-linux-gnu
+          # x86_64 (amd64) - musl static
+          - target: x86_64-unknown-linux-musl
             arch: amd64
-          # ARM64 (arm64)
-          - target: aarch64-unknown-linux-gnu
+          # ARM64 (arm64) - musl static
+          - target: aarch64-unknown-linux-musl
             arch: arm64
     steps:
       - name: Checkout code
@@ -221,11 +221,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # x86_64
-          - target: x86_64-unknown-linux-gnu
+          # x86_64 - musl static
+          - target: x86_64-unknown-linux-musl
             arch: x86_64
-          # ARM64 (aarch64)
-          - target: aarch64-unknown-linux-gnu
+          # ARM64 (aarch64) - musl static
+          - target: aarch64-unknown-linux-musl
             arch: aarch64
     steps:
       - name: Checkout code

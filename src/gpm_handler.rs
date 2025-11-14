@@ -43,7 +43,8 @@
 //! libgpm C library. The implementation follows the standard GPM client protocol.
 
 use libc::{c_int, c_short, c_ushort};
-use std::ptr;
+use nix::poll::{PollFd, PollFlags, poll};
+use std::os::fd::BorrowedFd;
 
 // GPM event types (from gpm.h)
 const GPM_MOVE: c_int = 1;
@@ -249,26 +250,26 @@ impl GpmConnection {
             return false;
         }
 
-        // Use select() to check if data is available
-        unsafe {
-            let mut read_fds: libc::fd_set = std::mem::zeroed();
-            libc::FD_ZERO(&mut read_fds);
-            libc::FD_SET(self.fd, &mut read_fds);
+        // Use poll() to check if data is available (safer than select with fd_set)
+        // SAFETY: self.fd is a valid file descriptor from GPM connection
+        let mut poll_fds = unsafe {
+            [PollFd::new(
+                BorrowedFd::borrow_raw(self.fd),
+                PollFlags::POLLIN,
+            )]
+        };
 
-            let mut timeout = libc::timeval {
-                tv_sec: 0,
-                tv_usec: 0,
-            };
-
-            let result = libc::select(
-                self.fd + 1,
-                &mut read_fds,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                &mut timeout,
-            );
-
-            result > 0
+        // Timeout of 0ms for non-blocking check
+        match poll(&mut poll_fds, 0u8) {
+            Ok(n) if n > 0 => {
+                // Check if our fd has data available
+                if let Some(revents) = poll_fds[0].revents() {
+                    revents.contains(PollFlags::POLLIN)
+                } else {
+                    false
+                }
+            }
+            _ => false,
         }
     }
 
