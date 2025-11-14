@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.5] - 2025-11-14
+
+### Added
+- **Framebuffer Backend Completion**:
+  - Finalized and stabilized framebuffer rendering implementation
+  - Enhanced mouse support in framebuffer mode
+  - Improved hardware cursor rendering and tracking
+  - Better integration with Linux console input devices
+- **MUSL libc Support**:
+  - Added support for MUSL-based Linux distributions (Alpine, etc.)
+  - Static linking compatibility for broader deployment options
+
+### Changed
+- **Performance Improvements**:
+  - Optimized framebuffer rendering pipeline
+  - Enhanced mouse event handling efficiency
+  - Better resource management in framebuffer mode
+
+### Fixed
+- Framebuffer mode stability improvements
+- Mouse cursor synchronization in different text modes
+- Edge cases in hardware cursor positioning
+
+### Technical Details
+- Zero clippy warnings
+- Clean code formatting
+- All tests passing
+- Improved cross-platform compatibility
+
 ## [0.7.1] - 2025-11-14
 
 ### Added
@@ -301,6 +330,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - portable-pty 0.8 for PTY support
   - vte 0.13 for ANSI/VT escape sequences
 
+[0.7.5]: https://github.com/alejandroqh/term39/releases/tag/v0.7.5
 [0.7.1]: https://github.com/alejandroqh/term39/releases/tag/v0.7.1
 [0.6.6]: https://github.com/alejandroqh/term39/releases/tag/v0.6.6
 [0.6.5]: https://github.com/alejandroqh/term39/releases/tag/v0.6.5
