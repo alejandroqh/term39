@@ -469,11 +469,6 @@ fn main() -> io::Result<()> {
             None
         };
 
-        // Check for framebuffer mouse button events (framebuffer backend only)
-        #[cfg(feature = "framebuffer-backend")]
-        #[allow(unused_variables)]
-        let fb_button_event = backend.get_mouse_button_event();
-
         // Process GPM event if available - convert to Event::Mouse and fall through
         #[cfg(target_os = "linux")]
         #[cfg_attr(not(feature = "framebuffer-backend"), allow(unused_mut))]
@@ -543,7 +538,7 @@ fn main() -> io::Result<()> {
         // Process framebuffer mouse event if available (when GPM is not active)
         #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
         if injected_event.is_none() {
-            if let Some((event_type, button_id, col, row)) = fb_button_event {
+            if let Some((event_type, button_id, col, row)) = backend.get_mouse_button_event() {
                 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
                 // Map button ID to MouseButton
@@ -574,7 +569,8 @@ fn main() -> io::Result<()> {
             }
         }
 
-        // Process injected GPM event or poll for crossterm event
+        // Process injected GPM/FB event or poll for crossterm event
+        // Don't wait if we have an injected event
         #[cfg(target_os = "linux")]
         let has_event = injected_event.is_some() || event::poll(Duration::from_millis(16))?;
         #[cfg(not(target_os = "linux"))]

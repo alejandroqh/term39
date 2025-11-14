@@ -275,20 +275,7 @@ impl RenderBackend for FramebufferBackend {
                 // Check if cursor moved to a different cell
                 let position_changed = col != self.prev_col || row != self.prev_row;
 
-                // If position changed and a button is held, generate drag event
-                if position_changed {
-                    if self.current_left {
-                        pending_events.push((2, 0, col, row)); // Drag left
-                    }
-                    if self.current_right {
-                        pending_events.push((2, 1, col, row)); // Drag right
-                    }
-                    if self.current_middle {
-                        pending_events.push((2, 2, col, row)); // Drag middle
-                    }
-                }
-
-                // Check for button state changes
+                // Check for button state changes FIRST (higher priority)
                 if event.buttons.left != self.current_left {
                     let event_type = if event.buttons.left { 0 } else { 1 }; // 0=Down, 1=Up
                     pending_events.push((event_type, 0, col, row));
@@ -305,6 +292,26 @@ impl RenderBackend for FramebufferBackend {
                     self.current_middle = event.buttons.middle;
                 }
 
+                // If position changed and a button is held, record drag event
+                // We'll keep only the latest drag event per button
+                if position_changed {
+                    if self.current_left {
+                        // Remove any previous drag events for left button
+                        pending_events.retain(|(et, bid, _, _)| !(*et == 2 && *bid == 0));
+                        pending_events.push((2, 0, col, row)); // Drag left
+                    }
+                    if self.current_right {
+                        // Remove any previous drag events for right button
+                        pending_events.retain(|(et, bid, _, _)| !(*et == 2 && *bid == 1));
+                        pending_events.push((2, 1, col, row)); // Drag right
+                    }
+                    if self.current_middle {
+                        // Remove any previous drag events for middle button
+                        pending_events.retain(|(et, bid, _, _)| !(*et == 2 && *bid == 2));
+                        pending_events.push((2, 2, col, row)); // Drag middle
+                    }
+                }
+
                 // Always update previous position to track cursor
                 self.prev_col = col;
                 self.prev_row = row;
@@ -312,7 +319,7 @@ impl RenderBackend for FramebufferBackend {
                 moved = true;
             }
 
-            // Queue all collected events
+            // Queue all collected events (latest drag + any button state changes)
             for event in pending_events {
                 self.button_event_queue.push(event);
             }
