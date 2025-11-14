@@ -46,6 +46,9 @@ A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-D
   - Text modes: 40x25, 80x25, 80x43, 80x50 (like classic DOS)
   - Requires compile-time `--features framebuffer-backend` flag
   - Authentic VGA 16-color palette and PSF2 bitmap fonts
+  - Unifont support for comprehensive Unicode character coverage
+  - Hardware mouse cursor rendering with pixel-accurate positioning
+  - Raw mouse input from `/dev/input/mice` and `/dev/input/event*` devices
 - **ASCII Compatibility Mode**: Optional `--ascii` flag for maximum terminal compatibility
 - **Full Terminal Emulation**: Complete VT100/ANSI escape sequence support with true color
 - **Mouse & Keyboard Support**: Intuitive interface with both input methods

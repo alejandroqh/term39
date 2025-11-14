@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2025-11-14
+
+### Added
+- **Linux Framebuffer Backend** (Experimental):
+  - Direct Linux console rendering via `/dev/fb0` for DOS-like experience
+  - Multiple text modes: 40x25, 80x25, 80x43, 80x50 (classic DOS modes)
+  - PSF2 bitmap font support with Unifont for comprehensive Unicode coverage
+  - Authentic VGA 16-color palette rendering
+  - Pixel-perfect character rendering
+  - Hardware cursor rendering with save/restore functionality
+  - Requires compile-time flag: `--features framebuffer-backend`
+  - Command-line option: `--fb-mode=<MODE>` to select text mode
+  - Works on Linux console (TTY) only, not in terminal emulators
+- **Enhanced Linux Mouse Support**:
+  - Raw mouse input device support (`/dev/input/mice`, `/dev/input/event*`)
+  - Hardware mouse cursor rendering in framebuffer mode
+  - Pixel-accurate mouse tracking and cursor positioning
+  - Button state tracking (left, right, middle buttons)
+  - Mouse event queue for reliable button press/release handling
+  - Automatic fallback to crossterm when mouse device unavailable
+  - Mouse coordinate scaling for different text modes
+
+### Changed
+- **UI/UX Improvements**:
+  - Enhanced theme system with improved color consistency
+  - Updated popup/dialog rendering for better visual appeal
+  - Refined shadow system for consistent depth effect across all UI elements
+  - Better contrast and readability in all themes
+- **Dependencies Updated**:
+  - Updated to latest versions of core dependencies
+  - Better compatibility with modern Rust toolchain
+  - Security patches and performance improvements
+
+### Fixed
+- Clippy warning for `get_mouse_button_event()` dead code (framebuffer-only feature)
+- Clippy warning for unused `mut` in `injected_event` variable
+- Code quality improvements for stable Rust compatibility
+
+### Technical Details
+- New dependencies:
+  - framebuffer 0.3 (optional, Linux only)
+  - memmap2 0.9 (optional, for framebuffer)
+  - flate2 1.0 (optional, for PSF2 font decompression)
+- Zero clippy warnings with `-D warnings` flag
+- Clean code formatting
+- Improved build system with conditional compilation for framebuffer backend
+
 ## [0.6.6] - 2025-11-12
 
 ### Fixed
@@ -254,6 +301,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - portable-pty 0.8 for PTY support
   - vte 0.13 for ANSI/VT escape sequences
 
+[0.7.0]: https://github.com/alejandroqh/term39/releases/tag/v0.7.0
 [0.6.6]: https://github.com/alejandroqh/term39/releases/tag/v0.6.6
 [0.6.5]: https://github.com/alejandroqh/term39/releases/tag/v0.6.5
 [0.6.0]: https://github.com/alejandroqh/term39/releases/tag/v0.6.0
