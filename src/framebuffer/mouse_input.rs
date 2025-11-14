@@ -69,12 +69,10 @@ impl MouseInput {
                 Protocol::InputEvent
             };
 
-            eprintln!("Using specified mouse device: {}", path);
             Self::setup_device(file, protocol)
         } else {
             // Try /dev/input/mice first (PS/2 protocol)
             if let Ok(file) = File::open("/dev/input/mice") {
-                eprintln!("Using PS/2 mouse device: /dev/input/mice");
                 Self::setup_device(file, Protocol::Ps2)
             } else {
                 // Try to find a mouse event device
@@ -94,7 +92,6 @@ impl MouseInput {
                     // For now, we'll just try the first available event device
                     // A more sophisticated approach would query device capabilities
                     if let Ok(input) = Self::setup_device(file, Protocol::InputEvent) {
-                        eprintln!("Using mouse event device: {}", path);
                         return Ok(input);
                     }
                 }

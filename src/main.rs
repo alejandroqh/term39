@@ -469,9 +469,14 @@ fn main() -> io::Result<()> {
             None
         };
 
+        // Check for framebuffer mouse button events (framebuffer backend only)
+        #[cfg(feature = "framebuffer-backend")]
+        #[allow(unused_variables)]
+        let fb_button_event = backend.get_mouse_button_event();
+
         // Process GPM event if available - convert to Event::Mouse and fall through
         #[cfg(target_os = "linux")]
-        let injected_event = if let Some(gpm_evt) = gpm_event {
+        let mut injected_event = if let Some(gpm_evt) = gpm_event {
             // Convert GPM event to crossterm MouseEvent format
             use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
@@ -533,6 +538,37 @@ fn main() -> io::Result<()> {
         } else {
             None
         };
+
+        // Process framebuffer button event if available (when GPM is not active)
+        #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
+        if injected_event.is_none() {
+            if let Some((button_id, pressed, col, row)) = fb_button_event {
+                use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+
+                // Map button ID to MouseButton and create appropriate event kind
+                let button = match button_id {
+                    0 => MouseButton::Left,
+                    1 => MouseButton::Right,
+                    2 => MouseButton::Middle,
+                    _ => MouseButton::Left, // Fallback
+                };
+
+                let kind = if pressed {
+                    MouseEventKind::Down(button)
+                } else {
+                    MouseEventKind::Up(button)
+                };
+
+                let mouse_event = MouseEvent {
+                    kind,
+                    column: col,
+                    row,
+                    modifiers: KeyModifiers::empty(),
+                };
+
+                injected_event = Some(Event::Mouse(mouse_event));
+            }
+        }
 
         // Process injected GPM event or poll for crossterm event
         #[cfg(target_os = "linux")]
