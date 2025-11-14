@@ -61,8 +61,18 @@ A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-D
 The easiest way to install TERM39 is via cargo:
 
 ```bash
+# Standard installation (terminal backend)
 cargo install term39
+
+# Linux with framebuffer support (requires Linux console/TTY)
+cargo install term39 --features framebuffer-backend
 ```
+
+The framebuffer backend enables:
+- Direct `/dev/fb0` rendering on Linux console
+- DOS-like text modes (40x25, 80x25, 80x43, 80x50)
+- Hardware mouse cursor rendering
+- Unifont support for comprehensive Unicode coverage
 
 Requires Rust to be installed. [Install Rust](https://rustup.rs/)
 
@@ -141,7 +151,13 @@ sudo mv term39 /usr/local/bin/
 ```bash
 git clone https://github.com/alejandroqh/term39.git
 cd term39
+
+# Standard build (terminal backend)
 cargo build --release
+
+# Linux build with framebuffer support
+cargo build --release --features framebuffer-backend
+
 ./target/release/term39
 ```
 
@@ -250,11 +266,17 @@ cargo build
 # Optimized release build
 cargo build --release
 
+# Linux build with framebuffer support
+cargo build --release --features framebuffer-backend
+
 # Run directly
 cargo run
 
 # Run with ASCII mode
 cargo run -- --ascii
+
+# Run with framebuffer mode (Linux only, requires root or video group)
+sudo cargo run --features framebuffer-backend -- --fb-mode=80x25
 
 # Run tests
 cargo test
