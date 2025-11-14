@@ -476,6 +476,7 @@ fn main() -> io::Result<()> {
 
         // Process GPM event if available - convert to Event::Mouse and fall through
         #[cfg(target_os = "linux")]
+        #[cfg_attr(not(feature = "framebuffer-backend"), allow(unused_mut))]
         let mut injected_event = if let Some(gpm_evt) = gpm_event {
             // Convert GPM event to crossterm MouseEvent format
             use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
