@@ -41,11 +41,11 @@ pub trait RenderBackend {
         // Default: no-op
     }
 
-    /// Get mouse button event (framebuffer mode only)
-    /// Returns button (0=left, 1=right, 2=middle), pressed state, and cursor position
+    /// Get mouse event (framebuffer mode only)
+    /// Returns event_type (0=Down, 1=Up, 2=Drag), button_id (0=left, 1=right, 2=middle), and cursor position
     #[allow(dead_code)]
-    fn get_mouse_button_event(&mut self) -> Option<(u8, bool, u16, u16)> {
-        None // Default: no button events (button, pressed, col, row)
+    fn get_mouse_button_event(&mut self) -> Option<(u8, u8, u16, u16)> {
+        None // Default: no mouse events (event_type, button_id, col, row)
     }
 }
 
@@ -104,8 +104,12 @@ pub struct FramebufferBackend {
     current_left: bool,
     current_right: bool,
     current_middle: bool,
-    // Queue of pending button events (button_id, pressed, col, row)
-    button_event_queue: Vec<(u8, bool, u16, u16)>,
+    // Previous cursor position for detecting movement
+    prev_col: u16,
+    prev_row: u16,
+    // Queue of pending mouse events (event_type, button_id, col, row)
+    // event_type: 0=Down, 1=Up, 2=Drag
+    button_event_queue: Vec<(u8, u8, u16, u16)>,
 }
 
 #[cfg(feature = "framebuffer-backend")]
@@ -148,6 +152,8 @@ impl FramebufferBackend {
             current_left: false,
             current_right: false,
             current_middle: false,
+            prev_col: 0,
+            prev_row: 0,
             button_event_queue: Vec::new(),
         })
     }
@@ -162,8 +168,9 @@ impl FramebufferBackend {
         self.renderer.set_cursor_visible(visible);
     }
 
-    /// Queue a button event with current cursor position
-    fn queue_button_event(&mut self, button_id: u8, pressed: bool) {
+    /// Queue a mouse event with current cursor position
+    /// event_type: 0=Down, 1=Up, 2=Drag
+    fn queue_mouse_event(&mut self, event_type: u8, button_id: u8) {
         // Calculate coordinates at the time of the event
         let (cols, rows) = self.renderer.dimensions();
         let (base_width, base_height) = self.renderer.pixel_dimensions();
@@ -182,7 +189,8 @@ impl FramebufferBackend {
         let col = (x_base / char_width).min(cols - 1) as u16;
         let row = (y_base / char_height).min(rows - 1) as u16;
 
-        self.button_event_queue.push((button_id, pressed, col, row));
+        self.button_event_queue
+            .push((event_type, button_id, col, row));
     }
 }
 
@@ -230,33 +238,83 @@ impl RenderBackend for FramebufferBackend {
     fn update_cursor(&mut self) -> bool {
         if let Some(ref mut mouse_input) = self.mouse_input {
             let mut moved = false;
+            // Store mouse events with their coordinates (event_type, button_id, col, row)
             let mut pending_events = Vec::new();
+
+            // Helper function to calculate cell coordinates from pixel position
+            let calc_coords =
+                |tracker: &crate::framebuffer::CursorTracker,
+                 renderer: &crate::framebuffer::FramebufferRenderer| {
+                    let (cols, rows) = renderer.dimensions();
+                    let (base_width, base_height) = renderer.pixel_dimensions();
+                    let scale = renderer.scale();
+                    let (offset_x, offset_y) = renderer.offsets();
+
+                    let char_width = base_width / cols;
+                    let char_height = base_height / rows;
+
+                    let x_in_content = tracker.x.saturating_sub(offset_x);
+                    let y_in_content = tracker.y.saturating_sub(offset_y);
+
+                    let x_base = x_in_content / scale;
+                    let y_base = y_in_content / scale;
+
+                    let col = (x_base / char_width).min(cols - 1) as u16;
+                    let row = (y_base / char_height).min(rows - 1) as u16;
+
+                    (col, row)
+                };
 
             // Process all pending mouse events
             while let Ok(Some(event)) = mouse_input.read_event() {
                 self.cursor_tracker.update(event.dx, event.dy);
 
-                // Check for button state changes and collect them
-                // This ensures we don't miss rapid press/release sequences
+                // Calculate current cell position
+                let (col, row) = calc_coords(&self.cursor_tracker, &self.renderer);
+
+                // Check if cursor moved to a different cell
+                let position_changed = col != self.prev_col || row != self.prev_row;
+
+                // If position changed and a button is held, generate drag event
+                if position_changed {
+                    if self.current_left {
+                        pending_events.push((2, 0, col, row)); // Drag left
+                    }
+                    if self.current_right {
+                        pending_events.push((2, 1, col, row)); // Drag right
+                    }
+                    if self.current_middle {
+                        pending_events.push((2, 2, col, row)); // Drag middle
+                    }
+                }
+
+                // Check for button state changes
                 if event.buttons.left != self.current_left {
+                    let event_type = if event.buttons.left { 0 } else { 1 }; // 0=Down, 1=Up
+                    pending_events.push((event_type, 0, col, row));
                     self.current_left = event.buttons.left;
-                    pending_events.push((0, self.current_left));
                 }
                 if event.buttons.right != self.current_right {
+                    let event_type = if event.buttons.right { 0 } else { 1 };
+                    pending_events.push((event_type, 1, col, row));
                     self.current_right = event.buttons.right;
-                    pending_events.push((1, self.current_right));
                 }
                 if event.buttons.middle != self.current_middle {
+                    let event_type = if event.buttons.middle { 0 } else { 1 };
+                    pending_events.push((event_type, 2, col, row));
                     self.current_middle = event.buttons.middle;
-                    pending_events.push((2, self.current_middle));
                 }
+
+                // Always update previous position to track cursor
+                self.prev_col = col;
+                self.prev_row = row;
 
                 moved = true;
             }
 
-            // Now queue all the collected button events
-            for (button_id, pressed) in pending_events {
-                self.queue_button_event(button_id, pressed);
+            // Queue all collected events
+            for event in pending_events {
+                self.button_event_queue.push(event);
             }
 
             moved
@@ -265,8 +323,9 @@ impl RenderBackend for FramebufferBackend {
         }
     }
 
-    fn get_mouse_button_event(&mut self) -> Option<(u8, bool, u16, u16)> {
-        // Return the next queued button event, or None if queue is empty
+    fn get_mouse_button_event(&mut self) -> Option<(u8, u8, u16, u16)> {
+        // Return the next queued mouse event (event_type, button_id, col, row)
+        // event_type: 0=Down, 1=Up, 2=Drag
         if !self.button_event_queue.is_empty() {
             Some(self.button_event_queue.remove(0))
         } else {

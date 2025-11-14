@@ -540,13 +540,13 @@ fn main() -> io::Result<()> {
             None
         };
 
-        // Process framebuffer button event if available (when GPM is not active)
+        // Process framebuffer mouse event if available (when GPM is not active)
         #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
         if injected_event.is_none() {
-            if let Some((button_id, pressed, col, row)) = fb_button_event {
+            if let Some((event_type, button_id, col, row)) = fb_button_event {
                 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
-                // Map button ID to MouseButton and create appropriate event kind
+                // Map button ID to MouseButton
                 let button = match button_id {
                     0 => MouseButton::Left,
                     1 => MouseButton::Right,
@@ -554,10 +554,13 @@ fn main() -> io::Result<()> {
                     _ => MouseButton::Left, // Fallback
                 };
 
-                let kind = if pressed {
-                    MouseEventKind::Down(button)
-                } else {
-                    MouseEventKind::Up(button)
+                // Map event type to MouseEventKind
+                // event_type: 0=Down, 1=Up, 2=Drag
+                let kind = match event_type {
+                    0 => MouseEventKind::Down(button),
+                    1 => MouseEventKind::Up(button),
+                    2 => MouseEventKind::Drag(button),
+                    _ => MouseEventKind::Down(button), // Fallback
                 };
 
                 let mouse_event = MouseEvent {

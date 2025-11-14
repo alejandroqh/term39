@@ -51,6 +51,7 @@ pub struct MouseInput {
     dx_accumulator: i32,
     dy_accumulator: i32,
     buttons: MouseButtons,
+    button_changed: bool, // Track if button state changed
 }
 
 impl MouseInput {
@@ -127,6 +128,7 @@ impl MouseInput {
                 right: false,
                 middle: false,
             },
+            button_changed: false,
         })
     }
 
@@ -212,24 +214,33 @@ impl MouseInput {
                         }
                         EV_KEY => {
                             // Button press/release
+                            let old_buttons = self.buttons;
                             match code {
                                 BTN_LEFT => self.buttons.left = value != 0,
                                 BTN_RIGHT => self.buttons.right = value != 0,
                                 BTN_MIDDLE => self.buttons.middle = value != 0,
                                 _ => {}
                             }
+                            // Mark if button state changed
+                            if self.buttons.left != old_buttons.left
+                                || self.buttons.right != old_buttons.right
+                                || self.buttons.middle != old_buttons.middle
+                            {
+                                self.button_changed = true;
+                            }
                         }
                         _ => {}
                     }
 
-                    // Check if we have accumulated movement to report
-                    if self.dx_accumulator != 0 || self.dy_accumulator != 0 {
+                    // Check if we have accumulated movement OR button state change to report
+                    if self.dx_accumulator != 0 || self.dy_accumulator != 0 || self.button_changed {
                         // Clamp to i8 range
                         let dx = self.dx_accumulator.clamp(-127, 127) as i8;
                         let dy = self.dy_accumulator.clamp(-127, 127) as i8;
 
                         self.dx_accumulator = 0;
                         self.dy_accumulator = 0;
+                        self.button_changed = false;
 
                         return Ok(Some(MouseEvent {
                             dx,
@@ -244,12 +255,13 @@ impl MouseInput {
                 }
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
                     // No more events available
-                    if self.dx_accumulator != 0 || self.dy_accumulator != 0 {
+                    if self.dx_accumulator != 0 || self.dy_accumulator != 0 || self.button_changed {
                         let dx = self.dx_accumulator.clamp(-127, 127) as i8;
                         let dy = self.dy_accumulator.clamp(-127, 127) as i8;
 
                         self.dx_accumulator = 0;
                         self.dy_accumulator = 0;
+                        self.button_changed = false;
 
                         return Ok(Some(MouseEvent {
                             dx,
