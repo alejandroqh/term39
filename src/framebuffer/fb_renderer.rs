@@ -32,6 +32,31 @@ const DOS_PALETTE: [(u8, u8, u8); 16] = [
     (255, 255, 255), // White
 ];
 
+/// Cursor sprite dimensions
+const CURSOR_WIDTH: usize = 16;
+const CURSOR_HEIGHT: usize = 16;
+
+/// Cursor sprite bitmap (16x16 arrow cursor)
+/// 0 = transparent, 1 = black outline, 2 = white fill
+const CURSOR_SPRITE: [[u8; CURSOR_WIDTH]; CURSOR_HEIGHT] = [
+    [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+    [1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
+    [1, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0],
+    [1, 2, 2, 1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 2, 1, 0, 1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 1, 0, 0, 1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+];
+
 /// Framebuffer renderer for Linux console
 pub struct FramebufferRenderer {
     framebuffer: Framebuffer,
@@ -44,6 +69,8 @@ pub struct FramebufferRenderer {
     scale: usize,    // Pixel scale factor (1, 2, 3, 4...)
     offset_x: usize, // X offset to center content
     offset_y: usize, // Y offset to center content
+    cursor_visible: bool,
+    cursor_saved_pixels: Vec<(usize, usize, u8, u8, u8)>, // (x, y, r, g, b)
 }
 
 impl FramebufferRenderer {
@@ -151,6 +178,8 @@ impl FramebufferRenderer {
             scale,
             offset_x,
             offset_y,
+            cursor_visible: true,
+            cursor_saved_pixels: Vec::new(),
         })
     }
 
@@ -315,5 +344,104 @@ impl FramebufferRenderer {
     /// Get text dimensions (columns, rows)
     pub fn dimensions(&self) -> (usize, usize) {
         (self.mode.cols, self.mode.rows)
+    }
+
+    /// Get a pixel from the framebuffer at (x, y) - returns (r, g, b)
+    fn get_pixel(&self, x: usize, y: usize) -> (u8, u8, u8) {
+        // Apply scaling and offsets
+        let actual_x = x * self.scale + self.offset_x;
+        let actual_y = y * self.scale + self.offset_y;
+
+        if actual_x >= self.width_pixels || actual_y >= self.height_pixels {
+            return (0, 0, 0);
+        }
+
+        let offset = actual_y * self.line_length + actual_x * self.bytes_per_pixel;
+        let frame = self.framebuffer.frame.as_ref();
+
+        // Handle different color depths
+        match self.bytes_per_pixel {
+            4 | 3 => {
+                if offset + 2 < frame.len() {
+                    (frame[offset + 2], frame[offset + 1], frame[offset])
+                } else {
+                    (0, 0, 0)
+                }
+            }
+            2 => {
+                if offset + 1 < frame.len() {
+                    let color = (frame[offset] as u16) | ((frame[offset + 1] as u16) << 8);
+                    let r = ((color >> 11) & 0x1F) as u8;
+                    let g = ((color >> 5) & 0x3F) as u8;
+                    let b = (color & 0x1F) as u8;
+                    (
+                        (r << 3) | (r >> 2),
+                        (g << 2) | (g >> 4),
+                        (b << 3) | (b >> 2),
+                    )
+                } else {
+                    (0, 0, 0)
+                }
+            }
+            _ => (0, 0, 0),
+        }
+    }
+
+    /// Set cursor visibility
+    pub fn set_cursor_visible(&mut self, visible: bool) {
+        self.cursor_visible = visible;
+    }
+
+    /// Draw cursor at specified pixel position (logical coordinates, not scaled)
+    /// This should be called AFTER all other content is rendered
+    pub fn draw_cursor(&mut self, x: usize, y: usize) {
+        if !self.cursor_visible {
+            return;
+        }
+
+        // Save pixels under cursor before drawing
+        self.cursor_saved_pixels.clear();
+
+        for (cy, row) in CURSOR_SPRITE.iter().enumerate() {
+            for (cx, &sprite_pixel) in row.iter().enumerate() {
+                let pixel_x = x + cx;
+                let pixel_y = y + cy;
+
+                // Check bounds
+                let base_width = self.mode.cols * self.font.width;
+                let base_height = self.mode.rows * self.font.height;
+                if pixel_x >= base_width || pixel_y >= base_height {
+                    continue;
+                }
+
+                if sprite_pixel == 0 {
+                    continue; // Transparent pixel
+                }
+
+                // Save original pixel
+                let original = self.get_pixel(pixel_x, pixel_y);
+                self.cursor_saved_pixels
+                    .push((pixel_x, pixel_y, original.0, original.1, original.2));
+
+                // Draw cursor pixel
+                let (r, g, b) = match sprite_pixel {
+                    1 => (0, 0, 0),       // Black outline
+                    2 => (255, 255, 255), // White fill
+                    _ => continue,
+                };
+
+                self.put_pixel(pixel_x, pixel_y, r, g, b);
+            }
+        }
+    }
+
+    /// Restore pixels that were saved before drawing cursor
+    pub fn restore_cursor_area(&mut self) {
+        // Clone the vector to avoid borrowing issues
+        let saved = self.cursor_saved_pixels.clone();
+        for (x, y, r, g, b) in saved {
+            self.put_pixel(x, y, r, g, b);
+        }
+        self.cursor_saved_pixels.clear();
     }
 }

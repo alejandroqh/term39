@@ -24,6 +24,22 @@ pub trait RenderBackend {
     fn scale_mouse_coords(&self, col: u16, row: u16) -> (u16, u16) {
         (col, row) // Default: no scaling
     }
+
+    /// Update cursor from raw input (framebuffer mode only)
+    /// Returns true if cursor moved
+    fn update_cursor(&mut self) -> bool {
+        false // Default: no cursor updates
+    }
+
+    /// Draw cursor on screen (framebuffer mode only)
+    fn draw_cursor(&mut self) {
+        // Default: no-op
+    }
+
+    /// Restore cursor area (framebuffer mode only)
+    fn restore_cursor_area(&mut self) {
+        // Default: no-op
+    }
 }
 
 /// Terminal-based rendering backend (using crossterm)
@@ -75,6 +91,8 @@ pub struct FramebufferBackend {
     renderer: crate::framebuffer::FramebufferRenderer,
     tty_cols: u16, // Actual TTY dimensions for mouse coordinate scaling
     tty_rows: u16,
+    mouse_input: Option<crate::framebuffer::MouseInput>,
+    cursor_tracker: crate::framebuffer::CursorTracker,
 }
 
 #[cfg(feature = "framebuffer-backend")]
@@ -92,11 +110,40 @@ impl FramebufferBackend {
         // Get actual TTY dimensions for mouse coordinate scaling
         let (tty_cols, tty_rows) = terminal::size()?;
 
+        // Try to open raw mouse input (tries /dev/input/mice then /dev/input/event*)
+        let mouse_input = match crate::framebuffer::MouseInput::new() {
+            Ok(input) => Some(input),
+            Err(e) => {
+                eprintln!("Warning: Failed to open mouse input device: {}", e);
+                eprintln!("Mouse cursor will not be rendered.");
+                eprintln!("Try: sudo chmod a+r /dev/input/mice /dev/input/event*");
+                None
+            }
+        };
+
+        // Get pixel dimensions for cursor tracker
+        let (cols, rows) = renderer.dimensions();
+        let pixel_width = cols * 8; // Approximate: assuming 8px wide chars on average
+        let pixel_height = rows * 16; // Approximate: assuming 16px tall chars on average
+        let cursor_tracker = crate::framebuffer::CursorTracker::new(pixel_width, pixel_height);
+
         Ok(Self {
             renderer,
             tty_cols,
             tty_rows,
+            mouse_input,
+            cursor_tracker,
         })
+    }
+
+    /// Get current cursor position (pixel coordinates)
+    pub fn cursor_position(&self) -> (usize, usize) {
+        (self.cursor_tracker.x, self.cursor_tracker.y)
+    }
+
+    /// Set cursor visibility
+    pub fn set_cursor_visible(&mut self, visible: bool) {
+        self.renderer.set_cursor_visible(visible);
     }
 }
 
@@ -139,5 +186,28 @@ impl RenderBackend for FramebufferBackend {
         let clamped_row = scaled_row.min(fb_rows.saturating_sub(1));
 
         (clamped_col, clamped_row)
+    }
+
+    fn update_cursor(&mut self) -> bool {
+        if let Some(ref mut mouse_input) = self.mouse_input {
+            let mut moved = false;
+            // Process all pending mouse events
+            while let Ok(Some(event)) = mouse_input.read_event() {
+                self.cursor_tracker.update(event.dx, event.dy);
+                moved = true;
+            }
+            moved
+        } else {
+            false
+        }
+    }
+
+    fn draw_cursor(&mut self) {
+        let (x, y) = self.cursor_position();
+        self.renderer.draw_cursor(x, y);
+    }
+
+    fn restore_cursor_area(&mut self) {
+        self.renderer.restore_cursor_area();
     }
 }

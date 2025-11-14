@@ -442,8 +442,16 @@ fn main() -> io::Result<()> {
             context_menu.render(&mut video_buffer, &charset);
         }
 
+        // Restore old cursor area before presenting new frame
+        backend.restore_cursor_area();
+
         // Present buffer to screen via rendering backend
         backend.present(&mut video_buffer)?;
+
+        // Update cursor position from mouse input and draw at new position
+        backend.update_cursor();
+        backend.draw_cursor();
+
         stdout.flush()?;
 
         // Check for GPM events first (Linux console mouse support)

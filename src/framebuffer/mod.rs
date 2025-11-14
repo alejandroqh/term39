@@ -14,9 +14,13 @@ pub mod fb_renderer;
 #[cfg(feature = "framebuffer-backend")]
 pub mod font_manager;
 #[cfg(feature = "framebuffer-backend")]
+pub mod mouse_input;
+#[cfg(feature = "framebuffer-backend")]
 pub mod text_modes;
 
 #[cfg(feature = "framebuffer-backend")]
 pub use fb_renderer::FramebufferRenderer;
+#[cfg(feature = "framebuffer-backend")]
+pub use mouse_input::{CursorTracker, MouseInput};
 #[cfg(feature = "framebuffer-backend")]
 pub use text_modes::TextMode;
