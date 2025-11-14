@@ -43,6 +43,7 @@ pub trait RenderBackend {
 
     /// Get mouse button event (framebuffer mode only)
     /// Returns button (0=left, 1=right, 2=middle), pressed state, and cursor position
+    #[allow(dead_code)]
     fn get_mouse_button_event(&mut self) -> Option<(u8, bool, u16, u16)> {
         None // Default: no button events (button, pressed, col, row)
     }

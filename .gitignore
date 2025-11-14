@@ -23,6 +23,7 @@ CLAUDE.md
 
 # Release binaries (uploaded to GitHub Releases, not committed)
 releases/
+release/
 
 # Deployment scripts
 deploy-aur.sh
