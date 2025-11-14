@@ -161,6 +161,27 @@ pub struct Cli {
     #[cfg(feature = "framebuffer-backend")]
     #[arg(long, help = "List available console fonts and exit")]
     pub fb_list_fonts: bool,
+
+    /// Mouse input device path (Linux console only, requires --features framebuffer-backend)
+    ///
+    /// Specify the input device to use for mouse events in framebuffer mode:
+    ///   - /dev/input/mice       (PS/2 protocol, default)
+    ///   - /dev/input/event0     (Event interface)
+    ///   - /dev/input/event1     (Event interface)
+    ///   - /dev/input/event2     (Event interface)
+    ///   - etc.
+    ///
+    /// If not specified, the system will automatically try /dev/input/mice first,
+    /// then scan for event devices (event0-event15).
+    ///
+    /// Note: Only takes effect when --framebuffer/-f is specified.
+    #[cfg(feature = "framebuffer-backend")]
+    #[arg(
+        long,
+        value_name = "DEVICE",
+        help = "Mouse input device (e.g., /dev/input/event2)"
+    )]
+    pub mouse_device: Option<String>,
 }
 
 impl Cli {

@@ -346,6 +346,13 @@ impl FramebufferRenderer {
         (self.mode.cols, self.mode.rows)
     }
 
+    /// Get pixel dimensions (width, height) of the rendering area
+    pub fn pixel_dimensions(&self) -> (usize, usize) {
+        let width = self.mode.cols * self.font.width;
+        let height = self.mode.rows * self.font.height;
+        (width, height)
+    }
+
     /// Get a pixel from the framebuffer at (x, y) - returns (r, g, b)
     fn get_pixel(&self, x: usize, y: usize) -> (u8, u8, u8) {
         // Apply scaling and offsets

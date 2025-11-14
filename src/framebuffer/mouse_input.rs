@@ -55,15 +55,31 @@ pub struct MouseInput {
 
 impl MouseInput {
     /// Open the mouse input device
-    /// Tries /dev/input/mice first, then searches for event devices
-    pub fn new() -> io::Result<Self> {
-        // Try /dev/input/mice first (PS/2 protocol)
-        if let Ok(file) = File::open("/dev/input/mice") {
-            eprintln!("Using PS/2 mouse device: /dev/input/mice");
-            Self::setup_device(file, Protocol::Ps2)
+    /// If device_path is provided, uses that specific device.
+    /// Otherwise, tries /dev/input/mice first, then searches for event devices.
+    pub fn new(device_path: Option<&str>) -> io::Result<Self> {
+        if let Some(path) = device_path {
+            // Use the specified device
+            let file = File::open(path)?;
+
+            // Determine protocol based on path
+            let protocol = if path.contains("mice") {
+                Protocol::Ps2
+            } else {
+                Protocol::InputEvent
+            };
+
+            eprintln!("Using specified mouse device: {}", path);
+            Self::setup_device(file, protocol)
         } else {
-            // Try to find a mouse event device
-            Self::find_event_device()
+            // Try /dev/input/mice first (PS/2 protocol)
+            if let Ok(file) = File::open("/dev/input/mice") {
+                eprintln!("Using PS/2 mouse device: /dev/input/mice");
+                Self::setup_device(file, Protocol::Ps2)
+            } else {
+                // Try to find a mouse event device
+                Self::find_event_device()
+            }
         }
     }
 
@@ -279,7 +295,7 @@ impl CursorTracker {
         let new_x = (self.x as i32 + (dx as f32 * self.sensitivity) as i32)
             .max(0)
             .min(self.max_x as i32 - 1);
-        let new_y = (self.y as i32 - (dy as f32 * self.sensitivity) as i32) // Invert Y axis
+        let new_y = (self.y as i32 + (dy as f32 * self.sensitivity) as i32)
             .max(0)
             .min(self.max_y as i32 - 1);
 

@@ -199,8 +199,11 @@ fn main() -> io::Result<()> {
         // Get font name from CLI args
         let font_name = cli_args.fb_font.as_deref();
 
+        // Get mouse device from CLI args
+        let mouse_device = cli_args.mouse_device.as_deref();
+
         // Try to initialize framebuffer backend
-        match FramebufferBackend::new(mode, scale, font_name) {
+        match FramebufferBackend::new(mode, scale, font_name, mouse_device) {
             Ok(fb_backend) => {
                 println!("Framebuffer backend initialized: {}", mode_kind);
                 Box::new(fb_backend)

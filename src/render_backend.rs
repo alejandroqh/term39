@@ -97,11 +97,12 @@ pub struct FramebufferBackend {
 
 #[cfg(feature = "framebuffer-backend")]
 impl FramebufferBackend {
-    /// Create a new framebuffer backend with specified text mode, optional scale, and optional font
+    /// Create a new framebuffer backend with specified text mode, optional scale, optional font, and optional mouse device
     pub fn new(
         mode: crate::framebuffer::TextMode,
         scale: Option<usize>,
         font_name: Option<&str>,
+        mouse_device: Option<&str>,
     ) -> io::Result<Self> {
         use crossterm::terminal;
 
@@ -110,8 +111,8 @@ impl FramebufferBackend {
         // Get actual TTY dimensions for mouse coordinate scaling
         let (tty_cols, tty_rows) = terminal::size()?;
 
-        // Try to open raw mouse input (tries /dev/input/mice then /dev/input/event*)
-        let mouse_input = match crate::framebuffer::MouseInput::new() {
+        // Try to open raw mouse input (uses specified device or auto-detects)
+        let mouse_input = match crate::framebuffer::MouseInput::new(mouse_device) {
             Ok(input) => Some(input),
             Err(e) => {
                 eprintln!("Warning: Failed to open mouse input device: {}", e);
@@ -122,9 +123,11 @@ impl FramebufferBackend {
         };
 
         // Get pixel dimensions for cursor tracker
-        let (cols, rows) = renderer.dimensions();
-        let pixel_width = cols * 8; // Approximate: assuming 8px wide chars on average
-        let pixel_height = rows * 16; // Approximate: assuming 16px tall chars on average
+        let (pixel_width, pixel_height) = renderer.pixel_dimensions();
+        eprintln!(
+            "Initializing cursor tracker with bounds: {}x{} pixels",
+            pixel_width, pixel_height
+        );
         let cursor_tracker = crate::framebuffer::CursorTracker::new(pixel_width, pixel_height);
 
         Ok(Self {
@@ -193,7 +196,14 @@ impl RenderBackend for FramebufferBackend {
             let mut moved = false;
             // Process all pending mouse events
             while let Ok(Some(event)) = mouse_input.read_event() {
+                eprintln!("Mouse event: dx={}, dy={}", event.dx, event.dy);
+                let old_x = self.cursor_tracker.x;
+                let old_y = self.cursor_tracker.y;
                 self.cursor_tracker.update(event.dx, event.dy);
+                eprintln!(
+                    "Cursor moved from ({}, {}) to ({}, {})",
+                    old_x, old_y, self.cursor_tracker.x, self.cursor_tracker.y
+                );
                 moved = true;
             }
             moved
