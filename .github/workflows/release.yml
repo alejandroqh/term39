@@ -129,9 +129,9 @@ jobs:
         if: ${{ !matrix.use_zigbuild }}
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Build binary (zigbuild)
+      - name: Build binary (zigbuild - Linux with framebuffer)
         if: matrix.use_zigbuild
-        run: cargo zigbuild --release --target ${{ matrix.target }}
+        run: cargo zigbuild --release --target ${{ matrix.target }} --features framebuffer-backend
 
       - name: Package binary
         run: |
@@ -196,7 +196,7 @@ jobs:
           key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build binary
-        run: cargo zigbuild --release --target ${{ matrix.target }}
+        run: cargo zigbuild --release --target ${{ matrix.target }} --features framebuffer-backend
 
       - name: Build .deb package
         run: cargo deb --target ${{ matrix.target }} --no-build --no-strip
@@ -259,7 +259,7 @@ jobs:
           key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build binary
-        run: cargo zigbuild --release --target ${{ matrix.target }}
+        run: cargo zigbuild --release --target ${{ matrix.target }} --features framebuffer-backend
 
       - name: Build .rpm package
         run: cargo generate-rpm --target ${{ matrix.target }}
