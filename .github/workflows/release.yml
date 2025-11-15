@@ -82,11 +82,32 @@ jobs:
             name: linux-x86_64
             use_zigbuild: true
 
+          # Linux i686 (32-bit, musl - static, works on all Linux distros including Alpine)
+          - target: i686-unknown-linux-musl
+            os: ubuntu-latest
+            name: linux-i686
+            use_zigbuild: true
+
           # Linux ARM64 (musl - static, works on all Linux distros including Alpine)
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
             name: linux-arm64
             use_zigbuild: true
+
+          # Windows x86_64 (64-bit)
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            name: windows-x86_64
+
+          # Windows i686 (32-bit)
+          - target: i686-pc-windows-msvc
+            os: windows-latest
+            name: windows-i686
+
+          # Windows ARM64
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+            name: windows-arm64
 
     steps:
       - name: Checkout code
@@ -133,16 +154,32 @@ jobs:
         if: matrix.use_zigbuild
         run: cargo zigbuild --release --target ${{ matrix.target }} --features framebuffer-backend
 
-      - name: Package binary
+      - name: Package binary (Unix)
+        if: runner.os != 'Windows'
         run: |
           cd target/${{ matrix.target }}/release
           tar czf term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz term39
           mv term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz ${{ github.workspace }}/
 
-      - name: Upload Release Assets
+      - name: Package binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cd target/${{ matrix.target }}/release
+          Compress-Archive -Path term39.exe -DestinationPath term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.zip
+          Move-Item term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.zip ${{ github.workspace }}/
+
+      - name: Upload Release Assets (Unix)
+        if: runner.os != 'Windows'
         uses: softprops/action-gh-release@v1
         with:
           files: ./term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz
+
+      - name: Upload Release Assets (Windows)
+        if: runner.os == 'Windows'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.zip
 
   build-deb:
     name: Build Debian Package (${{ matrix.target }})
@@ -155,6 +192,9 @@ jobs:
           # x86_64 (amd64) - musl static
           - target: x86_64-unknown-linux-musl
             arch: amd64
+          # i686 (i386) - musl static
+          - target: i686-unknown-linux-musl
+            arch: i386
           # ARM64 (arm64) - musl static
           - target: aarch64-unknown-linux-musl
             arch: arm64
@@ -224,6 +264,9 @@ jobs:
           # x86_64 - musl static
           - target: x86_64-unknown-linux-musl
             arch: x86_64
+          # i686 (i386) - musl static
+          - target: i686-unknown-linux-musl
+            arch: i686
           # ARM64 (aarch64) - musl static
           - target: aarch64-unknown-linux-musl
             arch: aarch64
@@ -275,3 +318,63 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: ${{ steps.rpm_file.outputs.path }}
+
+  build-windows-installer:
+    name: Build Windows Installer (${{ matrix.target }})
+    needs: create-release
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # x86_64 (64-bit) installer
+          - target: x86_64-pc-windows-msvc
+            arch: x64
+          # i686 (32-bit) installer
+          - target: i686-pc-windows-msvc
+            arch: x86
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y
+
+      - name: Build Windows Installer
+        shell: pwsh
+        run: |
+          $env:APP_VERSION = "${{ needs.create-release.outputs.version }}"
+          $env:TargetTriple = "${{ matrix.target }}"
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
+      - name: Upload Windows Installer to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: installer-output/term39-v${{ needs.create-release.outputs.version }}-windows-${{ matrix.target }}-installer.exe
