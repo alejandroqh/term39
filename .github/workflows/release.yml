@@ -351,6 +351,10 @@ jobs:
           - target: i686-pc-windows-msvc
             bitwidth: 32bit
             arch: x86
+          # ARM64 (64-bit) installer
+          - target: aarch64-pc-windows-msvc
+            bitwidth: 64bit
+            arch: arm
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
