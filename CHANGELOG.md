@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.6] - 2025-11-15
+
+### Added
+- **32-bit Linux Support**:
+  - Added support for 32-bit Linux distributions (i686 architecture)
+  - Expanded platform compatibility for older hardware
+- **Windows Release Support**:
+  - Official Windows binary releases now available
+  - Cross-platform compatibility across Linux, macOS, and Windows
+
+### Technical Details
+- Zero clippy warnings
+- Clean code formatting
+- All tests passing
+
 ## [0.7.5] - 2025-11-14
 
 ### Added
@@ -330,6 +345,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - portable-pty 0.8 for PTY support
   - vte 0.13 for ANSI/VT escape sequences
 
+[0.7.6]: https://github.com/alejandroqh/term39/releases/tag/v0.7.6
 [0.7.5]: https://github.com/alejandroqh/term39/releases/tag/v0.7.5
 [0.7.1]: https://github.com/alejandroqh/term39/releases/tag/v0.7.1
 [0.6.6]: https://github.com/alejandroqh/term39/releases/tag/v0.6.6
