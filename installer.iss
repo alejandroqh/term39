@@ -37,7 +37,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
-Name: "envpath"; Description: "Add to PATH (recommended - allows running 'term39' from terminal)"; GroupDescription: "System integration:"; Flags: checked
+Name: "envpath"; Description: "Add to PATH (recommended - allows running 'term39' from terminal)"; GroupDescription: "System integration:"
 
 [Files]
 Source: "target\{#TargetTriple}\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
