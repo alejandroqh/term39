@@ -6,7 +6,7 @@
 #define MyAppPublisher "Alejandro Quintanar"
 #define MyAppURL "https://github.com/alejandroqh/term39"
 #define MyAppExeName "term39.exe"
-#define MyAppDescription "A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor"
+#define MyAppDescription "A modern, retro-styled terminal multiplexer with a classic MS-DOS aesthetic"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.

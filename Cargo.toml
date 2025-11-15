@@ -4,7 +4,7 @@ version = "0.7.6"
 edition = "2024"
 license = "MIT"
 authors = ["Alejandro Quintanar"]
-description = "A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-DOS)"
+description = "A modern, retro-styled terminal multiplexer with a classic MS-DOS aesthetic"
 repository = "https://github.com/alejandroqh/term39"
 homepage = "https://github.com/alejandroqh/term39"
 readme = "README.md"
@@ -44,8 +44,8 @@ maintainer = "Alejandro Quintanar"
 copyright = "2025, Alejandro Quintanar <your-email@example.com>"
 license-file = ["LICENSE", "4"]
 extended-description = """\
-A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-DOS). \
-Features a full-screen text-based interface with a classic DOS aesthetic, \
+A modern, retro-styled terminal multiplexer with a classic MS-DOS aesthetic. \
+Features a full-screen text-based interface with authentic DOS-style rendering, \
 supporting both Unicode and ASCII rendering modes."""
 depends = "libc6"
 section = "utils"

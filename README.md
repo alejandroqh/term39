@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
-A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-DOS), built with Rust. TERM39 brings the classic DOS aesthetic to your terminal with a full-screen text-based interface, window management, and terminal emulation.
+A modern, retro-styled terminal multiplexer with a classic MS-DOS aesthetic, built with Rust. TERM39 brings authentic DOS-style rendering to your terminal with a full-screen text-based interface, window management, and terminal emulation.
 
 ```
  ███████████ ██████████ ███████████   ██████   ██████  ████████   ████████
@@ -393,7 +393,7 @@ copies or substantial portions of the Software.
 
 ## Acknowledgments
 
-- Inspired by **Norton Disk Doctor** and classic DOS applications
+- Inspired by classic MS-DOS applications and vintage terminal interfaces
 - Built with the amazing [Rust](https://www.rust-lang.org/) programming language
 - Thanks to the open source community for the excellent libraries
 

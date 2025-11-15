@@ -1,8 +1,8 @@
 use clap::Parser;
 
 const LONG_ABOUT: &str = "\
-A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-DOS).
-Features a full-screen text-based interface with a classic DOS aesthetic.
+A modern, retro-styled terminal multiplexer with a classic MS-DOS aesthetic.
+Features a full-screen text-based interface with authentic DOS-style rendering.
 
  ███████████ ██████████ ███████████   ██████   ██████  ████████   ████████
 ░█░░░███░░░█░░███░░░░░█░░███░░░░░███ ░░██████ ██████  ███░░░░███ ███░░░░███
@@ -36,7 +36,7 @@ MOUSE CONTROLS:
     name = "term39",
     version = env!("CARGO_PKG_VERSION"),
     author = env!("CARGO_PKG_AUTHORS"),
-    about = "A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor",
+    about = "A modern, retro-styled terminal multiplexer with a classic MS-DOS aesthetic",
     long_about = LONG_ABOUT,
     after_help = "For more information, visit: https://github.com/alejandroqh/term39"
 )]

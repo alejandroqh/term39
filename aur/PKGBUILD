@@ -2,7 +2,7 @@
 pkgname=term39
 pkgver=0.6.5
 pkgrel=1
-pkgdesc="A modern, retro-styled terminal multiplexer inspired by Norton Disk Doctor (MS-DOS)"
+pkgdesc="A modern, retro-styled terminal multiplexer with a classic MS-DOS aesthetic"
 arch=('x86_64' 'aarch64')
 url="https://github.com/alejandroqh/term39"
 license=('MIT')

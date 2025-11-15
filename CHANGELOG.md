@@ -8,342 +8,138 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.7.6] - 2025-11-15
 
 ### Added
-- **32-bit Linux Support**:
-  - Added support for 32-bit Linux distributions (i686 architecture)
-  - Expanded platform compatibility for older hardware
-- **Windows Release Support**:
-  - Official Windows binary releases now available
-  - Cross-platform compatibility across Linux, macOS, and Windows
-
-### Technical Details
-- Zero clippy warnings
-- Clean code formatting
-- All tests passing
+- 32-bit Linux (i686) support for older hardware
+- Official Windows binary releases
 
 ## [0.7.5] - 2025-11-14
 
 ### Added
-- **Framebuffer Backend Completion**:
-  - Finalized and stabilized framebuffer rendering implementation
-  - Enhanced mouse support in framebuffer mode
-  - Improved hardware cursor rendering and tracking
-  - Better integration with Linux console input devices
-- **MUSL libc Support**:
-  - Added support for MUSL-based Linux distributions (Alpine, etc.)
-  - Static linking compatibility for broader deployment options
+- Framebuffer backend completion with enhanced mouse support and hardware cursor rendering
+- MUSL libc support for Alpine and static linking
 
 ### Changed
-- **Performance Improvements**:
-  - Optimized framebuffer rendering pipeline
-  - Enhanced mouse event handling efficiency
-  - Better resource management in framebuffer mode
+- Optimized framebuffer rendering pipeline and mouse event handling
 
 ### Fixed
-- Framebuffer mode stability improvements
-- Mouse cursor synchronization in different text modes
-- Edge cases in hardware cursor positioning
-
-### Technical Details
-- Zero clippy warnings
-- Clean code formatting
-- All tests passing
-- Improved cross-platform compatibility
+- Framebuffer mode stability and mouse cursor synchronization
 
 ## [0.7.1] - 2025-11-14
 
 ### Added
-- **Linux Framebuffer Backend** (Experimental):
-  - Direct Linux console rendering via `/dev/fb0` for DOS-like experience
-  - Multiple text modes: 40x25, 80x25, 80x43, 80x50 (classic DOS modes)
-  - PSF2 bitmap font support with Unifont for comprehensive Unicode coverage
-  - Authentic VGA 16-color palette rendering
-  - Pixel-perfect character rendering
-  - Hardware cursor rendering with save/restore functionality
-  - Requires compile-time flag: `--features framebuffer-backend`
-  - Command-line option: `--fb-mode=<MODE>` to select text mode
-  - Works on Linux console (TTY) only, not in terminal emulators
-- **Enhanced Linux Mouse Support**:
-  - Raw mouse input device support (`/dev/input/mice`, `/dev/input/event*`)
-  - Hardware mouse cursor rendering in framebuffer mode
-  - Pixel-accurate mouse tracking and cursor positioning
-  - Button state tracking (left, right, middle buttons)
-  - Mouse event queue for reliable button press/release handling
-  - Automatic fallback to crossterm when mouse device unavailable
-  - Mouse coordinate scaling for different text modes
+- **Linux Framebuffer Backend**: Direct `/dev/fb0` rendering with DOS text modes (40x25, 80x25, 80x43, 80x50), PSF2 fonts, VGA palette (`--features framebuffer-backend`, `--fb-mode=<MODE>`)
+- Raw Linux mouse support (`/dev/input/mice`, `/dev/input/event*`) with hardware cursor rendering
+- Dependencies: framebuffer 0.3, memmap2 0.9, flate2 1.0 (optional)
 
 ### Changed
-- **UI/UX Improvements**:
-  - Enhanced theme system with improved color consistency
-  - Updated popup/dialog rendering for better visual appeal
-  - Refined shadow system for consistent depth effect across all UI elements
-  - Better contrast and readability in all themes
-- **Dependencies Updated**:
-  - Updated to latest versions of core dependencies
-  - Better compatibility with modern Rust toolchain
-  - Security patches and performance improvements
+- Enhanced theme system with improved color consistency and popup rendering
+- Updated dependencies for modern Rust toolchain
 
 ### Fixed
-- Clippy warning for `get_mouse_button_event()` dead code (framebuffer-only feature)
-- Clippy warning for unused `mut` in `injected_event` variable
-- Code quality improvements for stable Rust compatibility
-
-### Technical Details
-- New dependencies:
-  - framebuffer 0.3 (optional, Linux only)
-  - memmap2 0.9 (optional, for framebuffer)
-  - flate2 1.0 (optional, for PSF2 font decompression)
-- Zero clippy warnings with `-D warnings` flag
-- Clean code formatting
-- Improved build system with conditional compilation for framebuffer backend
+- Clippy warnings for framebuffer-only features
 
 ## [0.6.6] - 2025-11-12
 
 ### Fixed
-- **Theme loading on startup**: Fixed issue where selected theme from settings was saved but not loaded on application boot
-  - CLI `--theme` argument is now optional (no default value)
-  - Application now properly loads saved theme from config file on startup
-  - CLI theme argument still takes precedence when explicitly provided
-
-### Technical Details
-- Zero clippy warnings
-- All tests passing
-- Clean code formatting
+- Theme loading on startup (saved theme now properly loaded from config file)
 
 ## [0.6.5] - 2025-11-12
 
 ### Fixed
-- **Color theme setting persistence**: Fixed issue where color theme selection in settings window wasn't being properly saved to configuration
-- **GPM (General Purpose Mouse) handling improvements**:
-  - Simplified GPM integration and removed complex build-time detection
-  - Improved GPM handler robustness and error handling
-  - Better fallback behavior when GPM is unavailable
-
-### Changed
-- **AUR package deployment**: Updated .gitignore for better AUR package management
-
-### Technical Details
-- Zero clippy warnings with -D warnings flag
-- All tests passing (7/7)
-- Clean code formatting
+- Color theme selection persistence in settings window
+- GPM mouse handling and error recovery
 
 ## [0.6.0] - 2025-11-12
 
 ### Added
-- **Clipboard support** with full copy/paste functionality:
-  - System clipboard integration via arboard library
-  - Text selection in terminal windows (mouse drag to select)
-  - Copy selected text with Ctrl+Shift+C or right-click context menu
-  - Paste from clipboard with Ctrl+Shift+V or right-click context menu
-  - Visual selection highlighting with inverted colors
-  - Top bar clipboard buttons (Copy/Paste/Clear) for easy access
-  - Block selection mode for rectangular text regions
-  - Internal clipboard fallback when system clipboard unavailable
-- **Context menu** on right-click in terminal windows:
-  - Copy selected text
-  - Paste from clipboard
-  - Select all (placeholder for future implementation)
-  - Copy entire window content (placeholder for future implementation)
-  - Close window
-- **Additional themes** for enhanced visual customization:
-  - Green Phosphor - Classic green monochrome terminal (IBM 5151, VT220 inspired)
-  - Amber - Vintage amber monochrome terminal (DEC VT100, Wyse inspired)
-  - Existing themes: Classic (DOS blue/cyan), Dark (Dracula), Monochrome (grayscale)
-  - Command-line `--theme` option to select theme at startup
-  - Theme selector in settings window
-- **Tint terminal color improvements**:
-  - Enhanced 256-color palette rendering
-  - Better color accuracy for terminal applications
-  - Improved true color (24-bit RGB) support
-  - More accurate ANSI color rendering
-- **GPM (General Purpose Mouse) support for Linux console**:
-  - Native mouse support in Linux virtual consoles (TTY)
-  - Automatic GPM detection and initialization
-  - Fallback to crossterm when GPM unavailable
-  - Build-time GPM library detection
+- **Clipboard support**: Copy/paste via arboard, text selection with mouse drag, Ctrl+Shift+C/V shortcuts, right-click context menu
+- Right-click context menu in terminal windows (copy, paste, close)
+- Additional themes: Green Phosphor, Amber (plus existing Classic, Dark, Monochrome)
+- Theme selection via `--theme` CLI option and settings window
+- GPM (General Purpose Mouse) support for Linux console
+- Enhanced 256-color palette and true color rendering
+- Dependencies: arboard 3.4
 
 ### Changed
-- Command-line help now shows all available themes
-- Settings window includes theme selection dropdown
-- Improved color rendering consistency across themes
+- Command-line help shows all available themes
 
 ### Fixed
-- Clippy warnings resolved with `#![allow(clippy::collapsible_if)]` attribute
-- Code quality improvements for stable Rust compatibility
-
-### Technical Details
-- New dependencies:
-  - arboard 3.4 for clipboard operations
-- Zero clippy warnings with -D warnings flag
-- All tests passing (7/7)
-- Clean release build
+- Clippy collapsible_if warnings
 
 ## [0.5.1] - 2025-11-11
 
 ### Added
-- Distribution packaging support:
-  - Debian/Ubuntu (.deb) packages for x86_64 and arm64
-  - RPM packages for Fedora/RHEL/CentOS/openSUSE (x86_64 and aarch64)
-  - AUR PKGBUILD files for Arch Linux (source and binary packages)
-- GitHub Actions workflow for automated package building on release
-- cargo-deb metadata configuration in Cargo.toml
-- cargo-generate-rpm metadata configuration in Cargo.toml
-
-### Changed
-- Release workflow now automatically builds and publishes .deb and .rpm packages
-- AUR packages available in `aur/` directory with installation instructions
+- Distribution packages: .deb (Debian/Ubuntu), .rpm (Fedora/RHEL/openSUSE), AUR (Arch Linux)
+- GitHub Actions workflow for automated package building
+- cargo-deb and cargo-generate-rpm metadata
 
 ## [0.5.0] - 2025-11-11
 
 ### Added
 - InfoWindow component for consistent dialog rendering
-  - Help and About dialogs now use same bordered window style as Settings
-  - Title bar with borders and shadows
-  - Consistent black content background across all info dialogs
-  - Color code support for text formatting
-- Shadow rendering to Config Window for visual consistency
-
-### Fixed
-- **Critical**: Window content foreground color now uses theme property instead of hardcoded white
-  - All themes now correctly apply `window_content_fg` color
-  - Removed hardcoded color fields from Window struct
-- Dark theme visibility issues:
-  - Shadow color changed from Black to DarkGrey (now visible on black backgrounds)
-  - Button colors changed from Dark* variants to bright colors for better contrast
-  - Window title bars now have proper color distinction
-- Unfocused window title bars now use DarkGrey instead of Black across all themes
-  - Prevents confusion with top bar when windows are open
-  - Creates clear visual hierarchy between top bar, unfocused windows, and focused windows
-- Clippy warning: Reduced function arguments in config_window.rs from 9 to 7 parameters
-  - Functions now use theme colors directly instead of passing as parameters
+- Shadow rendering to config window
 
 ### Changed
-- **Dark theme redesigned with Dracula color scheme** (draculatheme.com):
-  - Purple/Magenta accents for focused windows and interactive elements
-  - Cyan accents for info dialogs and splash screen
-  - Bright white foreground for better contrast and readability
-  - Dracula semantic colors: Green (success), Red (danger), Yellow (warning)
-  - Window borders now use Magenta (purple) instead of grey
-  - Clock displays in Magenta (purple accent)
-- Standardized shadow rendering across all window types:
-  - Created shared `render_shadow()` helper function in video_buffer.rs
-  - All dialogs (windows, prompts, config, help, about, splash) use consistent shadow rendering
-  - All shadows now use `charset.shadow` character consistently
-- Theme color consistency improvements:
-  - Monochrome theme: Focused window title uses Grey instead of DarkGrey
-  - Classic theme: Unfocused window title uses DarkGrey instead of Black
-- Removed unused imports and dead code
+- **Dark theme redesigned** with Dracula color scheme (purple/magenta/cyan accents)
+- Standardized shadow rendering with shared `render_shadow()` helper
+- Unfocused window title bars use DarkGrey for better visual hierarchy
 
-### Technical Details
-- Code quality improvements for release readiness
-- Zero clippy warnings
-- All tests passing (4/4)
-- Clean release build (1.5 MB binary)
+### Fixed
+- **Critical**: Window content now uses `window_content_fg` theme property instead of hardcoded white
+- Dark theme visibility (shadow color, button contrast)
+- Clippy warnings in config_window.rs (reduced function arguments)
 
 ## [0.4.0] - 2025-11-11
 
 ### Added
-- Settings/configuration window (press 's' key from desktop):
-  - Configuration management system with persistence
-  - Auto-tiling/auto-arrange windows toggle
-  - Show date in top bar toggle
-  - Settings saved to `~/.config/term39/config.toml`
-- Configuration manager for loading and saving user preferences
-- Visual settings window with interactive toggles
-
-### Fixed
-- Various clippy warnings for improved code quality
+- Settings window (press 's'): auto-tiling toggle, show date toggle, config persistence to `~/.config/term39/config.toml`
+- Configuration manager for user preferences
 
 ### Changed
-- Enhanced help screen to include settings key ('s')
-- Bottom bar now shows settings shortcut
+- Enhanced help screen and bottom bar with settings shortcut
 
 ## [0.3.0] - 2025-11-10
 
 ### Added
-- Window snapping to corners and auto-snap feature
-  - Automatically snaps windows to screen corners when dragging near edges
-  - Improves window positioning and organization
-
-### Fixed
-- Resize render glitch that occurred during window resizing operations
-  - Multiple improvements to rendering during resize events
-  - Smoother window resizing experience
+- Window snapping to corners with auto-snap during drag
 
 ### Changed
-- Updated README with splash screen ASCII art for better visual branding
+- Updated README with splash screen ASCII art
+
+### Fixed
+- Resize render glitch for smoother window resizing
 
 ## [0.2.1] - 2025-11-10
 
 ### Fixed
-- Clippy warnings for collapsible_if in window_manager.rs
+- Clippy collapsible_if warnings in window_manager.rs
 
 ## [0.2.0] - 2025-11-10
 
 ### Added
-- Scrollbar and scroll support for terminal windows:
-  - Visual scrollbar in right border (charset-aware)
-  - Mouse wheel scrolling (3 lines per notch)
-  - Scrollbar thumb dragging for smooth navigation
-  - Click track to jump to position
-  - Fixed scroll offset to properly fetch from scrollback buffer
-  - Inverted thumb position (bottom = current output)
-- Configuration file support for user preferences
+- Scrollbar support: mouse wheel (3 lines/notch), thumb dragging, click-to-jump
+- Configuration file support
 - Version display with `--version` flag
-- Full screen terminal launcher with `T` key
-- Calendar widget with `c` key
-- Improved help dialog organization
-- GitHub Actions CI/CD workflows
-- Crates.io metadata for publishing
-
-### Fixed
-- Various clippy warnings and test failures
-- Error handling improvements
-- Code formatting issues
+- Full screen terminal (T key) and calendar widget (c key)
+- GitHub Actions CI/CD and crates.io metadata
 
 ### Changed
-- Enhanced help system with better organization
-- Improved code quality and maintainability
+- Enhanced help system organization
+
+### Fixed
+- Clippy warnings, test failures, error handling
 
 ## [0.1.0] - 2025-11-10
 
 ### Added
-- Initial release of TERM39 terminal multiplexer
-- Retro DOS aesthetic with blue-and-white color scheme
-- Multiple terminal window support with full VT100/ANSI emulation
-- Window management features:
-  - Drag windows by title bar
-  - Resize windows with bottom-right handle
-  - Minimize/maximize windows
-  - Close windows with [X] button
-  - Focus management and window switching
-- Mouse and keyboard controls:
-  - Mouse support for all window operations
-  - Keyboard shortcuts (t, q, ESC, h, ALT+TAB)
-  - Full terminal input passthrough
-- Double-buffered rendering system:
-  - Flicker-free display at ~60fps
-  - Dirty region tracking for efficiency
-  - Save/restore regions for window operations
-- ASCII compatibility mode (`--ascii` flag):
-  - Fallback to ASCII characters for maximum compatibility
-  - Automatic charset configuration
-- Cross-platform support:
-  - macOS (Apple Silicon ARM64 and Intel x86_64)
-  - Linux (x86_64 and ARM64)
-- MIT License
-- Top bar with clock display and window controls
-- Bottom bar with window list and help indicator
-- Interactive help dialog (press 'h')
-- Confirmation dialogs for exit with open windows
-- Window shadows for depth effect
-
-### Technical Details
-- Built with Rust 2024 edition
-- Dependencies:
-  - crossterm 0.29.0 for terminal control
-  - chrono 0.4.42 for clock display
-  - portable-pty 0.8 for PTY support
-  - vte 0.13 for ANSI/VT escape sequences
+- Initial release with DOS aesthetic terminal multiplexer
+- Window management: drag, resize, minimize/maximize, close, focus switching
+- Mouse and keyboard controls (t, q, ESC, h, ALT+TAB)
+- Double-buffered rendering (~60fps) with dirty region tracking
+- ASCII compatibility mode (`--ascii` flag)
+- Cross-platform support: macOS (ARM64/x86_64), Linux (x86_64/ARM64)
+- Top bar with clock, bottom bar with window list
+- Interactive help dialog and confirmation dialogs
+- Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
 [0.7.6]: https://github.com/alejandroqh/term39/releases/tag/v0.7.6
 [0.7.5]: https://github.com/alejandroqh/term39/releases/tag/v0.7.5
