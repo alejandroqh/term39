@@ -3,6 +3,7 @@
 
 #define MyAppName "term39"
 #define MyAppVersion GetEnv("APP_VERSION")
+#define TargetTriple GetEnv("TargetTriple")
 #define MyAppPublisher "Alejandro Quintanar"
 #define MyAppURL "https://github.com/alejandroqh/term39"
 #define MyAppExeName "term39.exe"

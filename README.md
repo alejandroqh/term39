@@ -18,9 +18,43 @@ A modern, retro-styled terminal multiplexer with a classic MS-DOS aesthetic, bui
    ░░░░░    ░░░░░░░░░░ ░░░░░   ░░░░░ ░░░░░     ░░░░░  ░░░░░░░░   ░░░░░░░░
 ```
 
-## Screenshot
+## Screenshots
 
-![TERM39 in action](assets/screenshot.png)
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <a href="assets/screenshot1.png">
+          <img src="assets/screenshot1.png" width="200" alt="TERM39 Screenshot 1"/>
+        </a>
+      </td>
+      <td align="center">
+        <a href="assets/screenshot2.png">
+          <img src="assets/screenshot2.png" width="200" alt="TERM39 Screenshot 2"/>
+        </a>
+      </td>
+      <td align="center">
+        <a href="assets/screenshot3.png">
+          <img src="assets/screenshot3.png" width="200" alt="TERM39 Screenshot 3"/>
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        <a href="assets/screenshot4.png">
+          <img src="assets/screenshot4.png" width="200" alt="TERM39 Screenshot 4"/>
+        </a>
+      </td>
+      <td align="center">
+        <a href="assets/screenshot5.png">
+          <img src="assets/screenshot5.png" width="200" alt="TERM39 Screenshot 5"/>
+        </a>
+      </td>
+    </tr>
+  </table>
+
+  <p><em>Click on any image to view full size</em></p>
+</div>
 
 ## Features
 
