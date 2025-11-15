@@ -21,13 +21,14 @@ A modern, retro-styled terminal multiplexer with a classic MS-DOS aesthetic, bui
 ## Screenshots
 
 <div align="center">
+  <a href="assets/screenshot1.png">
+    <img src="assets/screenshot1.png" width="700" alt="TERM39 Main Interface"/>
+  </a>
+
+  <br><br>
+
   <table>
     <tr>
-      <td align="center">
-        <a href="assets/screenshot1.png">
-          <img src="assets/screenshot1.png" width="200" alt="TERM39 Screenshot 1"/>
-        </a>
-      </td>
       <td align="center">
         <a href="assets/screenshot2.png">
           <img src="assets/screenshot2.png" width="200" alt="TERM39 Screenshot 2"/>
