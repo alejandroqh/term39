@@ -69,45 +69,61 @@ jobs:
           # macOS ARM64 (Apple Silicon)
           - target: aarch64-apple-darwin
             os: macos-latest
-            name: macos-arm64
+            platform: macos
+            bitwidth: 64bit
+            arch: arm
 
           # macOS x86_64 (Intel)
           - target: x86_64-apple-darwin
             os: macos-latest
-            name: macos-x86_64
+            platform: macos
+            bitwidth: 64bit
+            arch: x86
 
           # Linux x86_64 (musl - static, works on all Linux distros including Alpine)
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            name: linux-x86_64
+            platform: linux
+            bitwidth: 64bit
+            arch: x86
             use_zigbuild: true
 
           # Linux i686 (32-bit, musl - static, works on all Linux distros including Alpine)
           - target: i686-unknown-linux-musl
             os: ubuntu-latest
-            name: linux-i686
+            platform: linux
+            bitwidth: 32bit
+            arch: x86
             use_zigbuild: true
 
           # Linux ARM64 (musl - static, works on all Linux distros including Alpine)
           - target: aarch64-unknown-linux-musl
             os: ubuntu-latest
-            name: linux-arm64
+            platform: linux
+            bitwidth: 64bit
+            arch: arm
             use_zigbuild: true
 
           # Windows x86_64 (64-bit)
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            name: windows-x86_64
+            platform: windows
+            bitwidth: 64bit
+            arch: x86
 
           # Windows i686 (32-bit)
           - target: i686-pc-windows-msvc
             os: windows-latest
-            name: windows-i686
+            platform: windows
+            bitwidth: 32bit
+            arch: x86
 
           # Windows ARM64
           - target: aarch64-pc-windows-msvc
             os: windows-latest
-            name: windows-arm64
+            platform: windows
+            bitwidth: 64bit
+            arch: arm
 
     steps:
       - name: Checkout code
@@ -158,28 +174,28 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           cd target/${{ matrix.target }}/release
-          tar czf term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz term39
-          mv term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz ${{ github.workspace }}/
+          tar czf term39-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}-${{ matrix.bitwidth }}-${{ matrix.arch }}-binary.tar.gz term39
+          mv term39-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}-${{ matrix.bitwidth }}-${{ matrix.arch }}-binary.tar.gz ${{ github.workspace }}/
 
       - name: Package binary (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           cd target/${{ matrix.target }}/release
-          Compress-Archive -Path term39.exe -DestinationPath term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.zip
-          Move-Item term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.zip ${{ github.workspace }}/
+          Compress-Archive -Path term39.exe -DestinationPath term39-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}-${{ matrix.bitwidth }}-${{ matrix.arch }}-binary.zip
+          Move-Item term39-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}-${{ matrix.bitwidth }}-${{ matrix.arch }}-binary.zip ${{ github.workspace }}/
 
       - name: Upload Release Assets (Unix)
         if: runner.os != 'Windows'
         uses: softprops/action-gh-release@v1
         with:
-          files: ./term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.tar.gz
+          files: ./term39-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}-${{ matrix.bitwidth }}-${{ matrix.arch }}-binary.tar.gz
 
       - name: Upload Release Assets (Windows)
         if: runner.os == 'Windows'
         uses: softprops/action-gh-release@v1
         with:
-          files: ./term39-v${{ needs.create-release.outputs.version }}-${{ matrix.name }}.zip
+          files: ./term39-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}-${{ matrix.bitwidth }}-${{ matrix.arch }}-binary.zip
 
   build-deb:
     name: Build Debian Package (${{ matrix.target }})
@@ -329,9 +345,11 @@ jobs:
         include:
           # x86_64 (64-bit) installer
           - target: x86_64-pc-windows-msvc
-            arch: x64
+            bitwidth: 64bit
+            arch: x86
           # i686 (32-bit) installer
           - target: i686-pc-windows-msvc
+            bitwidth: 32bit
             arch: x86
     steps:
       - name: Checkout code
@@ -372,9 +390,11 @@ jobs:
         run: |
           $env:APP_VERSION = "${{ needs.create-release.outputs.version }}"
           $env:TargetTriple = "${{ matrix.target }}"
+          $env:BitWidth = "${{ matrix.bitwidth }}"
+          $env:Arch = "${{ matrix.arch }}"
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
       - name: Upload Windows Installer to Release
         uses: softprops/action-gh-release@v1
         with:
-          files: installer-output/term39-v${{ needs.create-release.outputs.version }}-windows-${{ matrix.target }}-installer.exe
+          files: installer-output/term39-${{ needs.create-release.outputs.version }}-windows-${{ matrix.bitwidth }}-${{ matrix.arch }}-installer.exe

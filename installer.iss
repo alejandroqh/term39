@@ -4,6 +4,8 @@
 #define MyAppName "term39"
 #define MyAppVersion GetEnv("APP_VERSION")
 #define TargetTriple GetEnv("TargetTriple")
+#define BitWidth GetEnv("BitWidth")
+#define Arch GetEnv("Arch")
 #define MyAppPublisher "Alejandro Quintanar"
 #define MyAppURL "https://github.com/alejandroqh/term39"
 #define MyAppExeName "term39.exe"
@@ -23,7 +25,7 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 LicenseFile=LICENSE
 OutputDir=installer-output
-OutputBaseFilename=term39-v{#MyAppVersion}-windows-{#TargetTriple}-installer
+OutputBaseFilename=term39-{#MyAppVersion}-windows-{#BitWidth}-{#Arch}-installer
 SetupIconFile=compiler:SetupClassicIcon.ico
 Compression=lzma2/max
 SolidCompression=yes
