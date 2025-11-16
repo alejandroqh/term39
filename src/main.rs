@@ -53,6 +53,11 @@ use theme::Theme;
 use video_buffer::{Cell, VideoBuffer};
 use window_manager::{FocusState, WindowManager};
 
+// Platform detection helper - returns true if running on macOS
+fn is_macos() -> bool {
+    cfg!(target_os = "macos")
+}
+
 // Calendar state structure
 struct CalendarState {
     year: i32,
@@ -228,6 +233,28 @@ fn main() -> io::Result<()> {
 
     // Enter raw mode for low-level terminal control
     terminal::enable_raw_mode()?;
+
+    // Disable flow control (CTRL+S/CTRL+Q) by sending escape sequences
+    // This prevents the terminal from intercepting CTRL+S
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        // Send escape sequence to disable software flow control
+        // CSI ? 2004 h disables bracketed paste, we use stty-like behavior
+        let _ = stdout.write_all(b"\x1b[?1036l"); // Disable metaSendsEscape
+        let _ = stdout.flush();
+
+        // Use libc to disable IXON (software flow control) on Unix systems
+        use std::os::unix::io::AsRawFd;
+        unsafe {
+            let mut termios: libc::termios = std::mem::zeroed();
+            if libc::tcgetattr(stdout.as_raw_fd(), &mut termios) == 0 {
+                // Disable IXON (software flow control) to allow CTRL+S/CTRL+Q
+                termios.c_iflag &= !libc::IXON;
+                let _ = libc::tcsetattr(stdout.as_raw_fd(), libc::TCSANOW, &termios);
+            }
+        }
+    }
 
     // Hide cursor and enable mouse capture
     execute!(stdout, cursor::Hide, event::EnableMouseCapture)?;
@@ -732,7 +759,74 @@ fn main() -> io::Result<()> {
                         }
                     }
 
-                    // Handle ALT+TAB for window cycling
+                    // Handle F1 to show help (universal help key)
+                    if key_event.code == KeyCode::F(1) {
+                        if current_focus == FocusState::Desktop {
+                            let (cols, rows) = backend.dimensions();
+
+                            // Platform-specific modifier key text
+                            let (copy_key, paste_key) = if is_macos() {
+                                ("CMD+C", "CMD+V")
+                            } else {
+                                ("CTRL+SHIFT+C", "CTRL+SHIFT+V")
+                            };
+
+                            let help_message = format!(
+                                "{{C}}KEYBOARD SHORTCUTS{{W}}\n\
+                                \n\
+                                {{Y}}'t'{{W}}       - Create new terminal window\n\
+                                {{Y}}'T'{{W}}       - Create new maximized terminal window\n\
+                                {{Y}}'q'/ESC{{W}}   - Exit application (from desktop)\n\
+                                {{Y}}F1{{W}} or {{Y}}'h'{{W}} - Show this help screen\n\
+                                {{Y}}'l'{{W}}       - Show license and about information\n\
+                                {{Y}}'s'{{W}}       - Show settings/configuration window\n\
+                                {{Y}}'c'{{W}}       - Show calendar ({{Y}}\u{2190}\u{2192}{{W}} months, {{Y}}\u{2191}\u{2193}{{W}} years, {{Y}}t{{W}} today)\n\
+                                \n\
+                                {{C}}WINDOW & SESSION{{W}}\n\
+                                \n\
+                                {{Y}}F2{{W}} or {{Y}}ALT+TAB{{W}} - Switch between windows\n\
+                                {{Y}}F3{{W}}              - Save session manually\n\
+                                {{Y}}F4{{W}} or {{Y}}CTRL+L{{W}}  - Clear terminal\n\
+                                \n\
+                                {{C}}COPY & PASTE{{W}}\n\
+                                \n\
+                                {{Y}}{}{{W}} or {{Y}}F6{{W}} - Copy selected text\n\
+                                {{Y}}{}{{W}} or {{Y}}F7{{W}} - Paste from clipboard\n\
+                                \n\
+                                {{C}}POPUP DIALOG CONTROLS{{W}}\n\
+                                \n\
+                                {{Y}}TAB/Arrow keys{{W}} - Navigate between buttons\n\
+                                {{Y}}ENTER{{W}}          - Activate selected button\n\
+                                {{Y}}ESC{{W}}            - Close dialog\n\
+                                \n\
+                                {{C}}MOUSE CONTROLS{{W}}\n\
+                                \n\
+                                {{Y}}Click title bar{{W}}     - Drag window\n\
+                                {{Y}}CTRL+Drag{{W}}          - Drag without snap\n\
+                                {{Y}}Click [X]{{W}}           - Close window\n\
+                                {{Y}}Drag ╬ handle{{W}}       - Resize window\n\
+                                {{Y}}Click window{{W}}        - Focus window\n\
+                                {{Y}}Click bottom bar{{W}}    - Switch windows",
+                                copy_key, paste_key
+                            );
+
+                            active_help_window = Some(InfoWindow::new(
+                                "Help".to_string(),
+                                &help_message,
+                                cols,
+                                rows,
+                            ));
+                        }
+                        continue;
+                    }
+
+                    // Handle F2 for window cycling (more compatible than ALT+TAB)
+                    if key_event.code == KeyCode::F(2) {
+                        window_manager.cycle_to_next_window();
+                        continue;
+                    }
+
+                    // Handle ALT+TAB for window cycling (fallback, may be intercepted by OS)
                     if key_event.code == KeyCode::Tab
                         && key_event.modifiers.contains(KeyModifiers::ALT)
                     {
@@ -740,35 +834,79 @@ fn main() -> io::Result<()> {
                         continue;
                     }
 
-                    // Handle CTRL+L to clear the terminal (like 'clear' command)
-                    // Check for both Ctrl+L and the control character form
-                    if key_event.code == KeyCode::Char('l')
-                        && key_event.modifiers.contains(KeyModifiers::CONTROL)
-                    {
+                    // Handle F3 to save session (more compatible than CTRL+S)
+                    if key_event.code == KeyCode::F(3) {
+                        // Save session to file (unless --no-save flag is set)
+                        if !cli_args.no_save {
+                            if window_manager.save_session_to_file().is_ok() {
+                                // Show success prompt
+                                let (cols, rows) = backend.dimensions();
+                                active_prompt = Some(Prompt::new(
+                                    PromptType::Success,
+                                    "Session saved successfully!".to_string(),
+                                    vec![PromptButton::new(
+                                        "OK".to_string(),
+                                        PromptAction::Cancel,
+                                        true,
+                                    )],
+                                    cols,
+                                    rows,
+                                ));
+                            } else {
+                                // Show error prompt if save failed
+                                let (cols, rows) = backend.dimensions();
+                                active_prompt = Some(Prompt::new(
+                                    PromptType::Danger,
+                                    "Failed to save session!".to_string(),
+                                    vec![PromptButton::new(
+                                        "OK".to_string(),
+                                        PromptAction::Cancel,
+                                        true,
+                                    )],
+                                    cols,
+                                    rows,
+                                ));
+                            }
+                        } else {
+                            // Show info that saving is disabled
+                            let (cols, rows) = backend.dimensions();
+                            active_prompt = Some(Prompt::new(
+                                PromptType::Warning,
+                                "Session saving is disabled (--no-save flag)".to_string(),
+                                vec![PromptButton::new(
+                                    "OK".to_string(),
+                                    PromptAction::Cancel,
+                                    true,
+                                )],
+                                cols,
+                                rows,
+                            ));
+                        }
+                        continue;
+                    }
+
+                    // Handle F4 to clear the terminal (alternative to CTRL+L)
+                    if key_event.code == KeyCode::F(4) {
                         if current_focus != FocusState::Desktop {
                             // Send Ctrl+L (form feed, 0x0c) to the shell
-                            // Most shells (bash, zsh, etc.) interpret this as "clear screen"
                             let _ = window_manager.send_to_focused("\x0c");
                         }
                         continue;
                     }
 
-                    // Handle CTRL+S to save session manually
-                    if key_event.code == KeyCode::Char('s')
+                    // Handle CTRL+L to clear the terminal (like 'clear' command)
+                    if key_event.code == KeyCode::Char('l')
                         && key_event.modifiers.contains(KeyModifiers::CONTROL)
                     {
-                        // Save session to file (unless --no-save flag is set)
-                        if !cli_args.no_save {
-                            let _ = window_manager.save_session_to_file();
+                        if current_focus != FocusState::Desktop {
+                            // Send Ctrl+L (form feed, 0x0c) to the shell
+                            let _ = window_manager.send_to_focused("\x0c");
                         }
                         continue;
                     }
 
-                    // Handle Ctrl+Shift+C to copy selection
-                    if key_event.code == KeyCode::Char('C')
-                        && key_event.modifiers.contains(KeyModifiers::CONTROL)
-                        && key_event.modifiers.contains(KeyModifiers::SHIFT)
-                    {
+                    // Handle F6 to copy selection (universal alternative)
+                    if key_event.code == KeyCode::F(6) {
                         if let FocusState::Window(window_id) = current_focus {
                             if let Some(text) = window_manager.get_selected_text(window_id) {
                                 if clipboard_manager.copy(text).is_ok() {
@@ -780,11 +918,59 @@ fn main() -> io::Result<()> {
                         continue;
                     }
 
-                    // Handle Ctrl+Shift+V to paste
-                    if key_event.code == KeyCode::Char('V')
-                        && key_event.modifiers.contains(KeyModifiers::CONTROL)
-                        && key_event.modifiers.contains(KeyModifiers::SHIFT)
-                    {
+                    // Handle F7 to paste (universal alternative)
+                    if key_event.code == KeyCode::F(7) {
+                        if let FocusState::Window(window_id) = current_focus {
+                            if let Ok(text) = clipboard_manager.paste() {
+                                let _ = window_manager.paste_to_window(window_id, &text);
+                                // Clear selection after paste
+                                window_manager.clear_selection(window_id);
+                            }
+                        }
+                        continue;
+                    }
+
+                    // Platform-aware copy shortcut
+                    // macOS: CMD+C (SUPER modifier)
+                    // Linux/Windows: CTRL+SHIFT+C
+                    let is_copy_shortcut = if is_macos() {
+                        // On macOS: CMD+C
+                        key_event.code == KeyCode::Char('c')
+                            && key_event.modifiers.contains(KeyModifiers::SUPER)
+                    } else {
+                        // On Linux/Windows: CTRL+SHIFT+C
+                        key_event.code == KeyCode::Char('C')
+                            && key_event.modifiers.contains(KeyModifiers::CONTROL)
+                            && key_event.modifiers.contains(KeyModifiers::SHIFT)
+                    };
+
+                    if is_copy_shortcut {
+                        if let FocusState::Window(window_id) = current_focus {
+                            if let Some(text) = window_manager.get_selected_text(window_id) {
+                                if clipboard_manager.copy(text).is_ok() {
+                                    // Clear selection after copying
+                                    window_manager.clear_selection(window_id);
+                                }
+                            }
+                        }
+                        continue;
+                    }
+
+                    // Platform-aware paste shortcut
+                    // macOS: CMD+V (SUPER modifier)
+                    // Linux/Windows: CTRL+SHIFT+V
+                    let is_paste_shortcut = if is_macos() {
+                        // On macOS: CMD+V
+                        key_event.code == KeyCode::Char('v')
+                            && key_event.modifiers.contains(KeyModifiers::SUPER)
+                    } else {
+                        // On Linux/Windows: CTRL+SHIFT+V
+                        key_event.code == KeyCode::Char('V')
+                            && key_event.modifiers.contains(KeyModifiers::CONTROL)
+                            && key_event.modifiers.contains(KeyModifiers::SHIFT)
+                    };
+
+                    if is_paste_shortcut {
                         if let FocusState::Window(window_id) = current_focus {
                             if let Ok(text) = clipboard_manager.paste() {
                                 let _ = window_manager.paste_to_window(window_id, &text);
@@ -850,36 +1036,56 @@ fn main() -> io::Result<()> {
                             // Show help if desktop is focused (prompts are handled above)
                             if current_focus == FocusState::Desktop {
                                 let (cols, rows) = backend.dimensions();
-                                let help_message = "{C}KEYBOARD SHORTCUTS{W}\n\
+
+                                // Platform-specific modifier key text
+                                let (copy_key, paste_key) = if is_macos() {
+                                    ("CMD+C", "CMD+V")
+                                } else {
+                                    ("CTRL+SHIFT+C", "CTRL+SHIFT+V")
+                                };
+
+                                let help_message = format!(
+                                    "{{C}}KEYBOARD SHORTCUTS{{W}}\n\
                                     \n\
-                                    {Y}'t'{W}       - Create new terminal window\n\
-                                    {Y}'T'{W}       - Create new maximized terminal window\n\
-                                    {Y}'q'/ESC{W}   - Exit application (from desktop)\n\
-                                    {Y}'h'{W}       - Show this help screen\n\
-                                    {Y}'l'{W}       - Show license and about information\n\
-                                    {Y}'s'{W}       - Show settings/configuration window\n\
-                                    {Y}'c'{W}       - Show calendar ({Y}\u{2190}\u{2192}{W} months, {Y}\u{2191}\u{2193}{W} years, {Y}t{W} today)\n\
-                                    {Y}CTRL+L{W}    - Clear terminal (like 'clear' command)\n\
-                                    {Y}ALT+TAB{W}   - Switch between windows\n\
+                                    {{Y}}'t'{{W}}       - Create new terminal window\n\
+                                    {{Y}}'T'{{W}}       - Create new maximized terminal window\n\
+                                    {{Y}}'q'/ESC{{W}}   - Exit application (from desktop)\n\
+                                    {{Y}}F1{{W}} or {{Y}}'h'{{W}} - Show this help screen\n\
+                                    {{Y}}'l'{{W}}       - Show license and about information\n\
+                                    {{Y}}'s'{{W}}       - Show settings/configuration window\n\
+                                    {{Y}}'c'{{W}}       - Show calendar ({{Y}}\u{2190}\u{2192}{{W}} months, {{Y}}\u{2191}\u{2193}{{W}} years, {{Y}}t{{W}} today)\n\
                                     \n\
-                                    {C}POPUP DIALOG CONTROLS{W}\n\
+                                    {{C}}WINDOW & SESSION{{W}}\n\
                                     \n\
-                                    {Y}TAB/Arrow keys{W} - Navigate between buttons\n\
-                                    {Y}ENTER{W}          - Activate selected button\n\
-                                    {Y}ESC{W}            - Close dialog\n\
+                                    {{Y}}F2{{W}} or {{Y}}ALT+TAB{{W}} - Switch between windows\n\
+                                    {{Y}}F3{{W}}              - Save session manually\n\
+                                    {{Y}}F4{{W}} or {{Y}}CTRL+L{{W}}  - Clear terminal\n\
                                     \n\
-                                    {C}MOUSE CONTROLS{W}\n\
+                                    {{C}}COPY & PASTE{{W}}\n\
                                     \n\
-                                    {Y}Click title bar{W}     - Drag window\n\
-                                    {Y}CTRL+Drag{W}          - Drag without snap\n\
-                                    {Y}Click [X]{W}           - Close window\n\
-                                    {Y}Drag ╬ handle{W}       - Resize window\n\
-                                    {Y}Click window{W}        - Focus window\n\
-                                    {Y}Click bottom bar{W}    - Switch windows";
+                                    {{Y}}{}{{W}} or {{Y}}F6{{W}} - Copy selected text\n\
+                                    {{Y}}{}{{W}} or {{Y}}F7{{W}} - Paste from clipboard\n\
+                                    \n\
+                                    {{C}}POPUP DIALOG CONTROLS{{W}}\n\
+                                    \n\
+                                    {{Y}}TAB/Arrow keys{{W}} - Navigate between buttons\n\
+                                    {{Y}}ENTER{{W}}          - Activate selected button\n\
+                                    {{Y}}ESC{{W}}            - Close dialog\n\
+                                    \n\
+                                    {{C}}MOUSE CONTROLS{{W}}\n\
+                                    \n\
+                                    {{Y}}Click title bar{{W}}     - Drag window\n\
+                                    {{Y}}CTRL+Drag{{W}}          - Drag without snap\n\
+                                    {{Y}}Click [X]{{W}}           - Close window\n\
+                                    {{Y}}Drag ╬ handle{{W}}       - Resize window\n\
+                                    {{Y}}Click window{{W}}        - Focus window\n\
+                                    {{Y}}Click bottom bar{{W}}    - Switch windows",
+                                    copy_key, paste_key
+                                );
 
                                 active_help_window = Some(InfoWindow::new(
                                     "Help".to_string(),
-                                    help_message,
+                                    &help_message,
                                     cols,
                                     rows,
                                 ));
@@ -1263,6 +1469,26 @@ fn main() -> io::Result<()> {
                                         // Toggle terminal tinting and save
                                         app_config.toggle_tint_terminal();
                                         tint_terminal = app_config.tint_terminal;
+
+                                        // Show success prompt and close config window
+                                        let (cols, rows) = backend.dimensions();
+                                        active_prompt = Some(Prompt::new(
+                                            PromptType::Success,
+                                            "Settings saved successfully!".to_string(),
+                                            vec![PromptButton::new(
+                                                "OK".to_string(),
+                                                PromptAction::Confirm,
+                                                true,
+                                            )],
+                                            cols,
+                                            rows,
+                                        ));
+                                        active_config_window = None;
+                                        handled = true;
+                                    }
+                                    ConfigAction::ToggleAutoSave => {
+                                        // Toggle auto-save and save
+                                        app_config.toggle_auto_save();
 
                                         // Show success prompt and close config window
                                         let (cols, rows) = backend.dimensions();
@@ -1693,8 +1919,8 @@ fn main() -> io::Result<()> {
         }
     }
 
-    // Save session before exiting (unless --no-save flag is set)
-    if !cli_args.no_save {
+    // Save session before exiting (unless --no-save flag is set or auto-save is disabled)
+    if !cli_args.no_save && app_config.auto_save {
         let _ = window_manager.save_session_to_file();
     }
 
@@ -2027,7 +2253,7 @@ fn render_button_bar(
     current_x += 2;
 
     // Render help text on the right side
-    let help_text = " > 'h' Help | 's' Settings < ";
+    let help_text = " > F1 Help | 's' Settings < ";
     let help_text_len = help_text.len() as u16;
     if cols > help_text_len {
         let help_x = cols - help_text_len - 1;

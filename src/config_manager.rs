@@ -12,6 +12,8 @@ pub struct AppConfig {
     pub background_char_index: usize,
     #[serde(default = "default_tint_terminal")]
     pub tint_terminal: bool,
+    #[serde(default = "default_auto_save")]
+    pub auto_save: bool,
 }
 
 fn default_theme() -> String {
@@ -26,6 +28,10 @@ fn default_tint_terminal() -> bool {
     false // Default to false (preserve native ANSI colors)
 }
 
+fn default_auto_save() -> bool {
+    true // Default to true (auto-save session on exit)
+}
+
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -34,6 +40,7 @@ impl Default for AppConfig {
             theme: default_theme(),
             background_char_index: default_background_char_index(),
             tint_terminal: default_tint_terminal(),
+            auto_save: default_auto_save(),
         }
     }
 }
@@ -148,6 +155,12 @@ impl AppConfig {
     /// Toggle terminal tinting setting and save
     pub fn toggle_tint_terminal(&mut self) {
         self.tint_terminal = !self.tint_terminal;
+        let _ = self.save();
+    }
+
+    /// Toggle auto-save setting and save
+    pub fn toggle_auto_save(&mut self) {
+        self.auto_save = !self.auto_save;
         let _ = self.save();
     }
 }

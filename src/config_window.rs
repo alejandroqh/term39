@@ -14,6 +14,7 @@ pub enum ConfigAction {
     CycleTheme,
     CycleBackgroundChar,
     ToggleTintTerminal,
+    ToggleAutoSave,
 }
 
 /// Configuration modal window (centered, with border and title)
@@ -27,6 +28,7 @@ pub struct ConfigWindow {
     theme_row: u16,           // Row where theme selector is rendered
     background_char_row: u16, // Row where background character selector is rendered
     tint_terminal_row: u16,   // Row where tint terminal toggle is rendered
+    auto_save_row: u16,       // Row where auto-save toggle is rendered
 }
 
 impl ConfigWindow {
@@ -34,7 +36,7 @@ impl ConfigWindow {
     pub fn new(buffer_width: u16, buffer_height: u16) -> Self {
         // Fixed dimensions for config window
         let width = 60;
-        let height = 16; // Increased to fit all options including tint terminal
+        let height = 18; // Increased to fit all options including auto-save
 
         // Center on screen
         let x = (buffer_width.saturating_sub(width)) / 2;
@@ -46,6 +48,7 @@ impl ConfigWindow {
         let theme_row = y + 7; // Blank at y+6, third option at y+7
         let background_char_row = y + 9; // Blank at y+8, fourth option at y+9
         let tint_terminal_row = y + 11; // Blank at y+10, fifth option at y+11
+        let auto_save_row = y + 13; // Blank at y+12, sixth option at y+13
 
         Self {
             width,
@@ -57,6 +60,7 @@ impl ConfigWindow {
             theme_row,
             background_char_row,
             tint_terminal_row,
+            auto_save_row,
         }
     }
 
@@ -203,6 +207,16 @@ impl ConfigWindow {
             self.tint_terminal_row,
             "Tint terminal content:",
             tint_terminal,
+            charset,
+            theme,
+        );
+
+        // Render auto-save toggle
+        self.render_option(
+            buffer,
+            self.auto_save_row,
+            "Auto-save session on exit:",
+            config.auto_save,
             charset,
             theme,
         );
@@ -387,6 +401,14 @@ impl ConfigWindow {
             // Click anywhere on the row toggles the option
             if x >= self.x && x < self.x + self.width {
                 return ConfigAction::ToggleTintTerminal;
+            }
+        }
+
+        // Check if click is on auto-save row
+        if y == self.auto_save_row {
+            // Click anywhere on the row toggles the option
+            if x >= self.x && x < self.x + self.width {
+                return ConfigAction::ToggleAutoSave;
             }
         }
 
