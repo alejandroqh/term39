@@ -325,8 +325,7 @@ pub fn get_session_path() -> io::Result<PathBuf> {
 /// Save session state to a file
 pub fn save_session(state: &SessionState, path: &Path) -> io::Result<()> {
     // Serialize to JSON
-    let json =
-        serde_json::to_string_pretty(state).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let json = serde_json::to_string_pretty(state).map_err(io::Error::other)?;
 
     // Write to temp file first, then rename (atomic operation)
     let temp_path = path.with_extension("json.tmp");
