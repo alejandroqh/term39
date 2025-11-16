@@ -1,8 +1,10 @@
 use crate::charset::Charset;
+use crate::session::{self, SessionState, WindowSnapshot};
 use crate::terminal_window::TerminalWindow;
 use crate::theme::Theme;
 use crate::video_buffer::VideoBuffer;
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use std::io;
 use std::time::Instant;
 
 /// Focus state - either desktop or a specific window
@@ -998,6 +1000,113 @@ impl WindowManager {
         } else {
             false
         }
+    }
+
+    /// Save current session to file
+    pub fn save_session_to_file(&self) -> io::Result<()> {
+        let path = session::get_session_path()?;
+        let state = self.create_session_state();
+        session::save_session(&state, &path)?;
+        Ok(())
+    }
+
+    /// Create a session state from current windows
+    fn create_session_state(&self) -> SessionState {
+        let mut state = SessionState::new();
+        state.next_id = self.next_id;
+
+        // Extract focused window ID
+        state.focused_window_id = match self.focus {
+            FocusState::Window(id) => Some(id),
+            FocusState::Desktop => None,
+        };
+
+        // Extract window snapshots (in z-order)
+        for terminal_window in &self.windows {
+            let window = &terminal_window.window;
+            let (terminal_lines, cursor) = terminal_window.get_terminal_content();
+            let (pre_max_x, pre_max_y, pre_max_w, pre_max_h) = window.get_pre_maximize_geometry();
+
+            let snapshot = WindowSnapshot {
+                id: window.id,
+                title: window.title.clone(),
+                x: window.x,
+                y: window.y,
+                width: window.width,
+                height: window.height,
+                is_focused: window.is_focused,
+                is_minimized: window.is_minimized,
+                is_maximized: window.is_maximized,
+                pre_maximize_x: pre_max_x,
+                pre_maximize_y: pre_max_y,
+                pre_maximize_width: pre_max_w,
+                pre_maximize_height: pre_max_h,
+                scroll_offset: terminal_window.get_scroll_offset(),
+                cursor,
+                terminal_lines,
+            };
+
+            state.windows.push(snapshot);
+        }
+
+        state
+    }
+
+    /// Restore session from file
+    pub fn restore_session_from_file() -> io::Result<Self> {
+        let path = session::get_session_path()?;
+
+        // Try to load session
+        let state = match session::load_session(&path)? {
+            Some(s) => s,
+            None => {
+                // No session file found, return default
+                return Ok(Self::new());
+            }
+        };
+
+        let mut manager = Self::new();
+        manager.next_id = state.next_id;
+
+        // Restore windows
+        for snapshot in state.windows {
+            // Create new terminal window with same geometry
+            if let Ok(mut terminal_window) = TerminalWindow::new(
+                snapshot.id,
+                snapshot.x,
+                snapshot.y,
+                snapshot.width,
+                snapshot.height,
+                snapshot.title.clone(),
+            ) {
+                // Restore window state
+                terminal_window.set_focused(snapshot.is_focused);
+                terminal_window.window.is_minimized = snapshot.is_minimized;
+                terminal_window.window.is_maximized = snapshot.is_maximized;
+                terminal_window.window.set_pre_maximize_geometry(
+                    snapshot.pre_maximize_x,
+                    snapshot.pre_maximize_y,
+                    snapshot.pre_maximize_width,
+                    snapshot.pre_maximize_height,
+                );
+
+                // Restore scroll offset
+                terminal_window.set_scroll_offset(snapshot.scroll_offset);
+
+                // Restore terminal content
+                terminal_window.restore_terminal_content(snapshot.terminal_lines, &snapshot.cursor);
+
+                manager.windows.push(terminal_window);
+            }
+        }
+
+        // Restore focus state
+        manager.focus = match state.focused_window_id {
+            Some(id) => FocusState::Window(id),
+            None => FocusState::Desktop,
+        };
+
+        Ok(manager)
     }
 }
 

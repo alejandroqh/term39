@@ -17,6 +17,7 @@ mod info_window;
 mod prompt;
 mod render_backend;
 mod selection;
+mod session;
 mod term_grid;
 mod terminal_emulator;
 mod terminal_window;
@@ -242,8 +243,13 @@ fn main() -> io::Result<()> {
     let (cols, rows) = backend.dimensions();
     let mut video_buffer = VideoBuffer::new(cols, rows);
 
-    // Initialize window manager
-    let mut window_manager = WindowManager::new();
+    // Initialize window manager (restore from session unless --no-restore is set)
+    let mut window_manager = if !cli_args.no_restore {
+        // Try to restore session, fall back to new if it fails
+        WindowManager::restore_session_from_file().unwrap_or_else(|_| WindowManager::new())
+    } else {
+        WindowManager::new()
+    };
 
     // Create the "New Terminal" button
     let mut new_terminal_button = Button::new(1, 0, "+New Terminal".to_string());
@@ -747,6 +753,17 @@ fn main() -> io::Result<()> {
                         continue;
                     }
 
+                    // Handle CTRL+S to save session manually
+                    if key_event.code == KeyCode::Char('s')
+                        && key_event.modifiers.contains(KeyModifiers::CONTROL)
+                    {
+                        // Save session to file (unless --no-save flag is set)
+                        if !cli_args.no_save {
+                            let _ = window_manager.save_session_to_file();
+                        }
+                        continue;
+                    }
+
                     // Handle Ctrl+Shift+C to copy selection
                     if key_event.code == KeyCode::Char('C')
                         && key_event.modifiers.contains(KeyModifiers::CONTROL)
@@ -1153,10 +1170,40 @@ fn main() -> io::Result<()> {
                                         };
                                         auto_tiling_button =
                                             Button::new(1, rows - 1, auto_tiling_text.to_string());
+
+                                        // Show success prompt and close config window
+                                        let (cols, rows) = backend.dimensions();
+                                        active_prompt = Some(Prompt::new(
+                                            PromptType::Success,
+                                            "Settings saved successfully!".to_string(),
+                                            vec![PromptButton::new(
+                                                "OK".to_string(),
+                                                PromptAction::Confirm,
+                                                true,
+                                            )],
+                                            cols,
+                                            rows,
+                                        ));
+                                        active_config_window = None;
                                         handled = true;
                                     }
                                     ConfigAction::ToggleShowDate => {
                                         app_config.toggle_show_date_in_clock();
+
+                                        // Show success prompt and close config window
+                                        let (cols, rows) = backend.dimensions();
+                                        active_prompt = Some(Prompt::new(
+                                            PromptType::Success,
+                                            "Settings saved successfully!".to_string(),
+                                            vec![PromptButton::new(
+                                                "OK".to_string(),
+                                                PromptAction::Confirm,
+                                                true,
+                                            )],
+                                            cols,
+                                            rows,
+                                        ));
+                                        active_config_window = None;
                                         handled = true;
                                     }
                                     ConfigAction::CycleTheme => {
@@ -1173,6 +1220,21 @@ fn main() -> io::Result<()> {
                                         let _ = app_config.save();
                                         // Reload theme
                                         theme = Theme::from_name(&app_config.theme);
+
+                                        // Show success prompt and close config window
+                                        let (cols, rows) = backend.dimensions();
+                                        active_prompt = Some(Prompt::new(
+                                            PromptType::Success,
+                                            "Settings saved successfully!".to_string(),
+                                            vec![PromptButton::new(
+                                                "OK".to_string(),
+                                                PromptAction::Confirm,
+                                                true,
+                                            )],
+                                            cols,
+                                            rows,
+                                        ));
+                                        active_config_window = None;
                                         handled = true;
                                     }
                                     ConfigAction::CycleBackgroundChar => {
@@ -1180,12 +1242,42 @@ fn main() -> io::Result<()> {
                                         app_config.cycle_background_char();
                                         // Update charset with new background character
                                         charset.set_background(app_config.get_background_char());
+
+                                        // Show success prompt and close config window
+                                        let (cols, rows) = backend.dimensions();
+                                        active_prompt = Some(Prompt::new(
+                                            PromptType::Success,
+                                            "Settings saved successfully!".to_string(),
+                                            vec![PromptButton::new(
+                                                "OK".to_string(),
+                                                PromptAction::Confirm,
+                                                true,
+                                            )],
+                                            cols,
+                                            rows,
+                                        ));
+                                        active_config_window = None;
                                         handled = true;
                                     }
                                     ConfigAction::ToggleTintTerminal => {
                                         // Toggle terminal tinting and save
                                         app_config.toggle_tint_terminal();
                                         tint_terminal = app_config.tint_terminal;
+
+                                        // Show success prompt and close config window
+                                        let (cols, rows) = backend.dimensions();
+                                        active_prompt = Some(Prompt::new(
+                                            PromptType::Success,
+                                            "Settings saved successfully!".to_string(),
+                                            vec![PromptButton::new(
+                                                "OK".to_string(),
+                                                PromptAction::Confirm,
+                                                true,
+                                            )],
+                                            cols,
+                                            rows,
+                                        ));
+                                        active_config_window = None;
                                         handled = true;
                                     }
                                     ConfigAction::None => {
@@ -1599,6 +1691,11 @@ fn main() -> io::Result<()> {
                 _ => {}
             }
         }
+    }
+
+    // Save session before exiting (unless --no-save flag is set)
+    if !cli_args.no_save {
+        let _ = window_manager.save_session_to_file();
     }
 
     // Cleanup: restore terminal

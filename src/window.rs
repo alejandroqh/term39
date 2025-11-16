@@ -324,4 +324,22 @@ impl Window {
             }
         }
     }
+
+    /// Get pre-maximize geometry (for session persistence)
+    pub fn get_pre_maximize_geometry(&self) -> (u16, u16, u16, u16) {
+        (
+            self.pre_maximize_x,
+            self.pre_maximize_y,
+            self.pre_maximize_width,
+            self.pre_maximize_height,
+        )
+    }
+
+    /// Set pre-maximize geometry (for session restoration)
+    pub fn set_pre_maximize_geometry(&mut self, x: u16, y: u16, width: u16, height: u16) {
+        self.pre_maximize_x = x;
+        self.pre_maximize_y = y;
+        self.pre_maximize_width = width;
+        self.pre_maximize_height = height;
+    }
 }

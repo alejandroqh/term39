@@ -1,4 +1,7 @@
 use crate::ansi_handler::AnsiHandler;
+use crate::session::{
+    MAX_LINES_PER_TERMINAL, SerializableCell, SerializableCursor, SerializableTerminalLine,
+};
 use crate::term_grid::TerminalGrid;
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use std::io::{Read, Write};
@@ -170,5 +173,71 @@ impl TerminalEmulator {
         let mut buf = [0u8; 4];
         let s = c.encode_utf8(&mut buf);
         self.write_input(s.as_bytes())
+    }
+
+    /// Extract terminal content (scrollback + visible lines) for session persistence
+    /// Returns at most MAX_LINES_PER_TERMINAL lines (most recent lines are kept)
+    pub fn get_terminal_content(&self) -> (Vec<SerializableTerminalLine>, SerializableCursor) {
+        let grid = self.grid.lock().unwrap();
+
+        let mut all_lines = Vec::new();
+
+        // Get scrollback lines (oldest first)
+        let scrollback_len = grid.scrollback_len();
+        for i in 0..scrollback_len {
+            if let Some(line) = grid.get_scrollback_line(i) {
+                let cells: Vec<SerializableCell> =
+                    line.iter().map(SerializableCell::from).collect();
+                all_lines.push(SerializableTerminalLine { cells });
+            }
+        }
+
+        // Get visible screen lines
+        let rows = grid.rows();
+        for y in 0..rows {
+            let mut cells = Vec::new();
+            let cols = grid.cols();
+            for x in 0..cols {
+                if let Some(cell) = grid.get_cell(x, y) {
+                    cells.push(SerializableCell::from(cell));
+                }
+            }
+            all_lines.push(SerializableTerminalLine { cells });
+        }
+
+        // Limit to MAX_LINES_PER_TERMINAL (keep most recent lines)
+        if all_lines.len() > MAX_LINES_PER_TERMINAL {
+            let skip = all_lines.len() - MAX_LINES_PER_TERMINAL;
+            all_lines = all_lines.into_iter().skip(skip).collect();
+        }
+
+        // Get cursor position
+        let cursor = SerializableCursor::from(&grid.cursor);
+
+        (all_lines, cursor)
+    }
+
+    /// Restore terminal content from saved session data
+    /// This is called after creating a new terminal to restore previous session content
+    pub fn restore_terminal_content(
+        &mut self,
+        lines: Vec<SerializableTerminalLine>,
+        cursor: &SerializableCursor,
+    ) {
+        // Convert SerializableTerminalLine back to Vec<TerminalCell>
+        let terminal_lines: Vec<Vec<crate::term_grid::TerminalCell>> = lines
+            .iter()
+            .map(|line| {
+                line.cells
+                    .iter()
+                    .map(crate::term_grid::TerminalCell::from)
+                    .collect()
+            })
+            .collect();
+
+        // Restore content to grid
+        let mut grid = self.grid.lock().unwrap();
+        grid.restore_content(terminal_lines);
+        grid.set_cursor(cursor.x, cursor.y, cursor.visible);
     }
 }

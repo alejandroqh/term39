@@ -585,6 +585,30 @@ impl TerminalWindow {
         let content_height = self.window.height.saturating_sub(2);
         (content_x, content_y, content_width, content_height)
     }
+
+    /// Set scroll offset (for session restoration)
+    pub fn set_scroll_offset(&mut self, offset: usize) {
+        self.scroll_offset = offset;
+    }
+
+    /// Extract terminal content for session persistence
+    pub fn get_terminal_content(
+        &self,
+    ) -> (
+        Vec<crate::session::SerializableTerminalLine>,
+        crate::session::SerializableCursor,
+    ) {
+        self.emulator.get_terminal_content()
+    }
+
+    /// Restore terminal content from session
+    pub fn restore_terminal_content(
+        &mut self,
+        lines: Vec<crate::session::SerializableTerminalLine>,
+        cursor: &crate::session::SerializableCursor,
+    ) {
+        self.emulator.restore_terminal_content(lines, cursor);
+    }
 }
 
 /// Convert a terminal cell to a video buffer cell

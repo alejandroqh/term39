@@ -21,6 +21,7 @@ KEYBOARD SHORTCUTS:
   's'         - Show settings/configuration window
   'c'         - Show calendar
   CTRL+L      - Clear terminal
+  CTRL+S      - Save session manually
   ALT+TAB     - Switch between windows
 
 MOUSE CONTROLS:
@@ -67,6 +68,21 @@ pub struct Cli {
     /// appearance of terminal programs. Disabled by default to preserve native ANSI colors.
     #[arg(long, help = "Apply theme-based tinting to terminal content")]
     pub tint_terminal: bool,
+
+    /// Don't restore previous session on startup
+    ///
+    /// By default, term39 automatically restores your previous session (window layouts
+    /// and terminal content) when you start it. Use this flag to start with a fresh
+    /// session instead.
+    #[arg(long, help = "Don't restore previous session on startup")]
+    pub no_restore: bool,
+
+    /// Don't save session (disables both auto-save on exit and manual save)
+    ///
+    /// By default, term39 saves your session when you exit and allows manual saving
+    /// with Ctrl+S. Use this flag to disable all session saving functionality.
+    #[arg(long, help = "Don't save session (disables auto-save and manual save)")]
+    pub no_save: bool,
 
     /// Enable framebuffer mode (Linux console only, requires --features framebuffer-backend)
     ///

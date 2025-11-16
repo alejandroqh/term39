@@ -444,6 +444,49 @@ impl TerminalGrid {
         self.scroll_region_top = 0;
         self.scroll_region_bottom = self.rows_count.saturating_sub(1);
     }
+
+    /// Restore terminal content from saved lines (for session restoration)
+    /// This replaces the scrollback and visible screen with the saved content
+    pub fn restore_content(&mut self, lines: Vec<Vec<TerminalCell>>) {
+        if lines.is_empty() {
+            return;
+        }
+
+        // Clear current content
+        self.scrollback.clear();
+        self.rows.clear();
+
+        // Split lines into scrollback and visible screen
+        let total_lines = lines.len();
+        if total_lines <= self.rows_count {
+            // All lines fit in visible screen, no scrollback
+            self.rows = lines;
+            // Pad with empty lines if needed
+            while self.rows.len() < self.rows_count {
+                self.rows.push(vec![TerminalCell::default(); self.cols]);
+            }
+        } else {
+            // Some lines go into scrollback
+            let scrollback_count = total_lines - self.rows_count;
+            self.scrollback = lines[..scrollback_count].to_vec();
+            self.rows = lines[scrollback_count..].to_vec();
+        }
+
+        // Ensure rows match the current column count
+        for row in &mut self.rows {
+            row.resize(self.cols, TerminalCell::default());
+        }
+        for row in &mut self.scrollback {
+            row.resize(self.cols, TerminalCell::default());
+        }
+    }
+
+    /// Set cursor position (for session restoration)
+    pub fn set_cursor(&mut self, x: usize, y: usize, visible: bool) {
+        self.cursor.x = x.min(self.cols.saturating_sub(1));
+        self.cursor.y = y.min(self.rows_count.saturating_sub(1));
+        self.cursor.visible = visible;
+    }
 }
 
 impl fmt::Debug for TerminalGrid {
