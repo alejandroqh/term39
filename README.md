@@ -69,37 +69,67 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
 
 ### From crates.io
 ```bash
-cargo install term39  # Standard installation
-cargo install term39 --features framebuffer-backend  # Linux with framebuffer support
+# Standard installation
+cargo install term39
+
+# Linux with framebuffer support
+cargo install term39 --features framebuffer-backend
 ```
 Requires Rust ([Install](https://rustup.rs/))
 
 ### Linux Packages
 Download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
-- **Debian/Ubuntu**: `sudo dpkg -i term39_*_amd64.deb` or `sudo apt install ./term39_*_amd64.deb`
-- **Fedora/RHEL**: `sudo rpm -i term39-*.x86_64.rpm` or `sudo dnf install term39-*.x86_64.rpm`
+- **Fedora/RHEL**:
+  ```bash
+  sudo rpm -i term39-*-1.x86_64.rpm
+  # or: sudo dnf install term39-*-1.x86_64.rpm
+  ```
 - **Arch (AUR)**: `yay -S term39-bin` or `yay -S term39`
+- **Tarball**:
+  ```bash
+  tar xzf term39-v*-linux-x86_64.tar.gz
+  sudo mv term39 /usr/local/bin/
+  ```
 
 ### macOS
 ```bash
-tar xzf term39-*.tar.gz
+# Intel (x86_64)
+tar xzf term39-v*-macos-x86_64.tar.gz
 sudo mv term39 /usr/local/bin/
+
+# Apple Silicon (ARM64)
+tar xzf term39-v*-macos-arm64.tar.gz
+sudo mv term39 /usr/local/bin/
+```
+
+### Windows
+Download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
+```powershell
+# Option 1: Run the installer (x86_64)
+.\term39-v*-windows-x86_64-pc-windows-msvc-installer.exe
+
+# Option 2: Portable - Extract ZIP
+Expand-Archive term39-v*-windows-x86_64.zip
+# Add to PATH (optional)
+$env:Path += ";$PWD\term39-v*-windows-x86_64"
 ```
 
 ### From Source
 ```bash
 git clone https://github.com/alejandroqh/term39.git
 cd term39
-cargo build --release  # Add --features framebuffer-backend for Linux framebuffer
+# Add --features framebuffer-backend for Linux framebuffer
+cargo build --release
 ./target/release/term39
 ```
 
 ## Usage
 
 ```bash
-./term39                          # Run with Unicode (recommended)
-./term39 --ascii                  # ASCII mode for compatibility
-./term39 --theme dark             # Themes: classic, dark, monochrome, green_phosphor, amber
+./term39                 # Run with Unicode (recommended)
+./term39 --ascii         # ASCII mode for compatibility
+./term39 --theme dark    # Themes: classic, dark, monochrome,
+                         #         green_phosphor, amber
 ```
 
 ### Keyboard Shortcuts
