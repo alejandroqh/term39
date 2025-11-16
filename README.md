@@ -103,11 +103,31 @@ cargo build --release  # Add --features framebuffer-backend for Linux framebuffe
 ```
 
 ### Keyboard Shortcuts
+
+**General**
 | Key | Action | Key | Action |
 |-----|--------|-----|--------|
-| `t` / `T` | New window / Maximized window | `h` / `s` / `l` / `c` | Help / Settings / License / Calendar |
-| `q` / `ESC` | Exit (desktop) | `ALT+TAB` | Switch windows |
-| `Ctrl+Shift+C` / `V` | Copy / Paste | `TAB` / `ENTER` | Navigate / Activate (dialogs) |
+| `t` / `T` | New window / Maximized window | `q` / `ESC` | Exit (desktop) |
+| `F1` / `h` | Show help | `s` | Settings |
+| `l` | License | `c` | Calendar |
+
+**Window & Session**
+| Key | Action | Key | Action |
+|-----|--------|-----|--------|
+| `F2` / `ALT+TAB` | Switch windows | `F3` | Save session |
+| `F4` / `Ctrl+L` | Clear terminal | | |
+
+**Copy & Paste**
+| Key | Action | Key | Action |
+|-----|--------|-----|--------|
+| `F6` / `Ctrl+Shift+C` | Copy selection | `F7` / `Ctrl+Shift+V` | Paste |
+| `Cmd+C` (macOS) | Copy selection | `Cmd+V` (macOS) | Paste |
+
+**Dialog Controls**
+| Key | Action | Key | Action |
+|-----|--------|-----|--------|
+| `TAB` / Arrow keys | Navigate buttons | `ENTER` | Activate button |
+| `ESC` | Close dialog | | |
 
 ### Mouse Controls
 - **Title bar**: Drag to move | **[X]/[+]/[_]**: Close/Maximize/Minimize | **╬ handle**: Resize
@@ -131,11 +151,6 @@ cargo test && cargo clippy && cargo fmt   # Test, lint, format
 ## Contributing
 
 Fork, create branch, test with `cargo test && cargo clippy`, commit, push, open PR. Follow Rust best practices, run `cargo fmt`, keep commits atomic.
-
-## Roadmap
-
-- [x] Configuration, tiling, snap corners, themes, clipboard, scrollback
-- [ ] Session persistence, tab completion, split panes, search, advanced selection
 
 ## Dependencies
 
