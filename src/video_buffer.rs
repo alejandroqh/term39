@@ -1,4 +1,5 @@
 use crate::charset::Charset;
+use crate::color_utils;
 use crate::theme::Theme;
 use crossterm::{
     cursor, execute,
@@ -15,7 +16,24 @@ pub struct Cell {
 }
 
 impl Cell {
+    /// Create a new cell with automatic contrast checking.
+    /// If the contrast ratio between foreground and background is too low,
+    /// the colors will be automatically adjusted to ensure readability.
+    /// Uses WCAG 2.1 AA standard (4.5:1 contrast ratio for normal text).
     pub fn new(character: char, fg_color: Color, bg_color: Color) -> Self {
+        // Ensure minimum contrast ratio of 4.5:1 (WCAG AA level)
+        let (adjusted_fg, adjusted_bg) = color_utils::ensure_contrast(fg_color, bg_color, 4.5);
+
+        Self {
+            character,
+            fg_color: adjusted_fg,
+            bg_color: adjusted_bg,
+        }
+    }
+
+    /// Create a new cell without contrast checking.
+    /// Use this for special effects like shadows where low contrast is intentional.
+    pub fn new_unchecked(character: char, fg_color: Color, bg_color: Color) -> Self {
         Self {
             character,
             fg_color,
@@ -204,7 +222,7 @@ pub fn render_shadow(
                     // Get existing cell and preserve its character
                     if let Some(existing_cell) = buffer.get(shadow_x, shadow_y) {
                         let shadowed_cell =
-                            Cell::new(existing_cell.character, shadow_fg, shadow_bg);
+                            Cell::new_unchecked(existing_cell.character, shadow_fg, shadow_bg);
                         buffer.set(shadow_x, shadow_y, shadowed_cell);
                     }
                 }
@@ -220,7 +238,8 @@ pub fn render_shadow(
             if shadow_x < buffer_width {
                 // Get existing cell and preserve its character
                 if let Some(existing_cell) = buffer.get(shadow_x, shadow_y) {
-                    let shadowed_cell = Cell::new(existing_cell.character, shadow_fg, shadow_bg);
+                    let shadowed_cell =
+                        Cell::new_unchecked(existing_cell.character, shadow_fg, shadow_bg);
                     buffer.set(shadow_x, shadow_y, shadowed_cell);
                 }
             }
@@ -241,7 +260,8 @@ pub fn render_fullscreen_shadow(buffer: &mut VideoBuffer) {
         for x in 0..width {
             // Get existing cell and preserve its character
             if let Some(existing_cell) = buffer.get(x, y) {
-                let shadowed_cell = Cell::new(existing_cell.character, shadow_fg, shadow_bg);
+                let shadowed_cell =
+                    Cell::new_unchecked(existing_cell.character, shadow_fg, shadow_bg);
                 buffer.set(x, y, shadowed_cell);
             }
         }

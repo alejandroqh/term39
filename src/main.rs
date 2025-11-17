@@ -5,6 +5,7 @@ mod button;
 mod charset;
 mod cli;
 mod clipboard_manager;
+mod color_utils;
 mod config;
 mod config_manager;
 mod config_window;
