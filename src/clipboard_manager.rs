@@ -1,7 +1,9 @@
+#[cfg(feature = "clipboard")]
 use arboard::Clipboard;
 
 /// Manages clipboard operations with system clipboard integration
 pub struct ClipboardManager {
+    #[cfg(feature = "clipboard")]
     clipboard: Option<Clipboard>,
     last_copied: Option<String>,
 }
@@ -9,12 +11,18 @@ pub struct ClipboardManager {
 impl ClipboardManager {
     /// Create a new clipboard manager
     pub fn new() -> Self {
-        let clipboard = Clipboard::new().ok();
-        if clipboard.is_none() {
-            eprintln!("Warning: Could not initialize system clipboard");
-        }
+        #[cfg(feature = "clipboard")]
+        let clipboard_instance = {
+            let clipboard = Clipboard::new().ok();
+            if clipboard.is_none() {
+                eprintln!("Warning: Could not initialize system clipboard");
+            }
+            clipboard
+        };
+
         Self {
-            clipboard,
+            #[cfg(feature = "clipboard")]
+            clipboard: clipboard_instance,
             last_copied: None,
         }
     }
@@ -28,7 +36,8 @@ impl ClipboardManager {
         // Store in internal buffer
         self.last_copied = Some(text.clone());
 
-        // Try to copy to system clipboard
+        // Try to copy to system clipboard if available
+        #[cfg(feature = "clipboard")]
         if let Some(clipboard) = &mut self.clipboard {
             clipboard
                 .set_text(text)
@@ -40,7 +49,8 @@ impl ClipboardManager {
 
     /// Get text from clipboard (system or internal)
     pub fn paste(&mut self) -> Result<String, String> {
-        // Try system clipboard first
+        // Try system clipboard first if available
+        #[cfg(feature = "clipboard")]
         if let Some(clipboard) = &mut self.clipboard {
             if let Ok(text) = clipboard.get_text() {
                 return Ok(text);
@@ -61,6 +71,7 @@ impl ClipboardManager {
     /// Clear clipboard
     pub fn clear(&mut self) {
         self.last_copied = None;
+        #[cfg(feature = "clipboard")]
         if let Some(clipboard) = &mut self.clipboard {
             let _ = clipboard.clear();
         }

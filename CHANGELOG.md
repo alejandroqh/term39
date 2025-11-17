@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.5] - 2025-11-17
+
+### Added
+
+- Android/Termux support via optional clipboard feature
+- Internal clipboard buffer fallback for platforms without system clipboard support
+
+### Changed
+
+- Clipboard support (arboard) is now optional via feature flag
+- Default features include clipboard support for desktop platforms
+- Build with `--no-default-features` for Android/Termux compatibility
+
+### Fixed
+
+- Android/Termux compilation errors due to unsupported arboard dependency
+
 ## [0.8.1] - 2025-11-17
 
 ### Fixed
@@ -180,6 +197,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.8.5]: https://github.com/alejandroqh/term39/releases/tag/v0.8.5
 [0.8.1]: https://github.com/alejandroqh/term39/releases/tag/v0.8.1
 [0.8.0]: https://github.com/alejandroqh/term39/releases/tag/v0.8.0
 [0.7.6]: https://github.com/alejandroqh/term39/releases/tag/v0.7.6
