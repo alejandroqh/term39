@@ -154,13 +154,16 @@ cargo build --release
 
 ### Android/Termux
 
-For Android/Termux, build without the clipboard feature:
+For Android/Termux, install or build without the clipboard feature:
 
 ```bash
 # Install Rust in Termux
 pkg install rust
 
-# Clone and build (disable clipboard for Android compatibility)
+# Option 1: Install from crates.io (disable clipboard for Android compatibility)
+cargo install term39 --no-default-features
+
+# Option 2: Build from source
 git clone https://github.com/alejandroqh/term39.git
 cd term39
 cargo build --release --no-default-features
