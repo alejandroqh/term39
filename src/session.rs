@@ -366,3 +366,12 @@ pub fn load_session(path: &Path) -> io::Result<Option<SessionState>> {
 
     Ok(Some(state))
 }
+
+/// Clear/delete session file
+pub fn clear_session() -> io::Result<()> {
+    let path = get_session_path()?;
+    if path.exists() {
+        fs::remove_file(path)?;
+    }
+    Ok(())
+}

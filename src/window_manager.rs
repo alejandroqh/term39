@@ -1010,6 +1010,11 @@ impl WindowManager {
         Ok(())
     }
 
+    /// Clear/delete session file
+    pub fn clear_session_file() -> io::Result<()> {
+        session::clear_session()
+    }
+
     /// Create a session state from current windows
     fn create_session_state(&self) -> SessionState {
         let mut state = SessionState::new();

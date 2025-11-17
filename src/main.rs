@@ -273,7 +273,15 @@ fn main() -> io::Result<()> {
     // Initialize window manager (restore from session unless --no-restore is set)
     let mut window_manager = if !cli_args.no_restore {
         // Try to restore session, fall back to new if it fails
-        WindowManager::restore_session_from_file().unwrap_or_else(|_| WindowManager::new())
+        let manager =
+            WindowManager::restore_session_from_file().unwrap_or_else(|_| WindowManager::new());
+
+        // If auto-save is disabled, clear session after loading (one-time load)
+        if !app_config.auto_save {
+            let _ = WindowManager::clear_session_file();
+        }
+
+        manager
     } else {
         WindowManager::new()
     };
@@ -836,43 +844,55 @@ fn main() -> io::Result<()> {
 
                     // Handle F3 to save session (more compatible than CTRL+S)
                     if key_event.code == KeyCode::F(3) {
-                        // Save session to file (unless --no-save flag is set)
-                        if !cli_args.no_save {
-                            if window_manager.save_session_to_file().is_ok() {
-                                // Show success prompt
-                                let (cols, rows) = backend.dimensions();
-                                active_prompt = Some(Prompt::new(
-                                    PromptType::Success,
-                                    "Session saved successfully!".to_string(),
-                                    vec![PromptButton::new(
-                                        "OK".to_string(),
-                                        PromptAction::Cancel,
-                                        true,
-                                    )],
-                                    cols,
-                                    rows,
-                                ));
-                            } else {
-                                // Show error prompt if save failed
-                                let (cols, rows) = backend.dimensions();
-                                active_prompt = Some(Prompt::new(
-                                    PromptType::Danger,
-                                    "Failed to save session!".to_string(),
-                                    vec![PromptButton::new(
-                                        "OK".to_string(),
-                                        PromptAction::Cancel,
-                                        true,
-                                    )],
-                                    cols,
-                                    rows,
-                                ));
-                            }
-                        } else {
-                            // Show info that saving is disabled
+                        // Save session to file (unless --no-save flag is set OR auto-save is disabled)
+                        if cli_args.no_save {
+                            // Show info that saving is disabled by --no-save flag
                             let (cols, rows) = backend.dimensions();
                             active_prompt = Some(Prompt::new(
                                 PromptType::Warning,
                                 "Session saving is disabled (--no-save flag)".to_string(),
+                                vec![PromptButton::new(
+                                    "OK".to_string(),
+                                    PromptAction::Cancel,
+                                    true,
+                                )],
+                                cols,
+                                rows,
+                            ));
+                        } else if !app_config.auto_save {
+                            // Show info that auto-save is disabled in settings
+                            let (cols, rows) = backend.dimensions();
+                            active_prompt = Some(Prompt::new(
+                                PromptType::Warning,
+                                "Session auto-save is disabled in Settings".to_string(),
+                                vec![PromptButton::new(
+                                    "OK".to_string(),
+                                    PromptAction::Cancel,
+                                    true,
+                                )],
+                                cols,
+                                rows,
+                            ));
+                        } else if window_manager.save_session_to_file().is_ok() {
+                            // Show success prompt
+                            let (cols, rows) = backend.dimensions();
+                            active_prompt = Some(Prompt::new(
+                                PromptType::Success,
+                                "Session saved successfully!".to_string(),
+                                vec![PromptButton::new(
+                                    "OK".to_string(),
+                                    PromptAction::Cancel,
+                                    true,
+                                )],
+                                cols,
+                                rows,
+                            ));
+                        } else {
+                            // Show error prompt if save failed
+                            let (cols, rows) = backend.dimensions();
+                            active_prompt = Some(Prompt::new(
+                                PromptType::Danger,
+                                "Failed to save session!".to_string(),
                                 vec![PromptButton::new(
                                     "OK".to_string(),
                                     PromptAction::Cancel,
@@ -1377,39 +1397,13 @@ fn main() -> io::Result<()> {
                                         auto_tiling_button =
                                             Button::new(1, rows - 1, auto_tiling_text.to_string());
 
-                                        // Show success prompt and close config window
-                                        let (cols, rows) = backend.dimensions();
-                                        active_prompt = Some(Prompt::new(
-                                            PromptType::Success,
-                                            "Settings saved successfully!".to_string(),
-                                            vec![PromptButton::new(
-                                                "OK".to_string(),
-                                                PromptAction::Confirm,
-                                                true,
-                                            )],
-                                            cols,
-                                            rows,
-                                        ));
-                                        active_config_window = None;
+                                        // Keep config window open (silent save)
                                         handled = true;
                                     }
                                     ConfigAction::ToggleShowDate => {
                                         app_config.toggle_show_date_in_clock();
 
-                                        // Show success prompt and close config window
-                                        let (cols, rows) = backend.dimensions();
-                                        active_prompt = Some(Prompt::new(
-                                            PromptType::Success,
-                                            "Settings saved successfully!".to_string(),
-                                            vec![PromptButton::new(
-                                                "OK".to_string(),
-                                                PromptAction::Confirm,
-                                                true,
-                                            )],
-                                            cols,
-                                            rows,
-                                        ));
-                                        active_config_window = None;
+                                        // Keep config window open (silent save)
                                         handled = true;
                                     }
                                     ConfigAction::CycleTheme => {
@@ -1427,20 +1421,7 @@ fn main() -> io::Result<()> {
                                         // Reload theme
                                         theme = Theme::from_name(&app_config.theme);
 
-                                        // Show success prompt and close config window
-                                        let (cols, rows) = backend.dimensions();
-                                        active_prompt = Some(Prompt::new(
-                                            PromptType::Success,
-                                            "Settings saved successfully!".to_string(),
-                                            vec![PromptButton::new(
-                                                "OK".to_string(),
-                                                PromptAction::Confirm,
-                                                true,
-                                            )],
-                                            cols,
-                                            rows,
-                                        ));
-                                        active_config_window = None;
+                                        // Keep config window open (silent save)
                                         handled = true;
                                     }
                                     ConfigAction::CycleBackgroundChar => {
@@ -1449,20 +1430,7 @@ fn main() -> io::Result<()> {
                                         // Update charset with new background character
                                         charset.set_background(app_config.get_background_char());
 
-                                        // Show success prompt and close config window
-                                        let (cols, rows) = backend.dimensions();
-                                        active_prompt = Some(Prompt::new(
-                                            PromptType::Success,
-                                            "Settings saved successfully!".to_string(),
-                                            vec![PromptButton::new(
-                                                "OK".to_string(),
-                                                PromptAction::Confirm,
-                                                true,
-                                            )],
-                                            cols,
-                                            rows,
-                                        ));
-                                        active_config_window = None;
+                                        // Keep config window open (silent save)
                                         handled = true;
                                     }
                                     ConfigAction::ToggleTintTerminal => {
@@ -1470,40 +1438,19 @@ fn main() -> io::Result<()> {
                                         app_config.toggle_tint_terminal();
                                         tint_terminal = app_config.tint_terminal;
 
-                                        // Show success prompt and close config window
-                                        let (cols, rows) = backend.dimensions();
-                                        active_prompt = Some(Prompt::new(
-                                            PromptType::Success,
-                                            "Settings saved successfully!".to_string(),
-                                            vec![PromptButton::new(
-                                                "OK".to_string(),
-                                                PromptAction::Confirm,
-                                                true,
-                                            )],
-                                            cols,
-                                            rows,
-                                        ));
-                                        active_config_window = None;
+                                        // Keep config window open (silent save)
                                         handled = true;
                                     }
                                     ConfigAction::ToggleAutoSave => {
                                         // Toggle auto-save and save
                                         app_config.toggle_auto_save();
 
-                                        // Show success prompt and close config window
-                                        let (cols, rows) = backend.dimensions();
-                                        active_prompt = Some(Prompt::new(
-                                            PromptType::Success,
-                                            "Settings saved successfully!".to_string(),
-                                            vec![PromptButton::new(
-                                                "OK".to_string(),
-                                                PromptAction::Confirm,
-                                                true,
-                                            )],
-                                            cols,
-                                            rows,
-                                        ));
-                                        active_config_window = None;
+                                        // If auto-save was turned OFF, clear existing session
+                                        if !app_config.auto_save {
+                                            let _ = WindowManager::clear_session_file();
+                                        }
+
+                                        // Keep config window open (silent save)
                                         handled = true;
                                     }
                                     ConfigAction::None => {
@@ -1919,9 +1866,14 @@ fn main() -> io::Result<()> {
         }
     }
 
-    // Save session before exiting (unless --no-save flag is set or auto-save is disabled)
-    if !cli_args.no_save && app_config.auto_save {
-        let _ = window_manager.save_session_to_file();
+    // Save or clear session before exiting (unless --no-save flag is set)
+    if !cli_args.no_save {
+        if app_config.auto_save {
+            let _ = window_manager.save_session_to_file();
+        } else {
+            // Clear session when auto-save is disabled
+            let _ = WindowManager::clear_session_file();
+        }
     }
 
     // Cleanup: restore terminal
