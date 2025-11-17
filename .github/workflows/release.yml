@@ -210,13 +210,13 @@ jobs:
         if: runner.os == 'macOS'
         uses: softprops/action-gh-release@v1
         with:
-          files: ./term39-v${{ needs.create-release.outputs.version }}-macos-*.pkg
+          files: release/term39-v${{ needs.create-release.outputs.version }}-macos-*.pkg
 
       - name: Upload macOS DMG Installer
         if: runner.os == 'macOS'
         uses: softprops/action-gh-release@v1
         with:
-          files: ./term39-v${{ needs.create-release.outputs.version }}-macos-*.dmg
+          files: release/term39-v${{ needs.create-release.outputs.version }}-macos-*.dmg
 
       - name: Upload Release Assets (Windows)
         if: runner.os == 'Windows'

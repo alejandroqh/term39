@@ -25,7 +25,7 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
     <img src="assets/screenshot1.png" width="700" alt="TERM39 Main Interface"/>
   </a>
 
-  <br><br>
+<br><br>
 
   <table>
     <tr>
@@ -71,6 +71,7 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
 ## Installation
 
 ### From crates.io
+
 ```bash
 # Standard installation
 cargo install term39
@@ -78,10 +79,13 @@ cargo install term39
 # Linux with framebuffer support
 cargo install term39 --features framebuffer-backend
 ```
+
 Requires Rust ([Install](https://rustup.rs/))
 
 ### Linux Packages
+
 Download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
+
 - **Fedora/RHEL**:
   ```bash
   sudo rpm -i term39-*-1.x86_64.rpm
@@ -95,23 +99,25 @@ Download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
   ```
 
 ### macOS
+
 Download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
 
 **Option 1: PKG Installer (Recommended)**
+
 - Intel: `term39-v*-macos-intel.pkg`
 - Apple Silicon: `term39-v*-macos-apple-silicon.pkg`
 
 **Right-click** the PKG file and select **"Open"** to install (macOS will show a security warning for unsigned apps). The binary will be automatically placed in `/usr/local/bin/`.
 
 **Option 2: DMG Installer**
+
 - Intel: `term39-v*-macos-intel.dmg`
 - Apple Silicon: `term39-v*-macos-apple-silicon.dmg`
 
-**Right-click** the DMG file and select **"Open"**, then follow the installation instructions inside.
-
-> **Note**: Installers are unsigned. See [MACOS_INSTALLERS.md](MACOS_INSTALLERS.md) for detailed installation instructions and troubleshooting.
+**Right-click** the DMG file and select **"Open"**, then drag the app into the Applications folder.
 
 **Option 3: Manual Installation**
+
 ```bash
 # Intel (x86_64)
 tar xzf term39-v*-macos-64bit-x86-binary.tar.gz
@@ -123,7 +129,9 @@ sudo mv term39 /usr/local/bin/
 ```
 
 ### Windows
+
 Download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
+
 ```powershell
 # Option 1: Run the installer (x86_64)
 .\term39-v*-windows-x86_64-pc-windows-msvc-installer.exe
@@ -135,6 +143,7 @@ $env:Path += ";$PWD\term39-v*-windows-x86_64"
 ```
 
 ### From Source
+
 ```bash
 git clone https://github.com/alejandroqh/term39.git
 cd term39
@@ -180,6 +189,7 @@ cargo build --release
 | `ESC` | Close dialog | | |
 
 ### Mouse Controls
+
 - **Title bar**: Drag to move | **[X]/[+]/[_]**: Close/Maximize/Minimize | **╬ handle**: Resize
 - **Click window**: Focus | **Bottom bar**: Switch | **Drag/Right-click**: Select/Context menu
 
@@ -208,10 +218,8 @@ Fork, create branch, test with `cargo test && cargo clippy`, commit, push, open 
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file. Copyright (c) 2025 Alejandro Quintanar
+MIT License - see [LICENSE](LICENSE) file.
 
 ## Support
 
 [Issues](https://github.com/alejandroqh/term39/issues) | [Discussions](https://github.com/alejandroqh/term39/discussions) | [Wiki](https://github.com/alejandroqh/term39/wiki)
-
-

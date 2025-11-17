@@ -31,11 +31,15 @@ case "$TARGET" in
         ;;
 esac
 
-OUTPUT_DMG="term39-v${VERSION}-macos-${ARCH}.dmg"
+OUTPUT_DIR="release"
+OUTPUT_DMG="${OUTPUT_DIR}/term39-v${VERSION}-macos-${ARCH}.dmg"
 DMG_DIR="dmg-contents"
-TEMP_DMG="temp-${OUTPUT_DMG}"
+TEMP_DMG="${OUTPUT_DIR}/temp-term39-v${VERSION}-macos-${ARCH}.dmg"
 
 echo "Building DMG installer for term39 v${VERSION} (${ARCH})..."
+
+# Create output directory
+mkdir -p "$OUTPUT_DIR"
 
 # Check if binary exists
 if [ ! -f "$BINARY_PATH" ]; then
@@ -123,7 +127,6 @@ echo "Setting Finder view options..."
 osascript <<EOD || echo "Warning: Could not set all Finder options"
 tell application "Finder"
     tell disk "term39 v${VERSION}"
-        open
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
@@ -138,8 +141,7 @@ tell application "Finder"
             set position of item "Applications" of container window to {375, 150}
         end try
         update without registering applications
-        delay 2
-        close
+        delay 1
     end tell
 end tell
 EOD

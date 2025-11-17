@@ -30,9 +30,13 @@ case "$TARGET" in
         ;;
 esac
 
-OUTPUT_PKG="term39-v${VERSION}-macos-${ARCH}.pkg"
+OUTPUT_DIR="release"
+OUTPUT_PKG="${OUTPUT_DIR}/term39-v${VERSION}-macos-${ARCH}.pkg"
 
 echo "Building PKG installer for term39 v${VERSION} (${ARCH})..."
+
+# Create output directory
+mkdir -p "$OUTPUT_DIR"
 
 # Check if binary exists
 if [ ! -f "$BINARY_PATH" ]; then
