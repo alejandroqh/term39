@@ -95,13 +95,30 @@ Download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
   ```
 
 ### macOS
+Download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
+
+**Option 1: PKG Installer (Recommended)**
+- Intel: `term39-v*-macos-intel.pkg`
+- Apple Silicon: `term39-v*-macos-apple-silicon.pkg`
+
+**Right-click** the PKG file and select **"Open"** to install (macOS will show a security warning for unsigned apps). The binary will be automatically placed in `/usr/local/bin/`.
+
+**Option 2: DMG Installer**
+- Intel: `term39-v*-macos-intel.dmg`
+- Apple Silicon: `term39-v*-macos-apple-silicon.dmg`
+
+**Right-click** the DMG file and select **"Open"**, then follow the installation instructions inside.
+
+> **Note**: Installers are unsigned. See [MACOS_INSTALLERS.md](MACOS_INSTALLERS.md) for detailed installation instructions and troubleshooting.
+
+**Option 3: Manual Installation**
 ```bash
 # Intel (x86_64)
-tar xzf term39-v*-macos-x86_64.tar.gz
+tar xzf term39-v*-macos-64bit-x86-binary.tar.gz
 sudo mv term39 /usr/local/bin/
 
 # Apple Silicon (ARM64)
-tar xzf term39-v*-macos-arm64.tar.gz
+tar xzf term39-v*-macos-64bit-arm-binary.tar.gz
 sudo mv term39 /usr/local/bin/
 ```
 

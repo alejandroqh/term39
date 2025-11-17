@@ -185,11 +185,38 @@ jobs:
           Compress-Archive -Path term39.exe -DestinationPath term39-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}-${{ matrix.bitwidth }}-${{ matrix.arch }}-binary.zip
           Move-Item term39-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}-${{ matrix.bitwidth }}-${{ matrix.arch }}-binary.zip ${{ github.workspace }}/
 
+      # macOS PKG and DMG installers (unsigned - no Apple Developer account needed)
+      - name: Build PKG Installer (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          chmod +x build-macos-pkg.sh
+          # Build unsigned PKG (works without Apple Developer account)
+          ./build-macos-pkg.sh ${{ needs.create-release.outputs.version }} ${{ matrix.target }}
+
+      - name: Build DMG Installer (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          chmod +x build-macos-dmg.sh
+          # Build unsigned DMG using hdiutil (no dependencies needed)
+          ./build-macos-dmg.sh ${{ needs.create-release.outputs.version }} ${{ matrix.target }}
+
       - name: Upload Release Assets (Unix)
         if: runner.os != 'Windows'
         uses: softprops/action-gh-release@v1
         with:
           files: ./term39-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}-${{ matrix.bitwidth }}-${{ matrix.arch }}-binary.tar.gz
+
+      - name: Upload macOS PKG Installer
+        if: runner.os == 'macOS'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./term39-v${{ needs.create-release.outputs.version }}-macos-*.pkg
+
+      - name: Upload macOS DMG Installer
+        if: runner.os == 'macOS'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ./term39-v${{ needs.create-release.outputs.version }}-macos-*.dmg
 
       - name: Upload Release Assets (Windows)
         if: runner.os == 'Windows'
