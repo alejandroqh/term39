@@ -405,6 +405,7 @@ impl FramebufferRenderer {
     }
 
     /// Set cursor visibility
+    #[allow(dead_code)]
     pub fn set_cursor_visible(&mut self, visible: bool) {
         self.cursor_visible = visible;
     }

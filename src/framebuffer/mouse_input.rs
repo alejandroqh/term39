@@ -313,12 +313,14 @@ impl CursorTracker {
     }
 
     /// Set cursor position
+    #[allow(dead_code)]
     pub fn set_position(&mut self, x: usize, y: usize) {
         self.x = x.min(self.max_x - 1);
         self.y = y.min(self.max_y - 1);
     }
 
     /// Update screen bounds (for resize)
+    #[allow(dead_code)]
     pub fn set_bounds(&mut self, max_x: usize, max_y: usize) {
         self.max_x = max_x;
         self.max_y = max_y;
@@ -327,6 +329,7 @@ impl CursorTracker {
     }
 
     /// Set mouse sensitivity
+    #[allow(dead_code)]
     pub fn set_sensitivity(&mut self, sensitivity: f32) {
         self.sensitivity = sensitivity.clamp(0.1, 10.0);
     }

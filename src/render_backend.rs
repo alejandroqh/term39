@@ -164,12 +164,14 @@ impl FramebufferBackend {
     }
 
     /// Set cursor visibility
+    #[allow(dead_code)]
     pub fn set_cursor_visible(&mut self, visible: bool) {
         self.renderer.set_cursor_visible(visible);
     }
 
     /// Queue a mouse event with current cursor position
     /// event_type: 0=Down, 1=Up, 2=Drag
+    #[allow(dead_code)]
     fn queue_mouse_event(&mut self, event_type: u8, button_id: u8) {
         // Calculate coordinates at the time of the event
         let (cols, rows) = self.renderer.dimensions();
