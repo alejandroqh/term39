@@ -65,7 +65,7 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
 - **Clipboard Support**: System clipboard integration with drag-to-select, Ctrl+Shift+C/V, right-click menu
 - **Customizable Themes**: Classic, Dark, Monochrome, Green Phosphor, Amber (via `--theme` flag)
 - **Cross-Platform**: Linux, macOS, Windows with full VT100/ANSI support and true color
-- **Linux Framebuffer Mode**: Direct `/dev/fb0` rendering with DOS text modes (40x25, 80x25, 80x43, 80x50), requires `--features framebuffer-backend`
+- **Linux Framebuffer Mode**: Direct `/dev/fb0` rendering with DOS text modes (40x25, 80x25, ... , 320x200), requires `--features framebuffer-backend`
 - **ASCII Compatibility**: `--ascii` flag for maximum terminal compatibility
 
 ## Installation
@@ -246,7 +246,40 @@ Fork, create branch, test with `cargo test && cargo clippy`, commit, push, open 
 
 ## Dependencies
 
-[crossterm](https://github.com/crossterm-rs/crossterm), [chrono](https://github.com/chronotope/chrono), [portable-pty](https://github.com/wez/wezterm/tree/main/pty), [vte](https://github.com/alacritty/vte), [arboard](https://github.com/1Password/arboard)
+**Core**: [crossterm](https://github.com/crossterm-rs/crossterm) (terminal I/O), [chrono](https://github.com/chronotope/chrono) (clock), [portable-pty](https://github.com/wez/wezterm/tree/main/pty) (PTY), [vte](https://github.com/alacritty/vte) (ANSI parser), [clap](https://github.com/clap-rs/clap) (CLI args), [serde](https://github.com/serde-rs/serde)/[toml](https://github.com/toml-rs/toml) (config)
+
+**Optional**: [arboard](https://github.com/1Password/arboard) (clipboard, default), [framebuffer](https://github.com/royaltm/rust-framebuffer) (Linux FB mode)
+
+## Cargo Features
+
+### `clipboard` (Default: **ON**)
+System clipboard integration with Ctrl+Shift+C/V.
+- **Enable**: Desktop usage, copy/paste between apps
+- **Disable**: Android/Termux, headless servers → `--no-default-features`
+
+### `framebuffer-backend` (Default: **OFF**)
+Direct Linux framebuffer rendering with DOS text modes (40x25, 80x25, ... , 320x200).
+- **Modes**: 40x25, 80x25, 80x43, 80x50, 160x50, 160x100, 320x100, 320x200
+- **Enable**: Linux console (TTY), pixel-perfect retro rendering → `--features framebuffer-backend`
+- **Disable**: Terminal emulators, SSH, macOS/Windows
+- **Requires**: `/dev/fb0` access (root or 'video' group), physical console only
+
+```bash
+# Build examples
+cargo build --release                                                      # Standard (clipboard)
+cargo build --release --no-default-features                                # No clipboard
+cargo build --release --features framebuffer-backend                       # Framebuffer + clipboard
+cargo build --release --no-default-features --features framebuffer-backend # Framebuffer only
+
+# Install examples
+cargo install term39                                                       # Standard (clipboard)
+cargo install term39 --no-default-features                                 # No clipboard
+cargo install term39 --features framebuffer-backend                        # Framebuffer + clipboard
+cargo install term39 --no-default-features --features framebuffer-backend  # Framebuffer only
+
+# Run framebuffer mode
+sudo ./target/release/term39 --fb-mode=80x25
+```
 
 ## License
 
