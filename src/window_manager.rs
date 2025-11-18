@@ -90,7 +90,7 @@ impl WindowManager {
         }
     }
 
-    /// Create and add a new terminal window (returns window ID)
+    /// Create and add a new terminal window (returns window ID or error message)
     pub fn create_window(
         &mut self,
         x: u16,
@@ -99,7 +99,7 @@ impl WindowManager {
         height: u16,
         title: String,
         initial_command: Option<String>,
-    ) -> u32 {
+    ) -> Result<u32, String> {
         let id = self.next_id;
         self.next_id += 1;
 
@@ -108,17 +108,30 @@ impl WindowManager {
             w.set_focused(false);
         }
 
-        // Create terminal window (ignore errors for now)
-        if let Ok(mut terminal_window) =
-            TerminalWindow::new(id, x, y, width, height, title, initial_command)
-        {
-            terminal_window.set_focused(true);
-            self.windows.push(terminal_window);
-            self.focus = FocusState::Window(id);
-            id
-        } else {
-            // Failed to create terminal window
-            id
+        // Create terminal window
+        match TerminalWindow::new(
+            id,
+            x,
+            y,
+            width,
+            height,
+            title.clone(),
+            initial_command.clone(),
+        ) {
+            Ok(mut terminal_window) => {
+                terminal_window.set_focused(true);
+                self.windows.push(terminal_window);
+                self.focus = FocusState::Window(id);
+                Ok(id)
+            }
+            Err(e) => {
+                // Format error message for user
+                if let Some(cmd) = initial_command {
+                    Err(format!("Failed to launch '{}': {}", cmd, e))
+                } else {
+                    Err(format!("Failed to create terminal: {}", e))
+                }
+            }
         }
     }
 

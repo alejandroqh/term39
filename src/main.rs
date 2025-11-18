@@ -12,6 +12,7 @@ mod config;
 mod config_manager;
 mod config_window;
 mod context_menu;
+mod error_dialog;
 #[cfg(feature = "framebuffer-backend")]
 mod framebuffer;
 mod fuzzy_matcher;
@@ -47,6 +48,7 @@ use crossterm::{
     style::Color,
     terminal::{self, ClearType},
 };
+use error_dialog::ErrorDialog;
 use info_window::InfoWindow;
 use prompt::{Prompt, PromptAction, PromptButton, PromptType};
 #[cfg(feature = "framebuffer-backend")]
@@ -353,6 +355,9 @@ fn main() -> io::Result<()> {
     // Slight input popup state (None when not shown)
     let mut active_slight_input: Option<SlightInput> = None;
 
+    // Error dialog state (None when not shown)
+    let mut active_error_dialog: Option<ErrorDialog> = None;
+
     // Initialize autocomplete system (command indexer and history)
     let command_indexer = CommandIndexer::new();
     let mut command_history = CommandHistory::new();
@@ -504,6 +509,12 @@ fn main() -> io::Result<()> {
         if let Some(ref about_win) = active_about_window {
             video_buffer::render_fullscreen_shadow(&mut video_buffer);
             about_win.render(&mut video_buffer, &charset, &theme);
+        }
+
+        // Render error dialog (if any) on top of everything
+        if let Some(ref error_dialog) = active_error_dialog {
+            video_buffer::render_fullscreen_shadow(&mut video_buffer);
+            error_dialog.render(&mut video_buffer, &charset, &theme);
         }
 
         // Render context menu (if visible)
@@ -707,6 +718,21 @@ fn main() -> io::Result<()> {
                         }
                     }
 
+                    // Handle error dialog keyboard events if active
+                    if active_error_dialog.is_some() {
+                        match key_event.code {
+                            KeyCode::Enter | KeyCode::Esc => {
+                                // Dismiss error dialog
+                                active_error_dialog = None;
+                                continue;
+                            }
+                            _ => {
+                                // Ignore other keys when error dialog is active
+                                continue;
+                            }
+                        }
+                    }
+
                     // Handle Slight input keyboard events if active
                     if let Some(ref mut slight_input) = active_slight_input {
                         match key_event.code {
@@ -775,18 +801,25 @@ fn main() -> io::Result<()> {
                                     let x = (cols.saturating_sub(width)) / 2;
                                     let y = ((rows.saturating_sub(height)) / 2).max(1);
 
-                                    let _terminal_id = window_manager.create_window(
+                                    match window_manager.create_window(
                                         x,
                                         y,
                                         width,
                                         height,
                                         format!("Terminal {}", window_manager.window_count() + 1),
                                         Some(command),
-                                    );
-
-                                    // Auto-position all windows based on the snap pattern
-                                    if auto_tiling_enabled {
-                                        window_manager.auto_position_windows(cols, rows);
+                                    ) {
+                                        Ok(_terminal_id) => {
+                                            // Auto-position all windows based on the snap pattern
+                                            if auto_tiling_enabled {
+                                                window_manager.auto_position_windows(cols, rows);
+                                            }
+                                        }
+                                        Err(error_msg) => {
+                                            // Show error dialog
+                                            active_error_dialog =
+                                                Some(ErrorDialog::new(cols, rows, error_msg));
+                                        }
                                     }
                                 }
                                 continue;
@@ -1325,18 +1358,25 @@ fn main() -> io::Result<()> {
                                 let x = (cols.saturating_sub(width)) / 2;
                                 let y = ((rows.saturating_sub(height)) / 2).max(1);
 
-                                window_manager.create_window(
+                                match window_manager.create_window(
                                     x,
                                     y,
                                     width,
                                     height,
                                     format!("Terminal {}", window_manager.window_count() + 1),
                                     None,
-                                );
-
-                                // Auto-position all windows based on the snap pattern
-                                if auto_tiling_enabled {
-                                    window_manager.auto_position_windows(cols, rows);
+                                ) {
+                                    Ok(_) => {
+                                        // Auto-position all windows based on the snap pattern
+                                        if auto_tiling_enabled {
+                                            window_manager.auto_position_windows(cols, rows);
+                                        }
+                                    }
+                                    Err(error_msg) => {
+                                        // Show error dialog
+                                        active_error_dialog =
+                                            Some(ErrorDialog::new(cols, rows, error_msg));
+                                    }
                                 }
                             } else {
                                 // Send 't' to terminal
@@ -1357,17 +1397,24 @@ fn main() -> io::Result<()> {
                                 let x = (cols.saturating_sub(width)) / 2;
                                 let y = ((rows.saturating_sub(height)) / 2).max(1);
 
-                                let window_id = window_manager.create_window(
+                                match window_manager.create_window(
                                     x,
                                     y,
                                     width,
                                     height,
                                     format!("Terminal {}", window_manager.window_count() + 1),
                                     None,
-                                );
-
-                                // Maximize the newly created window
-                                window_manager.maximize_window(window_id, cols, rows);
+                                ) {
+                                    Ok(window_id) => {
+                                        // Maximize the newly created window
+                                        window_manager.maximize_window(window_id, cols, rows);
+                                    }
+                                    Err(error_msg) => {
+                                        // Show error dialog
+                                        active_error_dialog =
+                                            Some(ErrorDialog::new(cols, rows, error_msg));
+                                    }
+                                }
                             } else {
                                 // Send 'T' to terminal
                                 let _ = window_manager.send_char_to_focused('T');
@@ -1503,6 +1550,22 @@ fn main() -> io::Result<()> {
                             } else if prompt.contains_point(mouse_event.column, mouse_event.row) {
                                 // Click inside prompt but not on a button - consume the event
                                 handled = true;
+                            }
+                        }
+                    }
+
+                    // Check if there's an active error dialog (after prompt, before other events)
+                    #[allow(clippy::collapsible_if)]
+                    if !handled {
+                        if let Some(ref error_dialog) = active_error_dialog {
+                            if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
+                                // Check if OK button was clicked
+                                if error_dialog
+                                    .is_ok_button_clicked(mouse_event.column, mouse_event.row)
+                                {
+                                    active_error_dialog = None;
+                                    handled = true;
+                                }
                             }
                         }
                     }
@@ -1668,18 +1731,24 @@ fn main() -> io::Result<()> {
                         let x = (cols.saturating_sub(width)) / 2;
                         let y = ((rows.saturating_sub(height)) / 2).max(1);
 
-                        window_manager.create_window(
+                        match window_manager.create_window(
                             x,
                             y,
                             width,
                             height,
                             format!("Terminal {}", window_manager.window_count() + 1),
                             None,
-                        );
-
-                        // Auto-position all windows based on the snap pattern
-                        if auto_tiling_enabled {
-                            window_manager.auto_position_windows(cols, rows);
+                        ) {
+                            Ok(_) => {
+                                // Auto-position all windows based on the snap pattern
+                                if auto_tiling_enabled {
+                                    window_manager.auto_position_windows(cols, rows);
+                                }
+                            }
+                            Err(error_msg) => {
+                                // Show error dialog
+                                active_error_dialog = Some(ErrorDialog::new(cols, rows, error_msg));
+                            }
                         }
 
                         handled = true;
