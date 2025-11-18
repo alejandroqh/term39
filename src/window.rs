@@ -205,26 +205,52 @@ impl Window {
     }
 
     fn render_frame(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
-        // Change colors based on focus state
-        let title_bg = if self.is_focused {
-            theme.window_title_bg_focused
-        } else {
-            theme.window_title_bg
-        };
-        let border_bg = if self.is_focused {
-            theme.window_content_bg
-        } else {
-            theme.window_title_bg // Use unfocused title bar color for borders
-        };
+        // Use window content background for title bar (both focused and unfocused)
+        let title_bg = theme.window_content_bg;
 
-        // Top border (title bar) - no border characters, just background
-        for x in 0..self.width {
+        // Border background uses content bg for consistency
+        let border_bg = theme.window_content_bg;
+
+        // Top border (title bar) with corner characters
+        // Top-left corner (2 chars wide)
+        buffer.set(
+            self.x,
+            self.y,
+            Cell::new(charset.border_top_left, theme.window_border, title_bg),
+        );
+        buffer.set(
+            self.x + 1,
+            self.y,
+            Cell::new(charset.border_horizontal, theme.window_border, title_bg),
+        );
+
+        // Top border middle
+        for x in 2..self.width - 3 {
             buffer.set(
                 self.x + x,
                 self.y,
                 Cell::new(' ', theme.window_border, title_bg),
             );
         }
+
+        // T-junction separator before corner (╠ - double line on right)
+        buffer.set(
+            self.x + self.width - 3,
+            self.y,
+            Cell::new('╠', theme.window_border, title_bg),
+        );
+
+        // Top-right corner (2 chars wide)
+        buffer.set(
+            self.x + self.width - 2,
+            self.y,
+            Cell::new(charset.border_horizontal, theme.window_border, title_bg),
+        );
+        buffer.set(
+            self.x + self.width - 1,
+            self.y,
+            Cell::new(charset.border_top_right, theme.window_border, title_bg),
+        );
 
         // Side borders - 2 characters wide
         for y in 1..self.height - 1 {
@@ -243,11 +269,11 @@ impl Window {
             );
 
             // Right border (2 chars): inner space + outer vertical
-            // Inner right border (scrollbar area)
+            // Inner right border (scrollbar area) - use border_bg for fg to avoid white overlay
             buffer.set(
                 self.x + self.width - 2,
                 self.y + y,
-                Cell::new(' ', theme.window_border, border_bg),
+                Cell::new(' ', border_bg, border_bg),
             );
             // Outer right border (resizable)
             buffer.set(
@@ -295,12 +321,8 @@ impl Window {
     }
 
     fn render_title_bar(&self, buffer: &mut VideoBuffer, theme: &Theme) {
-        // Change title bar background color based on focus
-        let title_bg = if self.is_focused {
-            theme.window_title_bg_focused
-        } else {
-            theme.window_title_bg
-        };
+        // Use window content background for title bar
+        let title_bg = theme.window_content_bg;
 
         // Buttons: [X][+][_] followed by title
         let buttons = "[X][+][_] ";
@@ -312,8 +334,8 @@ impl Window {
                 'X' => (theme.button_close_color, theme.button_bg),
                 '+' => (theme.button_maximize_color, theme.button_bg),
                 '_' => (theme.button_minimize_color, theme.button_bg),
-                '[' | ']' => (theme.window_title_fg, theme.button_bg),
-                _ => (theme.window_title_fg, title_bg), // Space between buttons uses title background
+                '[' | ']' => (theme.window_border, theme.button_bg),
+                _ => (theme.window_border, title_bg), // Space between buttons uses title background
             };
             buffer.set(self.x + x_offset, self.y, Cell::new(ch, fg_color, bg_color));
             x_offset += 1;
@@ -325,7 +347,7 @@ impl Window {
             }
         }
 
-        // Render title text
+        // Render title text with border color
         let title_start = self.x + x_offset;
         let title_space = (self.width as i32 - x_offset as i32 - 2) as u16; // -2 for right border
 
@@ -333,7 +355,7 @@ impl Window {
             buffer.set(
                 title_start + i as u16,
                 self.y,
-                Cell::new(ch, theme.window_title_fg, title_bg),
+                Cell::new(ch, theme.window_border, title_bg),
             );
         }
     }

@@ -242,8 +242,8 @@ impl TerminalWindow {
 
         // Choose characters based on charset mode
         let track_char = match charset.mode {
-            CharsetMode::Unicode => '║',
-            CharsetMode::Ascii => '|',
+            CharsetMode::Unicode => '░', // Light shade for track
+            CharsetMode::Ascii => '.',
         };
         let thumb_char = match charset.mode {
             CharsetMode::Unicode => '█',

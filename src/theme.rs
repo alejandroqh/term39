@@ -23,8 +23,11 @@ pub struct Theme {
     pub clock_fg: Color,
 
     // Windows
+    #[allow(dead_code)]
     pub window_title_bg: Color,
+    #[allow(dead_code)]
     pub window_title_bg_focused: Color,
+    #[allow(dead_code)]
     pub window_title_fg: Color,
     pub window_border: Color,
     pub window_content_bg: Color,
