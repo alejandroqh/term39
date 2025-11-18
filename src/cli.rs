@@ -20,6 +20,7 @@ KEYBOARD SHORTCUTS:
   'h'         - Show help screen
   's'         - Show settings/configuration window
   'c'         - Show calendar
+  CTRL+Space  - Command launcher (Slight)
   CTRL+L      - Clear terminal
   CTRL+S      - Save session manually
   ALT+TAB     - Switch between windows
@@ -28,7 +29,7 @@ MOUSE CONTROLS:
   Click title bar     - Drag window
   CTRL+Drag          - Drag without snap
   Click [X]          - Close window
-  Drag ╬ handle      - Resize window
+  Drag border         - Resize window
   Click window       - Focus window
 ";
 

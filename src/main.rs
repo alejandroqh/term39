@@ -943,6 +943,7 @@ fn main() -> io::Result<()> {
                                 {{Y}}'l'{{W}}       - Show license and about information\n\
                                 {{Y}}'s'{{W}}       - Show settings/configuration window\n\
                                 {{Y}}'c'{{W}}       - Show calendar ({{Y}}\u{2190}\u{2192}{{W}} months, {{Y}}\u{2191}\u{2193}{{W}} years, {{Y}}t{{W}} today)\n\
+                                {{Y}}CTRL+Space{{W}} - Command launcher (Slight)\n\
                                 \n\
                                 {{C}}WINDOW & SESSION{{W}}\n\
                                 \n\
@@ -966,7 +967,7 @@ fn main() -> io::Result<()> {
                                 {{Y}}Click title bar{{W}}     - Drag window\n\
                                 {{Y}}CTRL+Drag{{W}}          - Drag without snap\n\
                                 {{Y}}Click [X]{{W}}           - Close window\n\
-                                {{Y}}Drag ╬ handle{{W}}       - Resize window\n\
+                                {{Y}}Drag border{{W}}         - Resize window\n\
                                 {{Y}}Click window{{W}}        - Focus window\n\
                                 {{Y}}Click bottom bar{{W}}    - Switch windows",
                                 copy_key, paste_key
@@ -1241,6 +1242,7 @@ fn main() -> io::Result<()> {
                                     {{Y}}'l'{{W}}       - Show license and about information\n\
                                     {{Y}}'s'{{W}}       - Show settings/configuration window\n\
                                     {{Y}}'c'{{W}}       - Show calendar ({{Y}}\u{2190}\u{2192}{{W}} months, {{Y}}\u{2191}\u{2193}{{W}} years, {{Y}}t{{W}} today)\n\
+                                    {{Y}}CTRL+Space{{W}} - Command launcher (Slight)\n\
                                     \n\
                                     {{C}}WINDOW & SESSION{{W}}\n\
                                     \n\
@@ -1264,7 +1266,7 @@ fn main() -> io::Result<()> {
                                     {{Y}}Click title bar{{W}}     - Drag window\n\
                                     {{Y}}CTRL+Drag{{W}}          - Drag without snap\n\
                                     {{Y}}Click [X]{{W}}           - Close window\n\
-                                    {{Y}}Drag ╬ handle{{W}}       - Resize window\n\
+                                    {{Y}}Drag border{{W}}         - Resize window\n\
                                     {{Y}}Click window{{W}}        - Focus window\n\
                                     {{Y}}Click bottom bar{{W}}    - Switch windows",
                                     copy_key, paste_key
