@@ -2,6 +2,13 @@ use crate::charset::Charset;
 use crate::theme::Theme;
 use crate::video_buffer::{self, Cell, VideoBuffer};
 
+/// Which edge is being resized
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ResizeEdge {
+    Left,
+    Bottom,
+}
+
 /// Represents a window in the UI
 #[derive(Clone, Debug)]
 pub struct Window {
@@ -73,11 +80,26 @@ impl Window {
         y == self.y && x >= self.x + 7 && x <= self.x + 9
     }
 
-    /// Check if point is in resize handle (bottom-right corner)
-    pub fn is_in_resize_handle(&self, x: u16, y: u16) -> bool {
-        let corner_x = self.x + self.width - 1;
-        let corner_y = self.y + self.height - 1;
-        x == corner_x && y == corner_y
+    /// Check if point is on left border (excluding corners)
+    pub fn is_on_left_border(&self, x: u16, y: u16) -> bool {
+        x == self.x && y > self.y && y < self.y + self.height - 1
+    }
+
+    /// Check if point is on bottom border (excluding corners)
+    pub fn is_on_bottom_border(&self, x: u16, y: u16) -> bool {
+        y == self.y + self.height - 1 && x > self.x && x < self.x + self.width - 1
+    }
+
+    /// Determine which resize edge (if any) is at the given point
+    /// Returns Some(edge) if on a resizable border, None otherwise
+    pub fn get_resize_edge(&self, x: u16, y: u16) -> Option<ResizeEdge> {
+        if self.is_on_left_border(x, y) {
+            Some(ResizeEdge::Left)
+        } else if self.is_on_bottom_border(x, y) {
+            Some(ResizeEdge::Bottom)
+        } else {
+            None
+        }
     }
 
     /// Check if point is within window bounds (including border)
@@ -146,19 +168,13 @@ impl Window {
     }
 
     /// Render the window to the video buffer
-    pub fn render(
-        &self,
-        buffer: &mut VideoBuffer,
-        is_resizing: bool,
-        charset: &Charset,
-        theme: &Theme,
-    ) {
+    pub fn render(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
         if self.is_minimized {
             return;
         }
 
         // Draw the window frame
-        self.render_frame(buffer, is_resizing, charset, theme);
+        self.render_frame(buffer, charset, theme);
 
         // Draw the title bar with buttons
         self.render_title_bar(buffer, theme);
@@ -178,13 +194,7 @@ impl Window {
         );
     }
 
-    fn render_frame(
-        &self,
-        buffer: &mut VideoBuffer,
-        is_resizing: bool,
-        charset: &Charset,
-        theme: &Theme,
-    ) {
+    fn render_frame(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
         // Change title bar background color based on focus
         let title_bg = if self.is_focused {
             theme.window_title_bg_focused
@@ -201,9 +211,9 @@ impl Window {
             );
         }
 
-        // Side borders and content
+        // Side borders - all use standard border colors
         for y in 1..self.height - 1 {
-            // Left border
+            // Left border - resizable but uses standard colors
             buffer.set(
                 self.x,
                 self.y + y,
@@ -213,7 +223,8 @@ impl Window {
                     theme.window_content_bg,
                 ),
             );
-            // Right border
+
+            // Right border - not resizable, has scrollbar
             buffer.set(
                 self.x + self.width - 1,
                 self.y + y,
@@ -225,7 +236,7 @@ impl Window {
             );
         }
 
-        // Bottom border
+        // Bottom border - all use standard border colors
         buffer.set(
             self.x,
             self.y + self.height - 1,
@@ -235,7 +246,9 @@ impl Window {
                 theme.window_content_bg,
             ),
         );
+
         for x in 1..self.width - 1 {
+            // Bottom border middle - resizable but uses standard colors
             buffer.set(
                 self.x + x,
                 self.y + self.height - 1,
@@ -247,18 +260,15 @@ impl Window {
             );
         }
 
-        // Bottom-right corner with resize handle
-        // Change colors based on whether we're actively resizing
-        let (resize_fg, resize_bg) = if is_resizing {
-            (theme.resize_handle_active_fg, theme.resize_handle_active_bg) // Bright colors during interaction
-        } else {
-            (theme.resize_handle_normal_fg, theme.resize_handle_normal_bg) // Normal state - background matches title bar (black)
-        };
-
+        // Bottom-right corner
         buffer.set(
             self.x + self.width - 1,
             self.y + self.height - 1,
-            Cell::new(charset.resize_handle, resize_fg, resize_bg),
+            Cell::new(
+                charset.border_bottom_right,
+                theme.window_border,
+                theme.window_content_bg,
+            ),
         );
     }
 

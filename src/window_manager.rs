@@ -3,6 +3,7 @@ use crate::session::{self, SessionState, WindowSnapshot};
 use crate::terminal_window::TerminalWindow;
 use crate::theme::Theme;
 use crate::video_buffer::VideoBuffer;
+use crate::window::ResizeEdge;
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use std::io;
 use std::time::Instant;
@@ -52,10 +53,12 @@ struct DragState {
 #[derive(Clone, Copy, Debug)]
 struct ResizeState {
     window_id: u32,
+    edge: ResizeEdge,
     start_x: u16,
     start_y: u16,
     start_width: u16,
     start_height: u16,
+    start_window_x: u16,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -414,16 +417,20 @@ impl WindowManager {
                     return false;
                 }
 
-                // Check if clicking resize handle (only if not maximized)
-                if !window.is_maximized && terminal_window.is_in_resize_handle(x, y) {
-                    self.resizing = Some(ResizeState {
-                        window_id,
-                        start_x: x,
-                        start_y: y,
-                        start_width: window.width,
-                        start_height: window.height,
-                    });
-                    return false;
+                // Check if clicking on a resizable border (only if not maximized)
+                if !window.is_maximized {
+                    if let Some(edge) = window.get_resize_edge(x, y) {
+                        self.resizing = Some(ResizeState {
+                            window_id,
+                            edge,
+                            start_x: x,
+                            start_y: y,
+                            start_width: window.width,
+                            start_height: window.height,
+                            start_window_x: window.x,
+                        });
+                        return false;
+                    }
                 }
 
                 // Check if clicking scrollbar
@@ -551,16 +558,28 @@ impl WindowManager {
             if let Some(terminal_window) =
                 self.windows.iter_mut().find(|w| w.id() == resize.window_id)
             {
-                // Calculate new size
+                // Calculate deltas from start position
                 let delta_x = x as i16 - resize.start_x as i16;
                 let delta_y = y as i16 - resize.start_y as i16;
 
-                let new_width = (resize.start_width as i16 + delta_x).max(20) as u16;
-                let new_height = (resize.start_height as i16 + delta_y).max(5) as u16;
+                // Apply resize based on which edge is being dragged
+                match resize.edge {
+                    ResizeEdge::Left => {
+                        // Left edge: move window left and increase width
+                        // delta_x > 0 means moving right (decrease width)
+                        // delta_x < 0 means moving left (increase width)
+                        let new_width = (resize.start_width as i16 - delta_x).max(20) as u16;
+                        let new_x = (resize.start_window_x as i16 + delta_x).max(0) as u16;
 
-                // Update window dimensions immediately for visual feedback
-                terminal_window.window.width = new_width;
-                terminal_window.window.height = new_height;
+                        terminal_window.window.x = new_x;
+                        terminal_window.window.width = new_width;
+                    }
+                    ResizeEdge::Bottom => {
+                        // Bottom edge: just adjust height
+                        let new_height = (resize.start_height as i16 + delta_y).max(5) as u16;
+                        terminal_window.window.height = new_height;
+                    }
+                }
 
                 // DON'T resize the terminal PTY during drag - it causes artifacts
                 // The PTY will be resized on mouse up
@@ -657,11 +676,7 @@ impl WindowManager {
                 windows_to_close.push(self.windows[i].id());
             }
 
-            // Check if this window is being resized
-            let is_resizing = self
-                .resizing
-                .is_some_and(|r| r.window_id == self.windows[i].id());
-            self.windows[i].render(buffer, is_resizing, charset, theme, tint_terminal);
+            self.windows[i].render(buffer, charset, theme, tint_terminal);
         }
 
         // Close windows whose shell processes have exited

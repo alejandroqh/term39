@@ -98,13 +98,12 @@ impl TerminalWindow {
     pub fn render(
         &self,
         buffer: &mut VideoBuffer,
-        is_resizing: bool,
         charset: &Charset,
         theme: &Theme,
         tint_terminal: bool,
     ) {
         // Render the window frame and title bar
-        self.window.render(buffer, is_resizing, charset, theme);
+        self.window.render(buffer, charset, theme);
 
         // Render the terminal content
         self.render_terminal_content(buffer, theme, tint_terminal);
@@ -298,14 +297,6 @@ impl TerminalWindow {
             return false;
         }
         self.window.is_in_close_button(x, y)
-    }
-
-    /// Check if point is in resize handle
-    pub fn is_in_resize_handle(&self, x: u16, y: u16) -> bool {
-        if self.window.is_minimized {
-            return false;
-        }
-        self.window.is_in_resize_handle(x, y)
     }
 
     /// Get total number of lines (scrollback + visible)

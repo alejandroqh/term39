@@ -37,9 +37,13 @@ pub struct Theme {
     pub button_maximize_color: Color,
     pub button_minimize_color: Color,
     pub button_bg: Color, // Consistent background for title bar buttons
+    #[allow(dead_code)]
     pub resize_handle_normal_fg: Color,
+    #[allow(dead_code)]
     pub resize_handle_normal_bg: Color,
+    #[allow(dead_code)]
     pub resize_handle_active_fg: Color,
+    #[allow(dead_code)]
     pub resize_handle_active_bg: Color,
 
     // UI Buttons

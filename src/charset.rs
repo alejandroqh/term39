@@ -22,7 +22,6 @@ pub struct Charset {
     pub border_vertical: char,
 
     // Window controls
-    pub resize_handle: char,
     pub shadow: char,
 
     // Configuration window toggles
@@ -42,10 +41,9 @@ impl Charset {
             border_bottom_right: '╝', // U+255D
             border_horizontal: '═',   // U+2550
             border_vertical: '║',     // U+2551
-            resize_handle: '╬', // U+256C (DOS CP437 206) box drawings double vertical and horizontal
-            shadow: '▓',        // U+2593 dark shade
-            block: '█',         // U+2588 full block
-            shade: '░',         // U+2591 light shade
+            shadow: '▓',              // U+2593 dark shade
+            block: '█',               // U+2588 full block
+            shade: '░',               // U+2591 light shade
         }
     }
 
@@ -60,7 +58,6 @@ impl Charset {
             border_bottom_right: '+',
             border_horizontal: '-', // Dash for horizontal
             border_vertical: '|',   // Pipe for vertical
-            resize_handle: '+',     // Plus for resize handle (matches corners)
             shadow: '#',            // Hash for shadow
             block: '#',             // Hash for "on" state in ASCII mode
             shade: ' ',             // Space for "off" state in ASCII mode
