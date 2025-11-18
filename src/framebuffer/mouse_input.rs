@@ -284,22 +284,30 @@ pub struct CursorTracker {
     max_x: usize,
     max_y: usize,
     sensitivity: f32,
+    invert_x: bool,
+    invert_y: bool,
 }
 
 impl CursorTracker {
     /// Create a new cursor tracker
-    pub fn new(max_x: usize, max_y: usize) -> Self {
+    pub fn new(max_x: usize, max_y: usize, invert_x: bool, invert_y: bool) -> Self {
         Self {
             x: max_x / 2,
             y: max_y / 2,
             max_x,
             max_y,
             sensitivity: 1.0,
+            invert_x,
+            invert_y,
         }
     }
 
     /// Update cursor position with mouse deltas
     pub fn update(&mut self, dx: i8, dy: i8) {
+        // Apply axis inversions if configured
+        let dx = if self.invert_x { -dx } else { dx };
+        let dy = if self.invert_y { -dy } else { dy };
+
         // Apply sensitivity and deltas
         let new_x = (self.x as i32 + (dx as f32 * self.sensitivity) as i32)
             .max(0)

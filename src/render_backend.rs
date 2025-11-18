@@ -114,12 +114,14 @@ pub struct FramebufferBackend {
 
 #[cfg(feature = "framebuffer-backend")]
 impl FramebufferBackend {
-    /// Create a new framebuffer backend with specified text mode, optional scale, optional font, and optional mouse device
+    /// Create a new framebuffer backend with specified text mode, optional scale, optional font, optional mouse device, and axis inversions
     pub fn new(
         mode: crate::framebuffer::TextMode,
         scale: Option<usize>,
         font_name: Option<&str>,
         mouse_device: Option<&str>,
+        invert_x: bool,
+        invert_y: bool,
     ) -> io::Result<Self> {
         use crossterm::terminal;
 
@@ -141,7 +143,8 @@ impl FramebufferBackend {
 
         // Get pixel dimensions for cursor tracker
         let (pixel_width, pixel_height) = renderer.pixel_dimensions();
-        let cursor_tracker = crate::framebuffer::CursorTracker::new(pixel_width, pixel_height);
+        let cursor_tracker =
+            crate::framebuffer::CursorTracker::new(pixel_width, pixel_height, invert_x, invert_y);
 
         Ok(Self {
             renderer,

@@ -198,6 +198,28 @@ pub struct Cli {
         help = "Mouse input device (e.g., /dev/input/event2)"
     )]
     pub mouse_device: Option<String>,
+
+    /// Invert mouse X-axis (Linux console only, requires --features framebuffer-backend)
+    ///
+    /// Some hardware configurations have inverted X-axis behavior for raw mouse input.
+    /// Use this flag if moving the mouse left/right produces inverted cursor movement
+    /// in framebuffer mode.
+    ///
+    /// Note: Only takes effect when --framebuffer/-f is specified.
+    #[cfg(feature = "framebuffer-backend")]
+    #[arg(long, help = "Invert mouse X-axis for framebuffer mode")]
+    pub invert_mouse_x: bool,
+
+    /// Invert mouse Y-axis (Linux console only, requires --features framebuffer-backend)
+    ///
+    /// Some hardware configurations have inverted Y-axis behavior for raw mouse input.
+    /// Use this flag if moving the mouse up/down produces inverted cursor movement
+    /// in framebuffer mode.
+    ///
+    /// Note: Only takes effect when --framebuffer/-f is specified.
+    #[cfg(feature = "framebuffer-backend")]
+    #[arg(long, help = "Invert mouse Y-axis for framebuffer mode")]
+    pub invert_mouse_y: bool,
 }
 
 impl Cli {
