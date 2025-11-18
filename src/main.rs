@@ -797,9 +797,15 @@ fn main() -> io::Result<()> {
                                     let width = 150;
                                     let height = 50;
 
-                                    // Center the window (ensuring y >= 1 to avoid overlapping top bar)
-                                    let x = (cols.saturating_sub(width)) / 2;
-                                    let y = ((rows.saturating_sub(height)) / 2).max(1);
+                                    // Get position: cascade if auto-tiling is off, center otherwise
+                                    let (x, y) = if auto_tiling_enabled {
+                                        let x = (cols.saturating_sub(width)) / 2;
+                                        let y = ((rows.saturating_sub(height)) / 2).max(1);
+                                        (x, y)
+                                    } else {
+                                        window_manager
+                                            .get_cascade_position(width, height, cols, rows)
+                                    };
 
                                     match window_manager.create_window(
                                         x,
@@ -1356,9 +1362,14 @@ fn main() -> io::Result<()> {
                                 let width = 150;
                                 let height = 50;
 
-                                // Center the window (ensuring y >= 1 to avoid overlapping top bar)
-                                let x = (cols.saturating_sub(width)) / 2;
-                                let y = ((rows.saturating_sub(height)) / 2).max(1);
+                                // Get position: cascade if auto-tiling is off, center otherwise
+                                let (x, y) = if auto_tiling_enabled {
+                                    let x = (cols.saturating_sub(width)) / 2;
+                                    let y = ((rows.saturating_sub(height)) / 2).max(1);
+                                    (x, y)
+                                } else {
+                                    window_manager.get_cascade_position(width, height, cols, rows)
+                                };
 
                                 match window_manager.create_window(
                                     x,
@@ -1395,9 +1406,15 @@ fn main() -> io::Result<()> {
                                 let width = 150;
                                 let height = 50;
 
-                                // Center the window (will be maximized immediately, ensuring y >= 1)
-                                let x = (cols.saturating_sub(width)) / 2;
-                                let y = ((rows.saturating_sub(height)) / 2).max(1);
+                                // Get position: cascade if auto-tiling is off, center otherwise
+                                // (will be maximized immediately, but still track for cascading)
+                                let (x, y) = if auto_tiling_enabled {
+                                    let x = (cols.saturating_sub(width)) / 2;
+                                    let y = ((rows.saturating_sub(height)) / 2).max(1);
+                                    (x, y)
+                                } else {
+                                    window_manager.get_cascade_position(width, height, cols, rows)
+                                };
 
                                 match window_manager.create_window(
                                     x,
@@ -1730,8 +1747,15 @@ fn main() -> io::Result<()> {
                         let (cols, rows) = backend.dimensions();
                         let width = 150;
                         let height = 50;
-                        let x = (cols.saturating_sub(width)) / 2;
-                        let y = ((rows.saturating_sub(height)) / 2).max(1);
+
+                        // Get position: cascade if auto-tiling is off, center otherwise
+                        let (x, y) = if auto_tiling_enabled {
+                            let x = (cols.saturating_sub(width)) / 2;
+                            let y = ((rows.saturating_sub(height)) / 2).max(1);
+                            (x, y)
+                        } else {
+                            window_manager.get_cascade_position(width, height, cols, rows)
+                        };
 
                         match window_manager.create_window(
                             x,

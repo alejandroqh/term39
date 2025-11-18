@@ -35,7 +35,7 @@ fn default_auto_save() -> bool {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
-            auto_tiling_on_startup: true,
+            auto_tiling_on_startup: false,
             show_date_in_clock: true,
             theme: default_theme(),
             background_char_index: default_background_char_index(),

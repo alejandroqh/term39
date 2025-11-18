@@ -205,11 +205,19 @@ impl Window {
     }
 
     fn render_frame(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
-        // Use window content background for title bar (both focused and unfocused)
-        let title_bg = theme.window_content_bg;
+        // Use different backgrounds based on focus state
+        let title_bg = if self.is_focused {
+            theme.window_content_bg
+        } else {
+            theme.window_title_bg
+        };
 
-        // Border background uses content bg for consistency
-        let border_bg = theme.window_content_bg;
+        // Border background uses same as title bar
+        let border_bg = if self.is_focused {
+            theme.window_content_bg
+        } else {
+            theme.window_title_bg
+        };
 
         // Top border (title bar) with corner characters
         // Top-left corner (2 chars wide)
@@ -321,8 +329,12 @@ impl Window {
     }
 
     fn render_title_bar(&self, buffer: &mut VideoBuffer, theme: &Theme) {
-        // Use window content background for title bar
-        let title_bg = theme.window_content_bg;
+        // Use different backgrounds based on focus state
+        let title_bg = if self.is_focused {
+            theme.window_content_bg
+        } else {
+            theme.window_title_bg
+        };
 
         // Buttons: [X][+][_] followed by title
         let buttons = "[X][+][_] ";

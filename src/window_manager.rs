@@ -27,6 +27,10 @@ pub struct WindowManager {
     scrollbar_dragging: Option<ScrollbarDragState>,
     last_click: Option<LastClick>,
     current_snap_zone: Option<SnapZone>,
+
+    // Cascading window position tracking
+    last_window_x: Option<u16>,
+    last_window_y: Option<u16>,
 }
 
 /// Snap zones for window positioning
@@ -87,6 +91,44 @@ impl WindowManager {
             scrollbar_dragging: None,
             last_click: None,
             current_snap_zone: None,
+            last_window_x: None,
+            last_window_y: None,
+        }
+    }
+
+    /// Calculate next cascading window position
+    /// Returns (x, y) for the next window, offsetting by 2 from the last position
+    /// Resets to centered position if it would go off-screen
+    pub fn get_cascade_position(
+        &self,
+        width: u16,
+        height: u16,
+        buffer_width: u16,
+        buffer_height: u16,
+    ) -> (u16, u16) {
+        // Default centered position
+        let default_x = (buffer_width.saturating_sub(width)) / 2;
+        let default_y = ((buffer_height.saturating_sub(height)) / 2).max(1);
+
+        // If we have a last position, cascade from it
+        if let (Some(last_x), Some(last_y)) = (self.last_window_x, self.last_window_y) {
+            let new_x = last_x.saturating_add(2);
+            let new_y = last_y.saturating_add(2);
+
+            // Check if the new position would go off-screen
+            // Window needs to have at least some visible area (not completely off-screen)
+            let max_x = buffer_width.saturating_sub(width);
+            let max_y = buffer_height.saturating_sub(height);
+
+            if new_x <= max_x && new_y <= max_y {
+                (new_x, new_y)
+            } else {
+                // Reset to centered position if we'd go off-screen
+                (default_x, default_y)
+            }
+        } else {
+            // First window, use centered position
+            (default_x, default_y)
         }
     }
 
@@ -107,6 +149,10 @@ impl WindowManager {
         for w in &mut self.windows {
             w.set_focused(false);
         }
+
+        // Track this position for cascading
+        self.last_window_x = Some(x);
+        self.last_window_y = Some(y);
 
         // Create terminal window
         match TerminalWindow::new(

@@ -414,13 +414,13 @@ impl Theme {
             clock_fg: Color::Magenta, // Purple accent
 
             // Windows - Dracula purple/cyan accents
-            window_title_bg: Color::DarkGrey,
+            window_title_bg: Color::Black,
             window_title_bg_focused: Color::DarkMagenta, // Purple accent for focus
             window_title_fg: Color::White,
             window_border: Color::Magenta, // Purple borders
-            window_content_bg: Color::Black,
-            window_content_fg: Color::White, // Bright foreground like Dracula
-            window_shadow_color: Color::DarkGrey,
+            window_content_bg: Color::DarkMagenta,
+            window_content_fg: Color::Black, // Bright foreground like Dracula
+            window_shadow_color: Color::Black,
 
             // Window controls - Dracula semantic colors
             button_close_color: Color::Red,      // Dracula red #FF5555
@@ -542,12 +542,12 @@ impl Theme {
             clock_fg: Color::Green,
 
             // Windows
-            window_title_bg: Color::DarkGreen,
+            window_title_bg: Color::Black,
             window_title_bg_focused: Color::Green, // Bright green for focus
             window_title_fg: Color::Black,
             window_border: Color::Green,
-            window_content_bg: Color::Black,
-            window_content_fg: Color::Green,
+            window_content_bg: Color::Green,
+            window_content_fg: Color::Black,
             window_shadow_color: Color::DarkGreen,
 
             // Window controls
@@ -674,12 +674,12 @@ impl Theme {
             clock_fg: Color::Yellow,
 
             // Windows
-            window_title_bg: Color::DarkYellow,
+            window_title_bg: Color::Black,
             window_title_bg_focused: Color::Yellow, // Bright amber for focus
             window_title_fg: Color::Black,
             window_border: Color::Yellow,
-            window_content_bg: Color::Black,
-            window_content_fg: Color::Yellow,
+            window_content_bg: Color::Yellow,
+            window_content_fg: Color::Black,
             window_shadow_color: Color::DarkYellow,
 
             // Window controls
