@@ -25,9 +25,9 @@ impl TerminalWindow {
         height: u16,
         title: String,
     ) -> std::io::Result<Self> {
-        // Calculate content area (excluding borders and title bar)
-        let content_width = width.saturating_sub(2).max(1);
-        let content_height = height.saturating_sub(2).max(1);
+        // Calculate content area (excluding 2-char borders and title bar)
+        let content_width = width.saturating_sub(4).max(1); // -2 left, -2 right
+        let content_height = height.saturating_sub(2).max(1); // -1 title, -1 bottom
 
         let window = Window::new(id, x, y, width, height, title);
         let emulator = TerminalEmulator::new(
@@ -64,9 +64,9 @@ impl TerminalWindow {
         self.window.width = new_width;
         self.window.height = new_height;
 
-        // Calculate new content dimensions
-        let content_width = new_width.saturating_sub(2).max(1);
-        let content_height = new_height.saturating_sub(2).max(1);
+        // Calculate new content dimensions (accounting for 2-char borders)
+        let content_width = new_width.saturating_sub(4).max(1); // -2 left, -2 right
+        let content_height = new_height.saturating_sub(2).max(1); // -1 title, -1 bottom
 
         self.emulator
             .resize(content_width as usize, content_height as usize)
@@ -125,11 +125,11 @@ impl TerminalWindow {
         let grid = self.emulator.grid();
         let grid = grid.lock().unwrap();
 
-        // Content area starts at (window.x + 1, window.y + 1)
-        let content_x = self.window.x + 1;
-        let content_y = self.window.y + 1;
-        let content_width = self.window.width.saturating_sub(2);
-        let content_height = self.window.height.saturating_sub(2);
+        // Content area starts after 2-char left border and title bar
+        let content_x = self.window.x + 2; // After 2-char left border
+        let content_y = self.window.y + 1; // After title bar
+        let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
+        let content_height = self.window.height.saturating_sub(2); // -1 title, -1 bottom
 
         let scrollback_len = grid.scrollback_len();
         let visible_rows = grid.rows();
@@ -215,7 +215,7 @@ impl TerminalWindow {
             return;
         }
 
-        let scrollbar_x = self.window.x + self.window.width - 1;
+        let scrollbar_x = self.window.x + self.window.width - 2; // Inner char of 2-char right border
         let (track_start, track_end) = self.get_scrollbar_bounds();
 
         // Calculate thumb bounds inline to avoid re-locking the grid
@@ -356,7 +356,7 @@ impl TerminalWindow {
         if self.window.is_minimized {
             return false;
         }
-        let scrollbar_x = self.window.x + self.window.width - 1;
+        let scrollbar_x = self.window.x + self.window.width - 2; // Inner char of 2-char right border
         let (y_start, y_end) = self.get_scrollbar_bounds();
 
         x == scrollbar_x && y >= y_start && y < y_end
@@ -406,10 +406,10 @@ impl TerminalWindow {
 
     /// Convert screen coordinates to terminal grid position
     fn screen_to_grid_pos(&self, screen_x: u16, screen_y: u16) -> Option<Position> {
-        let content_x = self.window.x + 1;
-        let content_y = self.window.y + 1;
-        let content_width = self.window.width.saturating_sub(2);
-        let content_height = self.window.height.saturating_sub(2);
+        let content_x = self.window.x + 2; // After 2-char left border
+        let content_y = self.window.y + 1; // After title bar
+        let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
+        let content_height = self.window.height.saturating_sub(2); // -1 title, -1 bottom
 
         // Check if coordinates are within content area
         if screen_x < content_x
@@ -470,7 +470,7 @@ impl TerminalWindow {
     /// Expand selection to line
     pub fn expand_selection_to_line(&mut self) {
         if let Some(selection) = &mut self.selection {
-            let content_width = self.window.width.saturating_sub(2);
+            let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
             selection.expand_to_line(content_width);
         }
     }
@@ -520,7 +520,7 @@ impl TerminalWindow {
                 } else {
                     // Multiple lines
                     // First line (from start.col to end of line)
-                    let content_width = self.window.width.saturating_sub(2);
+                    let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
                     for col in start.col..content_width {
                         if let Some(cell) = grid.get_cell(col as usize, start.row as usize) {
                             result.push(cell.c);
@@ -570,10 +570,10 @@ impl TerminalWindow {
     /// Get the content area bounds (for hit testing)
     #[allow(dead_code)]
     pub fn get_content_bounds(&self) -> (u16, u16, u16, u16) {
-        let content_x = self.window.x + 1;
-        let content_y = self.window.y + 1;
-        let content_width = self.window.width.saturating_sub(2);
-        let content_height = self.window.height.saturating_sub(2);
+        let content_x = self.window.x + 2; // After 2-char left border
+        let content_y = self.window.y + 1; // After title bar
+        let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
+        let content_height = self.window.height.saturating_sub(2); // -1 title, -1 bottom
         (content_x, content_y, content_width, content_height)
     }
 

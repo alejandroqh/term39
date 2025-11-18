@@ -568,10 +568,15 @@ impl WindowManager {
                         // Left edge: move window left and increase width
                         // delta_x > 0 means moving right (decrease width)
                         // delta_x < 0 means moving left (increase width)
-                        let new_width = (resize.start_width as i16 - delta_x).max(20) as u16;
+                        let new_width = (resize.start_width as i16 - delta_x).max(24) as u16;
                         let new_x = (resize.start_window_x as i16 + delta_x).max(0) as u16;
 
                         terminal_window.window.x = new_x;
+                        terminal_window.window.width = new_width;
+                    }
+                    ResizeEdge::Right => {
+                        // Right edge: just adjust width
+                        let new_width = (resize.start_width as i16 + delta_x).max(24) as u16;
                         terminal_window.window.width = new_width;
                     }
                     ResizeEdge::Bottom => {
