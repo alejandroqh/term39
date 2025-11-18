@@ -277,13 +277,46 @@ impl SlightInput {
         // Render dropdown suggestion list (below input field, centered)
         if !self.suggestions.is_empty() {
             let dropdown_y = self.y + self.height; // Below the input dialog
-            let dropdown_width = 40u16.min(content_width);
+            let dropdown_width = 42u16.min(content_width); // Increased by 2 for border spacing
+            let dropdown_height = self.suggestions.len() as u16 + 2; // +2 for top and bottom borders
 
             // Center the dropdown horizontally
             let dropdown_x = self.x + (self.width.saturating_sub(dropdown_width)) / 2;
 
+            // Draw top border
+            buffer.set(
+                dropdown_x,
+                dropdown_y,
+                Cell::new(
+                    charset.border_top_left,
+                    theme.slight_border,
+                    theme.slight_dropdown_bg,
+                ),
+            );
+            for col in 1..dropdown_width - 1 {
+                buffer.set(
+                    dropdown_x + col,
+                    dropdown_y,
+                    Cell::new(
+                        charset.border_horizontal,
+                        theme.slight_border,
+                        theme.slight_dropdown_bg,
+                    ),
+                );
+            }
+            buffer.set(
+                dropdown_x + dropdown_width - 1,
+                dropdown_y,
+                Cell::new(
+                    charset.border_top_right,
+                    theme.slight_border,
+                    theme.slight_dropdown_bg,
+                ),
+            );
+
+            // Render suggestions with side borders
             for (idx, suggestion) in self.suggestions.iter().enumerate() {
-                let row_y = dropdown_y + idx as u16;
+                let row_y = dropdown_y + 1 + idx as u16;
                 let is_selected = idx == self.selected_suggestion;
 
                 let (fg, bg) = if is_selected {
@@ -296,18 +329,73 @@ impl SlightInput {
                     (theme.slight_dropdown_fg, theme.slight_dropdown_bg)
                 };
 
-                // Render suggestion text (left-padded by 2 spaces)
+                // Left border (always uses dropdown background, not selection background)
+                buffer.set(
+                    dropdown_x,
+                    row_y,
+                    Cell::new(
+                        charset.border_vertical,
+                        theme.slight_border,
+                        theme.slight_dropdown_bg,
+                    ),
+                );
+
+                // Render suggestion text (with padding, accounting for borders)
+                let text_width = dropdown_width.saturating_sub(2); // -2 for left and right borders
                 let text = format!(
-                    "  {:width$}",
+                    " {:width$} ",
                     suggestion.command,
-                    width = dropdown_width as usize - 2
+                    width = text_width.saturating_sub(2) as usize
                 );
                 for (i, ch) in text.chars().enumerate() {
-                    if i < dropdown_width as usize {
-                        buffer.set(dropdown_x + i as u16, row_y, Cell::new(ch, fg, bg));
+                    if i < text_width as usize {
+                        buffer.set(dropdown_x + 1 + i as u16, row_y, Cell::new(ch, fg, bg));
                     }
                 }
+
+                // Right border (always uses dropdown background, not selection background)
+                buffer.set(
+                    dropdown_x + dropdown_width - 1,
+                    row_y,
+                    Cell::new(
+                        charset.border_vertical,
+                        theme.slight_border,
+                        theme.slight_dropdown_bg,
+                    ),
+                );
             }
+
+            // Draw bottom border
+            let bottom_y = dropdown_y + dropdown_height - 1;
+            buffer.set(
+                dropdown_x,
+                bottom_y,
+                Cell::new(
+                    charset.border_bottom_left,
+                    theme.slight_border,
+                    theme.slight_dropdown_bg,
+                ),
+            );
+            for col in 1..dropdown_width - 1 {
+                buffer.set(
+                    dropdown_x + col,
+                    bottom_y,
+                    Cell::new(
+                        charset.border_horizontal,
+                        theme.slight_border,
+                        theme.slight_dropdown_bg,
+                    ),
+                );
+            }
+            buffer.set(
+                dropdown_x + dropdown_width - 1,
+                bottom_y,
+                Cell::new(
+                    charset.border_bottom_right,
+                    theme.slight_border,
+                    theme.slight_dropdown_bg,
+                ),
+            );
         }
     }
 
