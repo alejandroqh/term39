@@ -34,7 +34,7 @@ impl TerminalEmulator {
     /// * `rows` - Number of rows
     /// * `max_scrollback` - Maximum scrollback lines
     /// * `command` - Optional command to run directly. If None, spawns default shell.
-    ///               Format: Some(("program", vec!["arg1", "arg2"]))
+    ///   Format: Some(("program", vec!["arg1", "arg2"]))
     pub fn new(
         cols: usize,
         rows: usize,
