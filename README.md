@@ -265,19 +265,16 @@ Direct Linux framebuffer rendering with DOS text modes (40x25, 80x25, ... , 320x
 - **Requires**: `/dev/fb0` access (root or 'video' group), physical console only
 
 ```bash
-# Build examples
-cargo build --release                                                      # Standard (clipboard)
-cargo build --release --no-default-features                                # No clipboard
-cargo build --release --features framebuffer-backend                       # Framebuffer + clipboard
-cargo build --release --no-default-features --features framebuffer-backend # Framebuffer only
+# Build/Install
+cargo build --release                            # Standard
+cargo build --release --no-default-features      # No clipboard
+cargo build --release --features framebuffer-backend  # + framebuffer
 
-# Install examples
-cargo install term39                                                       # Standard (clipboard)
-cargo install term39 --no-default-features                                 # No clipboard
-cargo install term39 --features framebuffer-backend                        # Framebuffer + clipboard
-cargo install term39 --no-default-features --features framebuffer-backend  # Framebuffer only
+cargo install term39                             # Standard
+cargo install term39 --no-default-features       # No clipboard
+cargo install term39 --features framebuffer-backend   # + framebuffer
 
-# Run framebuffer mode
+# Run framebuffer
 sudo ./target/release/term39 --fb-mode=80x25
 ```
 
