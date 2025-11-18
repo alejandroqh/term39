@@ -27,8 +27,20 @@ pub struct TerminalEmulator {
 }
 
 impl TerminalEmulator {
-    /// Create a new terminal emulator with a shell process
-    pub fn new(cols: usize, rows: usize, max_scrollback: usize) -> std::io::Result<Self> {
+    /// Create a new terminal emulator with a shell process or direct command
+    ///
+    /// # Arguments
+    /// * `cols` - Number of columns
+    /// * `rows` - Number of rows
+    /// * `max_scrollback` - Maximum scrollback lines
+    /// * `command` - Optional command to run directly. If None, spawns default shell.
+    ///               Format: Some(("program", vec!["arg1", "arg2"]))
+    pub fn new(
+        cols: usize,
+        rows: usize,
+        max_scrollback: usize,
+        command: Option<(String, Vec<String>)>,
+    ) -> std::io::Result<Self> {
         let pty_system = native_pty_system();
 
         // Create PTY with specified size
@@ -41,8 +53,18 @@ impl TerminalEmulator {
             })
             .map_err(std::io::Error::other)?;
 
-        // Spawn shell process
-        let mut cmd = CommandBuilder::new_default_prog();
+        // Spawn process (either command or default shell)
+        let mut cmd = if let Some((program, args)) = command {
+            // Launch specific command directly
+            let mut cmd = CommandBuilder::new(program);
+            for arg in args {
+                cmd.arg(arg);
+            }
+            cmd
+        } else {
+            // Spawn default shell
+            CommandBuilder::new_default_prog()
+        };
 
         // Set environment variables
         cmd.env("TERM", "xterm-256color");

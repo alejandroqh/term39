@@ -31,17 +31,16 @@ impl TerminalWindow {
         let content_height = height.saturating_sub(2).max(1); // -1 title, -1 bottom
 
         let window = Window::new(id, x, y, width, height, title);
-        let mut emulator = TerminalEmulator::new(
+
+        // Parse initial_command into program + args for direct execution
+        let parsed_command = initial_command.as_ref().map(|cmd| Self::parse_command(cmd));
+
+        let emulator = TerminalEmulator::new(
             content_width as usize,
             content_height as usize,
             1000, // 1000 lines of scrollback
+            parsed_command,
         )?;
-
-        // If an initial command is provided, send it to the terminal
-        if let Some(command) = initial_command {
-            let command_with_enter = format!("{}\n", command);
-            emulator.send_str(&command_with_enter)?;
-        }
 
         Ok(Self {
             window,
@@ -49,6 +48,44 @@ impl TerminalWindow {
             scroll_offset: 0,
             selection: None,
         })
+    }
+
+    /// Parse a command string into (program, args)
+    /// Simple shell-like parsing: splits on whitespace, respects quotes
+    fn parse_command(cmd: &str) -> (String, Vec<String>) {
+        let mut parts = Vec::new();
+        let mut current = String::new();
+        let mut in_quotes = false;
+
+        for ch in cmd.chars() {
+            match ch {
+                '"' | '\'' => {
+                    in_quotes = !in_quotes;
+                }
+                ' ' | '\t' if !in_quotes => {
+                    if !current.is_empty() {
+                        parts.push(current.clone());
+                        current.clear();
+                    }
+                }
+                _ => {
+                    current.push(ch);
+                }
+            }
+        }
+
+        if !current.is_empty() {
+            parts.push(current);
+        }
+
+        if parts.is_empty() {
+            // Empty command, return a safe default
+            ("sh".to_string(), vec![])
+        } else {
+            let program = parts[0].clone();
+            let args = parts.into_iter().skip(1).collect();
+            (program, args)
+        }
     }
 
     /// Process terminal output (call this regularly in the event loop)
