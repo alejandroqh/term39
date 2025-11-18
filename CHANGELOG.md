@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2025-11-19
+
+### Added
+
+- Command launcher with fuzzy search and autocomplete Ctrl + space
+- Mouse axis inversion flags for framebuffer mode (`--invert-mouse-x`, `--invert-mouse-y`)
+- macOS installer packages (PKG and DMG)
+- Package deployment automation
+
+### Changed
+
+- Enhanced window border rendering system with improved resizing
+- Updated help system with new features
+- Improved README documentation
+
+### Fixed
+
+- Mouse dragging behavior in xterm-compliant terminals
+- Clippy doc overindented list items warning
+
 ## [0.8.5] - 2025-11-17
 
 ### Added
@@ -197,6 +217,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.9.0]: https://github.com/alejandroqh/term39/releases/tag/v0.9.0
 [0.8.5]: https://github.com/alejandroqh/term39/releases/tag/v0.8.5
 [0.8.1]: https://github.com/alejandroqh/term39/releases/tag/v0.8.1
 [0.8.0]: https://github.com/alejandroqh/term39/releases/tag/v0.8.0
