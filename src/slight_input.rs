@@ -1,4 +1,7 @@
 use crate::charset::Charset;
+use crate::command_history::CommandHistory;
+use crate::command_indexer::CommandIndexer;
+use crate::fuzzy_matcher::{FuzzyMatch, FuzzyMatcher};
 use crate::theme::Theme;
 use crate::video_buffer::{Cell, VideoBuffer};
 
@@ -11,6 +14,11 @@ pub struct SlightInput {
     pub y: u16,
     pub cursor_position: usize,
     pub input_col_start: u16,
+    // Autocomplete state
+    suggestions: Vec<FuzzyMatch>,
+    selected_suggestion: usize,
+    command_indexer: Option<CommandIndexer>,
+    command_history: Option<CommandHistory>,
 }
 
 impl SlightInput {
@@ -37,6 +45,49 @@ impl SlightInput {
             y,
             cursor_position: 0,
             input_col_start,
+            suggestions: Vec::new(),
+            selected_suggestion: 0,
+            command_indexer: None,
+            command_history: None,
+        }
+    }
+
+    /// Sets the command indexer and history for autocomplete
+    pub fn set_autocomplete(&mut self, indexer: CommandIndexer, history: CommandHistory) {
+        self.command_indexer = Some(indexer);
+        self.command_history = Some(history);
+        self.update_suggestions();
+    }
+
+    /// Updates suggestions based on current input
+    fn update_suggestions(&mut self) {
+        if let (Some(indexer), Some(history)) = (&self.command_indexer, &self.command_history) {
+            self.suggestions = FuzzyMatcher::find_matches(
+                &self.input_text,
+                indexer.get_commands(),
+                history,
+                5, // Max 5 suggestions
+            );
+            self.selected_suggestion = 0;
+        }
+    }
+
+    /// Gets the currently selected suggestion (for inline display)
+    fn get_inline_suggestion(&self) -> Option<&str> {
+        if self.suggestions.is_empty() {
+            return None;
+        }
+
+        let suggestion = &self.suggestions[self.selected_suggestion].command;
+
+        // Only show inline if it starts with current input
+        if suggestion
+            .to_lowercase()
+            .starts_with(&self.input_text.to_lowercase())
+        {
+            Some(suggestion)
+        } else {
+            None
         }
     }
 
@@ -190,6 +241,21 @@ impl SlightInput {
             }
         }
 
+        // Render inline suggestion (gray text after cursor)
+        if let Some(suggestion) = self.get_inline_suggestion() {
+            let suggestion_text = &suggestion[self.input_text.len()..];
+            for (i, ch) in suggestion_text.chars().enumerate() {
+                let pos = self.input_text.len() + i;
+                if pos < input_field_width as usize {
+                    buffer.set(
+                        self.input_col_start + pos as u16,
+                        input_y,
+                        Cell::new(ch, theme.slight_suggestion_fg, theme.slight_input_bg),
+                    );
+                }
+            }
+        }
+
         // Render cursor (if within visible area)
         if self.cursor_position < input_field_width as usize {
             let cursor_x = self.input_col_start + self.cursor_position as u16;
@@ -207,17 +273,55 @@ impl SlightInput {
                 Cell::new(cursor_char, theme.slight_input_bg, theme.slight_input_fg),
             );
         }
+
+        // Render dropdown suggestion list (below input field, centered)
+        if !self.suggestions.is_empty() {
+            let dropdown_y = self.y + self.height; // Below the input dialog
+            let dropdown_width = 40u16.min(content_width);
+
+            // Center the dropdown horizontally
+            let dropdown_x = self.x + (self.width.saturating_sub(dropdown_width)) / 2;
+
+            for (idx, suggestion) in self.suggestions.iter().enumerate() {
+                let row_y = dropdown_y + idx as u16;
+                let is_selected = idx == self.selected_suggestion;
+
+                let (fg, bg) = if is_selected {
+                    // Inverted colors for selected item
+                    (
+                        theme.slight_dropdown_selected_fg,
+                        theme.slight_dropdown_selected_bg,
+                    )
+                } else {
+                    (theme.slight_dropdown_fg, theme.slight_dropdown_bg)
+                };
+
+                // Render suggestion text (left-padded by 2 spaces)
+                let text = format!(
+                    "  {:width$}",
+                    suggestion.command,
+                    width = dropdown_width as usize - 2
+                );
+                for (i, ch) in text.chars().enumerate() {
+                    if i < dropdown_width as usize {
+                        buffer.set(dropdown_x + i as u16, row_y, Cell::new(ch, fg, bg));
+                    }
+                }
+            }
+        }
     }
 
     pub fn insert_char(&mut self, c: char) {
         self.input_text.insert(self.cursor_position, c);
         self.cursor_position += 1;
+        self.update_suggestions();
     }
 
     pub fn delete_char(&mut self) {
         if self.cursor_position > 0 {
             self.input_text.remove(self.cursor_position - 1);
             self.cursor_position -= 1;
+            self.update_suggestions();
         }
     }
 
@@ -243,5 +347,55 @@ impl SlightInput {
 
     pub fn get_input(&self) -> String {
         self.input_text.clone()
+    }
+
+    /// Moves to the next suggestion in the dropdown
+    pub fn next_suggestion(&mut self) {
+        if !self.suggestions.is_empty() {
+            self.selected_suggestion = (self.selected_suggestion + 1) % self.suggestions.len();
+        }
+    }
+
+    /// Moves to the previous suggestion in the dropdown
+    pub fn previous_suggestion(&mut self) {
+        if !self.suggestions.is_empty() {
+            if self.selected_suggestion == 0 {
+                self.selected_suggestion = self.suggestions.len() - 1;
+            } else {
+                self.selected_suggestion -= 1;
+            }
+        }
+    }
+
+    /// Accepts the current inline suggestion (Right Arrow key)
+    pub fn accept_inline_suggestion(&mut self) {
+        if let Some(suggestion) = self.get_inline_suggestion() {
+            self.input_text = suggestion.to_string();
+            self.cursor_position = self.input_text.len();
+            self.update_suggestions();
+        }
+    }
+
+    /// Accepts the selected suggestion from dropdown (Tab key)
+    pub fn accept_selected_suggestion(&mut self) {
+        if !self.suggestions.is_empty() {
+            self.input_text = self.suggestions[self.selected_suggestion].command.clone();
+            self.cursor_position = self.input_text.len();
+            self.update_suggestions();
+        }
+    }
+
+    /// Clears input and resets state
+    #[allow(dead_code)]
+    pub fn clear(&mut self) {
+        self.input_text.clear();
+        self.cursor_position = 0;
+        self.update_suggestions();
+    }
+
+    /// Gets the command history for recording
+    #[allow(dead_code)]
+    pub fn get_history_mut(&mut self) -> Option<&mut CommandHistory> {
+        self.command_history.as_mut()
     }
 }

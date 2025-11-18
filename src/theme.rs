@@ -135,6 +135,11 @@ pub struct Theme {
     pub slight_border: Color,
     pub slight_input_bg: Color,
     pub slight_input_fg: Color,
+    pub slight_suggestion_fg: Color, // Gray text for inline suggestions
+    pub slight_dropdown_bg: Color,
+    pub slight_dropdown_fg: Color,
+    pub slight_dropdown_selected_bg: Color,
+    pub slight_dropdown_selected_fg: Color,
 }
 
 impl Theme {
@@ -257,6 +262,11 @@ impl Theme {
             slight_border: Color::Cyan, // Primary theme color (topbar_bg_desktop)
             slight_input_bg: Color::DarkGrey,
             slight_input_fg: Color::White,
+            slight_suggestion_fg: Color::DarkGrey, // Darker gray for subtle suggestions
+            slight_dropdown_bg: Color::Black,      // Dark background
+            slight_dropdown_fg: Color::White,
+            slight_dropdown_selected_bg: Color::Cyan, // Cyan highlight
+            slight_dropdown_selected_fg: Color::Black,
         }
     }
 
@@ -379,6 +389,11 @@ impl Theme {
             slight_border: Color::Grey, // Primary theme color (topbar_bg_desktop)
             slight_input_bg: Color::DarkGrey,
             slight_input_fg: Color::White,
+            slight_suggestion_fg: Color::DarkGrey, // Dark gray for suggestions
+            slight_dropdown_bg: Color::Black,      // Dark background
+            slight_dropdown_fg: Color::White,
+            slight_dropdown_selected_bg: Color::White, // Inverted
+            slight_dropdown_selected_fg: Color::Black,
         }
     }
 
@@ -502,7 +517,12 @@ impl Theme {
             slight_fg: Color::White,
             slight_border: Color::DarkGrey, // Primary theme color (topbar_bg_desktop)
             slight_input_bg: Color::DarkGrey,
-            slight_input_fg: Color::Cyan, // Dracula cyan
+            slight_input_fg: Color::Cyan,          // Dracula cyan
+            slight_suggestion_fg: Color::DarkGrey, // Dark gray for suggestions
+            slight_dropdown_bg: Color::Black,
+            slight_dropdown_fg: Color::Cyan, // Dracula cyan
+            slight_dropdown_selected_bg: Color::Magenta, // Purple highlight
+            slight_dropdown_selected_fg: Color::White,
         }
     }
 
@@ -626,6 +646,11 @@ impl Theme {
             slight_border: Color::DarkGreen, // Primary theme color (topbar_bg_desktop)
             slight_input_bg: Color::DarkGreen,
             slight_input_fg: Color::Green,
+            slight_suggestion_fg: Color::DarkGreen, // Dark green for suggestions
+            slight_dropdown_bg: Color::Black,
+            slight_dropdown_fg: Color::Green,
+            slight_dropdown_selected_bg: Color::Green, // Inverted
+            slight_dropdown_selected_fg: Color::Black,
         }
     }
 
@@ -749,6 +774,11 @@ impl Theme {
             slight_border: Color::DarkYellow, // Primary theme color (topbar_bg_desktop)
             slight_input_bg: Color::DarkYellow,
             slight_input_fg: Color::Yellow,
+            slight_suggestion_fg: Color::DarkYellow, // Dark yellow for suggestions
+            slight_dropdown_bg: Color::Black,
+            slight_dropdown_fg: Color::Yellow,
+            slight_dropdown_selected_bg: Color::Yellow, // Inverted
+            slight_dropdown_selected_fg: Color::Black,
         }
     }
 

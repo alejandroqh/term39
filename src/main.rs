@@ -6,12 +6,15 @@ mod charset;
 mod cli;
 mod clipboard_manager;
 mod color_utils;
+mod command_history;
+mod command_indexer;
 mod config;
 mod config_manager;
 mod config_window;
 mod context_menu;
 #[cfg(feature = "framebuffer-backend")]
 mod framebuffer;
+mod fuzzy_matcher;
 #[cfg(target_os = "linux")]
 mod gpm_handler;
 mod info_window;
@@ -32,6 +35,8 @@ use button::Button;
 use charset::Charset;
 use chrono::{Datelike, Local, NaiveDate};
 use clipboard_manager::ClipboardManager;
+use command_history::CommandHistory;
+use command_indexer::CommandIndexer;
 use config_manager::AppConfig;
 use config_window::{ConfigAction, ConfigWindow};
 use context_menu::{ContextMenu, MenuAction};
@@ -347,6 +352,10 @@ fn main() -> io::Result<()> {
 
     // Slight input popup state (None when not shown)
     let mut active_slight_input: Option<SlightInput> = None;
+
+    // Initialize autocomplete system (command indexer and history)
+    let command_indexer = CommandIndexer::new();
+    let mut command_history = CommandHistory::new();
 
     // Clipboard manager
     let mut clipboard_manager = ClipboardManager::new();
@@ -714,7 +723,25 @@ fn main() -> io::Result<()> {
                                 continue;
                             }
                             KeyCode::Right => {
-                                slight_input.move_cursor_right();
+                                // If at end of input, accept inline suggestion
+                                // Otherwise, move cursor right
+                                if slight_input.cursor_position == slight_input.input_text.len() {
+                                    slight_input.accept_inline_suggestion();
+                                } else {
+                                    slight_input.move_cursor_right();
+                                }
+                                continue;
+                            }
+                            KeyCode::Up => {
+                                slight_input.previous_suggestion();
+                                continue;
+                            }
+                            KeyCode::Down => {
+                                slight_input.next_suggestion();
+                                continue;
+                            }
+                            KeyCode::Tab => {
+                                slight_input.accept_selected_suggestion();
                                 continue;
                             }
                             KeyCode::Home => {
@@ -728,6 +755,12 @@ fn main() -> io::Result<()> {
                             KeyCode::Enter => {
                                 // Get the command and create a new terminal window with it
                                 let command = slight_input.get_input();
+
+                                // Record command in history before closing
+                                if !command.is_empty() {
+                                    command_history.record_command(&command);
+                                }
+
                                 active_slight_input = None;
 
                                 if !command.is_empty() {
@@ -1017,9 +1050,12 @@ fn main() -> io::Result<()> {
                     if key_event.code == KeyCode::Char(' ')
                         && key_event.modifiers.contains(KeyModifiers::CONTROL)
                     {
-                        // Create Slight input popup
+                        // Create Slight input popup with autocomplete
                         let (cols, rows) = backend.dimensions();
-                        active_slight_input = Some(SlightInput::new(cols, rows));
+                        let mut slight_input = SlightInput::new(cols, rows);
+                        slight_input
+                            .set_autocomplete(command_indexer.clone(), command_history.clone());
+                        active_slight_input = Some(slight_input);
                         continue;
                     }
 
