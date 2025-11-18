@@ -209,8 +209,12 @@ fn main() -> io::Result<()> {
         // Get mouse device from CLI args
         let mouse_device = cli_args.mouse_device.as_deref();
 
+        // Get mouse axis inversion flags from CLI args
+        let invert_x = cli_args.invert_mouse_x;
+        let invert_y = cli_args.invert_mouse_y;
+
         // Try to initialize framebuffer backend
-        match FramebufferBackend::new(mode, scale, font_name, mouse_device) {
+        match FramebufferBackend::new(mode, scale, font_name, mouse_device, invert_x, invert_y) {
             Ok(fb_backend) => {
                 println!("Framebuffer backend initialized: {}", mode_kind);
                 Box::new(fb_backend)
@@ -257,12 +261,12 @@ fn main() -> io::Result<()> {
         }
     }
 
-    // Hide cursor and enable mouse capture
-    execute!(stdout, cursor::Hide, event::EnableMouseCapture)?;
-
     // Initialize GPM (General Purpose Mouse) for Linux console if available
     #[cfg(target_os = "linux")]
     let gpm_connection = gpm_handler::GpmConnection::open();
+
+    // Hide cursor and enable mouse capture
+    execute!(stdout, cursor::Hide, event::EnableMouseCapture)?;
 
     // Clear the screen
     execute!(stdout, terminal::Clear(ClearType::All))?;
