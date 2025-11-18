@@ -84,7 +84,13 @@ Requires Rust ([Install](https://rustup.rs/))
 
 ### Linux Packages
 
-Download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
+**Homebrew** (Recommended):
+```bash
+brew tap alejandroqh/term39
+brew install term39
+```
+
+Or download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
 
 - **Fedora/RHEL**:
   ```bash
@@ -100,9 +106,15 @@ Download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
 
 ### macOS
 
-Download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
+**Homebrew** (Recommended):
+```bash
+brew tap alejandroqh/term39
+brew install term39
+```
 
-**Option 1: PKG Installer (Recommended)**
+Or download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
+
+**Option 1: PKG Installer**
 
 - Intel: `term39-v*-macos-intel.pkg`
 - Apple Silicon: `term39-v*-macos-apple-silicon.pkg`

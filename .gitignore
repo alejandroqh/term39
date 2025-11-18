@@ -26,4 +26,7 @@ releases/
 release/
 
 # Deployment scripts
-deploy-aur.sh
+# (deployment scripts are committed for transparency)
+
+# Generated Homebrew formula (belongs in tap repo)
+term39.rb
