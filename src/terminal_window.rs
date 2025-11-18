@@ -24,17 +24,24 @@ impl TerminalWindow {
         width: u16,
         height: u16,
         title: String,
+        initial_command: Option<String>,
     ) -> std::io::Result<Self> {
         // Calculate content area (excluding 2-char borders and title bar)
         let content_width = width.saturating_sub(4).max(1); // -2 left, -2 right
         let content_height = height.saturating_sub(2).max(1); // -1 title, -1 bottom
 
         let window = Window::new(id, x, y, width, height, title);
-        let emulator = TerminalEmulator::new(
+        let mut emulator = TerminalEmulator::new(
             content_width as usize,
             content_height as usize,
             1000, // 1000 lines of scrollback
         )?;
+
+        // If an initial command is provided, send it to the terminal
+        if let Some(command) = initial_command {
+            let command_with_enter = format!("{}\n", command);
+            emulator.send_str(&command_with_enter)?;
+        }
 
         Ok(Self {
             window,

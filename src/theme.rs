@@ -128,6 +128,13 @@ pub struct Theme {
     pub splash_border: Color,
     pub splash_bg: Color,
     pub splash_fg: Color,
+
+    // Slight input popup
+    pub slight_bg: Color,
+    pub slight_fg: Color,
+    pub slight_border: Color,
+    pub slight_input_bg: Color,
+    pub slight_input_fg: Color,
 }
 
 impl Theme {
@@ -243,6 +250,13 @@ impl Theme {
             splash_border: Color::White,
             splash_bg: Color::DarkBlue,
             splash_fg: Color::White,
+
+            // Slight input popup - dark Spotlight-like style
+            slight_bg: Color::Black,
+            slight_fg: Color::White,
+            slight_border: Color::Cyan, // Primary theme color (topbar_bg_desktop)
+            slight_input_bg: Color::DarkGrey,
+            slight_input_fg: Color::White,
         }
     }
 
@@ -358,6 +372,13 @@ impl Theme {
             splash_border: Color::White,
             splash_bg: Color::Black,
             splash_fg: Color::White,
+
+            // Slight input popup - dark Spotlight-like style
+            slight_bg: Color::Black,
+            slight_fg: Color::White,
+            slight_border: Color::Grey, // Primary theme color (topbar_bg_desktop)
+            slight_input_bg: Color::DarkGrey,
+            slight_input_fg: Color::White,
         }
     }
 
@@ -475,6 +496,13 @@ impl Theme {
             splash_border: Color::Magenta, // Purple borders
             splash_bg: Color::Black,
             splash_fg: Color::Cyan, // Dracula cyan
+
+            // Slight input popup - dark Spotlight-like style
+            slight_bg: Color::Black,
+            slight_fg: Color::White,
+            slight_border: Color::DarkGrey, // Primary theme color (topbar_bg_desktop)
+            slight_input_bg: Color::DarkGrey,
+            slight_input_fg: Color::Cyan, // Dracula cyan
         }
     }
 
@@ -591,6 +619,13 @@ impl Theme {
             splash_border: Color::Green,
             splash_bg: Color::Black,
             splash_fg: Color::Green,
+
+            // Slight input popup - dark Spotlight-like style
+            slight_bg: Color::Black,
+            slight_fg: Color::Green,
+            slight_border: Color::DarkGreen, // Primary theme color (topbar_bg_desktop)
+            slight_input_bg: Color::DarkGreen,
+            slight_input_fg: Color::Green,
         }
     }
 
@@ -707,6 +742,13 @@ impl Theme {
             splash_border: Color::Yellow,
             splash_bg: Color::Black,
             splash_fg: Color::Yellow,
+
+            // Slight input popup - dark Spotlight-like style
+            slight_bg: Color::Black,
+            slight_fg: Color::Yellow,
+            slight_border: Color::DarkYellow, // Primary theme color (topbar_bg_desktop)
+            slight_input_bg: Color::DarkYellow,
+            slight_input_fg: Color::Yellow,
         }
     }
 

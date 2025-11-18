@@ -19,6 +19,7 @@ mod prompt;
 mod render_backend;
 mod selection;
 mod session;
+mod slight_input;
 mod term_grid;
 mod terminal_emulator;
 mod terminal_window;
@@ -47,6 +48,7 @@ use prompt::{Prompt, PromptAction, PromptButton, PromptType};
 use render_backend::FramebufferBackend;
 use render_backend::{RenderBackend, TerminalBackend};
 use selection::SelectionType;
+use slight_input::SlightInput;
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
 use std::{thread, time};
@@ -343,6 +345,9 @@ fn main() -> io::Result<()> {
     // About window state (None when not shown)
     let mut active_about_window: Option<InfoWindow> = None;
 
+    // Slight input popup state (None when not shown)
+    let mut active_slight_input: Option<SlightInput> = None;
+
     // Clipboard manager
     let mut clipboard_manager = ClipboardManager::new();
 
@@ -454,6 +459,12 @@ fn main() -> io::Result<()> {
         if let Some(ref prompt) = active_prompt {
             video_buffer::render_fullscreen_shadow(&mut video_buffer);
             prompt.render(&mut video_buffer, &charset, &theme);
+        }
+
+        // Render active Slight input (if any) on top of everything
+        if let Some(ref slight_input) = active_slight_input {
+            video_buffer::render_fullscreen_shadow(&mut video_buffer);
+            slight_input.render(&mut video_buffer, &charset, &theme);
         }
 
         // Render active calendar (if any) on top of everything
@@ -682,6 +693,78 @@ fn main() -> io::Result<()> {
                             }
                             _ => {
                                 // Ignore other keys when prompt is active
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Handle Slight input keyboard events if active
+                    if let Some(ref mut slight_input) = active_slight_input {
+                        match key_event.code {
+                            KeyCode::Char(c) => {
+                                slight_input.insert_char(c);
+                                continue;
+                            }
+                            KeyCode::Backspace => {
+                                slight_input.delete_char();
+                                continue;
+                            }
+                            KeyCode::Left => {
+                                slight_input.move_cursor_left();
+                                continue;
+                            }
+                            KeyCode::Right => {
+                                slight_input.move_cursor_right();
+                                continue;
+                            }
+                            KeyCode::Home => {
+                                slight_input.move_cursor_home();
+                                continue;
+                            }
+                            KeyCode::End => {
+                                slight_input.move_cursor_end();
+                                continue;
+                            }
+                            KeyCode::Enter => {
+                                // Get the command and create a new terminal window with it
+                                let command = slight_input.get_input();
+                                active_slight_input = None;
+
+                                if !command.is_empty() {
+                                    // Create a new terminal window and run the command
+                                    let (cols, rows) = backend.dimensions();
+
+                                    // Window size: 2.5x larger (60*2.5=150, 20*2.5=50)
+                                    let width = 150;
+                                    let height = 50;
+
+                                    // Center the window (ensuring y >= 1 to avoid overlapping top bar)
+                                    let x = (cols.saturating_sub(width)) / 2;
+                                    let y = ((rows.saturating_sub(height)) / 2).max(1);
+
+                                    let _terminal_id = window_manager.create_window(
+                                        x,
+                                        y,
+                                        width,
+                                        height,
+                                        format!("Terminal {}", window_manager.window_count() + 1),
+                                        Some(command),
+                                    );
+
+                                    // Auto-position all windows based on the snap pattern
+                                    if auto_tiling_enabled {
+                                        window_manager.auto_position_windows(cols, rows);
+                                    }
+                                }
+                                continue;
+                            }
+                            KeyCode::Esc => {
+                                // ESC dismisses the Slight input
+                                active_slight_input = None;
+                                continue;
+                            }
+                            _ => {
+                                // Ignore other keys when Slight input is active
                                 continue;
                             }
                         }
@@ -927,6 +1010,16 @@ fn main() -> io::Result<()> {
                             // Send Ctrl+L (form feed, 0x0c) to the shell
                             let _ = window_manager.send_to_focused("\x0c");
                         }
+                        continue;
+                    }
+
+                    // Handle CTRL+Space to open Slight input popup
+                    if key_event.code == KeyCode::Char(' ')
+                        && key_event.modifiers.contains(KeyModifiers::CONTROL)
+                    {
+                        // Create Slight input popup
+                        let (cols, rows) = backend.dimensions();
+                        active_slight_input = Some(SlightInput::new(cols, rows));
                         continue;
                     }
 
@@ -1202,6 +1295,7 @@ fn main() -> io::Result<()> {
                                     width,
                                     height,
                                     format!("Terminal {}", window_manager.window_count() + 1),
+                                    None,
                                 );
 
                                 // Auto-position all windows based on the snap pattern
@@ -1233,6 +1327,7 @@ fn main() -> io::Result<()> {
                                     width,
                                     height,
                                     format!("Terminal {}", window_manager.window_count() + 1),
+                                    None,
                                 );
 
                                 // Maximize the newly created window
@@ -1543,6 +1638,7 @@ fn main() -> io::Result<()> {
                             width,
                             height,
                             format!("Terminal {}", window_manager.window_count() + 1),
+                            None,
                         );
 
                         // Auto-position all windows based on the snap pattern

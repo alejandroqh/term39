@@ -91,7 +91,15 @@ impl WindowManager {
     }
 
     /// Create and add a new terminal window (returns window ID)
-    pub fn create_window(&mut self, x: u16, y: u16, width: u16, height: u16, title: String) -> u32 {
+    pub fn create_window(
+        &mut self,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+        title: String,
+        initial_command: Option<String>,
+    ) -> u32 {
         let id = self.next_id;
         self.next_id += 1;
 
@@ -101,7 +109,9 @@ impl WindowManager {
         }
 
         // Create terminal window (ignore errors for now)
-        if let Ok(mut terminal_window) = TerminalWindow::new(id, x, y, width, height, title) {
+        if let Ok(mut terminal_window) =
+            TerminalWindow::new(id, x, y, width, height, title, initial_command)
+        {
             terminal_window.set_focused(true);
             self.windows.push(terminal_window);
             self.focus = FocusState::Window(id);
@@ -1103,6 +1113,7 @@ impl WindowManager {
                 snapshot.width,
                 snapshot.height,
                 snapshot.title.clone(),
+                None, // No initial command for restored windows
             ) {
                 // Restore window state
                 terminal_window.set_focused(snapshot.is_focused);
