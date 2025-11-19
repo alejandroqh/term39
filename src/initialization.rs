@@ -90,8 +90,14 @@ pub fn setup_terminal(stdout: &mut io::Stdout) -> io::Result<()> {
         }
     }
 
+    // Enter alternate screen buffer to prevent scrolling the parent terminal
     // Hide cursor and enable mouse capture
-    execute!(stdout, cursor::Hide, event::EnableMouseCapture)?;
+    execute!(
+        stdout,
+        terminal::EnterAlternateScreen,
+        cursor::Hide,
+        event::EnableMouseCapture
+    )?;
 
     // Clear the screen
     execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
@@ -163,8 +169,8 @@ pub fn cleanup(stdout: &mut io::Stdout) -> io::Result<()> {
     // Clear screen
     execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
 
-    // Show cursor
-    execute!(stdout, cursor::Show)?;
+    // Show cursor and leave alternate screen
+    execute!(stdout, cursor::Show, terminal::LeaveAlternateScreen)?;
 
     // Disable raw mode
     terminal::disable_raw_mode()?;

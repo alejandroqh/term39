@@ -358,8 +358,10 @@ fn handle_esc_key(
                 cols,
                 rows,
             ));
+        } else {
+            // If no windows, exit immediately
+            app_state.should_exit = true;
         }
-        // If no windows, exit is handled in main loop
     } else {
         // Send ESC to terminal
         let _ = window_manager.send_to_focused("\x1b");
@@ -386,8 +388,10 @@ fn handle_q_key(
                 cols,
                 rows,
             ));
+        } else {
+            // If no windows, exit immediately
+            app_state.should_exit = true;
         }
-        // If no windows, exit is handled in main loop
     } else {
         // Send 'q' to terminal
         let _ = window_manager.send_char_to_focused('q');

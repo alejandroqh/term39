@@ -153,6 +153,10 @@ impl VideoBuffer {
         // Swap buffers
         std::mem::swap(&mut self.front_buffer, &mut self.back_buffer);
 
+        // Hide cursor after rendering to prevent it from being visible or affecting PTY output
+        // Even hidden cursors have a position, so we also move it to (0, 0)
+        execute!(stdout, cursor::MoveTo(0, 0), cursor::Hide)?;
+
         Ok(())
     }
 

@@ -38,6 +38,9 @@ pub struct AppState {
     pub selection_active: bool,
     pub last_click_time: Option<Instant>,
     pub click_count: u32,
+
+    // Exit flag
+    pub should_exit: bool,
 }
 
 impl AppState {
@@ -104,6 +107,9 @@ impl AppState {
             selection_active: false,
             last_click_time: None,
             click_count: 0,
+
+            // Exit flag
+            should_exit: false,
         }
     }
 

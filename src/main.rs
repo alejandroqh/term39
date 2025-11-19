@@ -382,6 +382,10 @@ fn main() -> io::Result<()> {
                         &app_config,
                         &cli_args,
                     ) {
+                        // Check if exit was requested
+                        if app_state.should_exit {
+                            break;
+                        }
                         continue;
                     }
 
