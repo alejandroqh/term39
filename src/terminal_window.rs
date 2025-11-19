@@ -224,6 +224,7 @@ impl TerminalWindow {
         }
 
         // Render cursor if visible and not scrolled
+        // Applications like Claude hide the cursor to draw their own
         if grid.cursor.visible && self.scroll_offset == 0 {
             let cursor_x = content_x + grid.cursor.x as u16;
             let cursor_y = content_y + grid.cursor.y as u16;
@@ -232,12 +233,32 @@ impl TerminalWindow {
             if cursor_x < content_x + content_width && cursor_y < content_y + content_height {
                 // Get the current cell at cursor position
                 if let Some(current_cell) = buffer.get(cursor_x, cursor_y) {
-                    // Invert colors for cursor
-                    let cursor_cell = Cell::new(
-                        current_cell.character,
-                        current_cell.bg_color,
-                        current_cell.fg_color,
-                    );
+                    // Create cursor based on cursor shape
+                    let cursor_cell = match grid.cursor.shape {
+                        crate::term_grid::CursorShape::Block => {
+                            // For block cursor, show as inverted colors
+                            if current_cell.character == ' ' || current_cell.character == '\0' {
+                                // For empty space, show a solid block using the foreground color
+                                // This makes the cursor visible as a colored block
+                                Cell::new('█', current_cell.fg_color, current_cell.bg_color)
+                            } else {
+                                // For text, invert the colors (swap fg and bg)
+                                Cell::new(
+                                    current_cell.character,
+                                    current_cell.bg_color, // Use bg as fg (inverted)
+                                    current_cell.fg_color, // Use fg as bg (inverted)
+                                )
+                            }
+                        }
+                        crate::term_grid::CursorShape::Underline => {
+                            // For underline cursor, show underscore in foreground color
+                            Cell::new('_', current_cell.fg_color, current_cell.bg_color)
+                        }
+                        crate::term_grid::CursorShape::Bar => {
+                            // For bar cursor, show vertical bar in foreground color
+                            Cell::new('│', current_cell.fg_color, current_cell.bg_color)
+                        }
+                    };
                     buffer.set(cursor_x, cursor_y, cursor_cell);
                 }
             }

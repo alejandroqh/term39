@@ -413,10 +413,60 @@ impl Perform for AnsiHandler<'_> {
         }
     }
 
-    fn esc_dispatch(&mut self, _intermediates: &[u8], _ignore: bool, _byte: u8) {
-        // ESC sequences (less common than CSI)
-        // Could implement things like:
-        // - ESC M: Reverse index (move up, scroll if needed)
-        // - ESC c: Reset terminal
+    fn esc_dispatch(&mut self, intermediates: &[u8], _ignore: bool, byte: u8) {
+        // ESC sequences
+        match (byte, intermediates) {
+            // ESC D - Index (IND): Move cursor down one line, scroll if needed
+            (b'D', []) => {
+                self.grid.put_char('\n');
+            }
+
+            // ESC M - Reverse Index (RI): Move cursor up one line, scroll if needed
+            (b'M', []) => {
+                self.grid.reverse_linefeed();
+            }
+
+            // ESC E - Next Line (NEL): Move to start of next line
+            (b'E', []) => {
+                self.grid.next_line();
+            }
+
+            // ESC 7 - Save Cursor (DECSC)
+            (b'7', []) => {
+                self.grid.save_cursor();
+            }
+
+            // ESC 8 - Restore Cursor (DECRC)
+            (b'8', []) => {
+                self.grid.restore_cursor();
+            }
+
+            // ESC c - Full Reset (RIS)
+            (b'c', []) => {
+                self.grid.reset();
+            }
+
+            // ESC H - Horizontal Tab Set (HTS)
+            (b'H', []) => {
+                // Set a tab stop at current cursor position
+                // For now, we use default tab stops every 8 columns
+            }
+
+            // ESC = - Application Keypad (DECKPAM)
+            (b'=', []) => {
+                // Switch keypad to application mode
+                // Not implemented - affects input handling
+            }
+
+            // ESC > - Normal Keypad (DECKPNM)
+            (b'>', []) => {
+                // Switch keypad to numeric mode
+                // Not implemented - affects input handling
+            }
+
+            _ => {
+                // Unknown or unimplemented escape sequence
+            }
+        }
     }
 }

@@ -290,6 +290,49 @@ impl TerminalGrid {
         self.cursor.x = 0;
     }
 
+    /// Reverse linefeed - move cursor up one line, scrolling down if at top of scroll region
+    pub fn reverse_linefeed(&mut self) {
+        if self.cursor.y == self.scroll_region_top {
+            // At top of scroll region, scroll down
+            self.scroll_down(1);
+        } else if self.cursor.y > 0 {
+            self.cursor.y -= 1;
+        }
+    }
+
+    /// Next line - carriage return + linefeed
+    pub fn next_line(&mut self) {
+        self.carriage_return();
+        self.linefeed();
+    }
+
+    /// Reset terminal to initial state
+    pub fn reset(&mut self) {
+        // Clear screen
+        self.clear_screen();
+
+        // Reset cursor
+        self.cursor = Cursor::default();
+
+        // Reset attributes
+        self.current_attrs = CellAttributes::default();
+        self.current_fg = Color::Named(NamedColor::White);
+        self.current_bg = Color::Named(NamedColor::Black);
+
+        // Reset scroll region
+        self.scroll_region_top = 0;
+        self.scroll_region_bottom = self.rows_count.saturating_sub(1);
+
+        // Clear saved cursor
+        self.saved_cursor = None;
+
+        // Clear alt screen
+        self.alt_screen = None;
+
+        // Reset scrollback
+        self.scrollback.clear();
+    }
+
     /// Move cursor to next tab stop
     fn tab(&mut self) {
         for x in (self.cursor.x + 1)..self.cols {
@@ -417,10 +460,13 @@ impl TerminalGrid {
     /// Switch to alternate screen buffer
     pub fn use_alt_screen(&mut self) {
         if self.alt_screen.is_none() {
+            // Save cursor position (part of DECSC/DECRC behavior with alt screen)
+            self.save_cursor();
             // Save current screen
             self.alt_screen = Some(self.rows.clone());
             // Clear current screen
             self.clear_screen();
+            // Reset cursor to home position
             self.cursor = Cursor::default();
         }
     }
@@ -429,6 +475,8 @@ impl TerminalGrid {
     pub fn use_main_screen(&mut self) {
         if let Some(main_screen) = self.alt_screen.take() {
             self.rows = main_screen;
+            // Restore cursor position (part of DECSC/DECRC behavior with alt screen)
+            self.restore_cursor();
         }
     }
 
