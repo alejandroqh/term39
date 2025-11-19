@@ -38,11 +38,14 @@ pub fn show_splash_screen(
             "   ░░░░░    ░░░░░░░░░░ ░░░░░   ░░░░░ ░░░░░     ░░░░░  ░░░░░░░░   ░░░░░░░░  ",
         ],
         charset::CharsetMode::Ascii => vec![
-            "TTTTTTT EEEEEEE RRRRRR  M     M  333333   999999 ",
-            "  TTT   EE      RR   RR MM   MM       33 99   99",
-            "  TTT   EEEEE   RRRRRR  M M M M  333333  9999999",
-            "  TTT   EE      RR  RR  M  M  M       33      99",
-            "  TTT   EEEEEEE RR   RR M     M  333333   99999 ",
+            " TTTTTTTTTTT EEEEEEEEEE RRRRRRRRRRR   MMMMMM   MMMMMM  333333333   99999999 ",
+            ".T...TTT...T..EEE.....E..RRR.....RRR ..MMMMMM MMMMMM  333....333 999....999",
+            ".   .TTT  .  .EEE  E .  .RRR    .RRR  .MMM.MMMMM.MMM .      .333.999   .999",
+            "    .TTT     .EEEEEE    .RRRRRRRRR    .MMM..MMM .MMM    333333. ..999999999",
+            "    .TTT     .EEE..E    .RRR...RRR    .MMM ...  .MMM   .......333 .......999",
+            "    .TTT     .EEE .   E .RRR    .RRR  .MMM      .MMM  333   .333 999   .999",
+            "    TTTTT    EEEEEEEEEE RRRRR   RRRRR MMMMM     MMMMM..333333333 ..99999999 ",
+            "   .....    .......... .....   ..... .....     .....  ..........   ........  ",
         ],
     };
 
@@ -145,44 +148,44 @@ pub fn show_splash_screen(
         theme,
     );
 
-    // Define gradient colors for TERM39 logo (fixed colors, independent of theme)
+    // Define gradient colors for TERM39 logo (white to dark gray gradient)
     // Only 7 colors so row 8 (shadow area) stays dark
     let gradient_colors = [
         Color::Rgb {
             r: 0xFF,
-            g: 0xE8,
-            b: 0xB3,
-        }, // #ffe8b3ff - White
+            g: 0xFF,
+            b: 0xFF,
+        }, // #FFFFFF - White
         Color::Rgb {
-            r: 0xF7,
-            g: 0xC7,
-            b: 0x45,
-        }, // #F7C745 - Yellow-orange
+            r: 0xF0,
+            g: 0xF0,
+            b: 0xF0,
+        }, // #F0F0F0 - Very light gray
         Color::Rgb {
-            r: 0xF1,
-            g: 0x74,
-            b: 0x31,
-        }, // #F17431 - Orange
+            r: 0xDC,
+            g: 0xDC,
+            b: 0xDC,
+        }, // #DCDCDC - Light gray
         Color::Rgb {
-            r: 0xE8,
-            g: 0x55,
-            b: 0x39,
-        }, // #E85539 - Red-orange
+            r: 0xC8,
+            g: 0xC8,
+            b: 0xC8,
+        }, // #C8C8C8 - Medium-light gray
         Color::Rgb {
-            r: 0xCD,
-            g: 0x41,
-            b: 0x3F,
-        }, // #CD413F - Red
+            r: 0xB4,
+            g: 0xB4,
+            b: 0xB4,
+        }, // #B4B4B4 - Medium gray
         Color::Rgb {
-            r: 0x9E,
-            g: 0x2F,
-            b: 0x3C,
-        }, // #9E2F3C - Dark red
+            r: 0xA0,
+            g: 0xA0,
+            b: 0xA0,
+        }, // #A0A0A0 - Medium-dark gray
         Color::Rgb {
-            r: 0x61,
-            g: 0x21,
-            b: 0x3B,
-        }, // #61213B - Purple-red
+            r: 0x80,
+            g: 0x80,
+            b: 0x80,
+        }, // #808080 - Dark gray
         Color::DarkGrey, // Shadow area
     ];
 
