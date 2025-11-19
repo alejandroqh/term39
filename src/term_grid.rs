@@ -88,6 +88,15 @@ pub struct Cursor {
     pub shape: CursorShape,
 }
 
+/// Saved cursor state (for DECSC/DECRC)
+#[derive(Debug, Clone, Copy)]
+pub struct SavedCursorState {
+    pub cursor: Cursor,
+    pub attrs: CellAttributes,
+    pub fg: Color,
+    pub bg: Color,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CursorShape {
     Block,
@@ -126,8 +135,8 @@ pub struct TerminalGrid {
     /// Scroll region (for CSI scrolling)
     scroll_region_top: usize,
     scroll_region_bottom: usize,
-    /// Saved cursor position (for save/restore)
-    saved_cursor: Option<Cursor>,
+    /// Saved cursor state (for DECSC/DECRC - includes colors and attributes)
+    saved_cursor: Option<SavedCursorState>,
     /// Alternate screen buffer
     alt_screen: Option<Vec<Vec<TerminalCell>>>,
     /// Tab stops (every 8 columns by default)
@@ -480,15 +489,23 @@ impl TerminalGrid {
         self.goto(new_x, new_y);
     }
 
-    /// Save cursor position
+    /// Save cursor position and attributes (DECSC)
     pub fn save_cursor(&mut self) {
-        self.saved_cursor = Some(self.cursor);
+        self.saved_cursor = Some(SavedCursorState {
+            cursor: self.cursor,
+            attrs: self.current_attrs,
+            fg: self.current_fg,
+            bg: self.current_bg,
+        });
     }
 
-    /// Restore cursor position
+    /// Restore cursor position and attributes (DECRC)
     pub fn restore_cursor(&mut self) {
         if let Some(saved) = self.saved_cursor {
-            self.cursor = saved;
+            self.cursor = saved.cursor;
+            self.current_attrs = saved.attrs;
+            self.current_fg = saved.fg;
+            self.current_bg = saved.bg;
         }
     }
 
