@@ -24,6 +24,7 @@ mod render_backend;
 mod selection;
 mod session;
 mod slight_input;
+mod splash_screen;
 mod term_grid;
 mod terminal_emulator;
 mod terminal_window;
@@ -58,7 +59,6 @@ use selection::SelectionType;
 use slight_input::SlightInput;
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
-use std::{thread, time};
 use theme::Theme;
 use video_buffer::{Cell, VideoBuffer};
 use window_manager::{FocusState, WindowManager};
@@ -374,7 +374,7 @@ fn main() -> io::Result<()> {
     let mut click_count = 0;
 
     // Show splash screen for 1 second
-    show_splash_screen(&mut video_buffer, &mut backend, &charset, &theme)?;
+    splash_screen::show_splash_screen(&mut video_buffer, &mut backend, &charset, &theme)?;
 
     // Start with desktop focused - no windows yet
     // User can press 't' to create windows
@@ -2189,185 +2189,6 @@ fn render_top_bar(
             Cell::new(ch, theme.clock_fg, theme.clock_bg),
         );
     }
-}
-
-fn show_splash_screen(
-    buffer: &mut VideoBuffer,
-    backend: &mut Box<dyn RenderBackend>,
-    charset: &Charset,
-    theme: &Theme,
-) -> io::Result<()> {
-    let (cols, rows) = buffer.dimensions();
-
-    // Clear screen to black
-    let black_cell = Cell::new(' ', theme.splash_fg, Color::Black);
-    for y in 0..rows {
-        for x in 0..cols {
-            buffer.set(x, y, black_cell);
-        }
-    }
-
-    // Choose ASCII art based on charset mode
-    let ascii_art = match charset.mode {
-        charset::CharsetMode::Unicode => vec![
-            " ███████████ ██████████ ███████████   ██████   ██████  ████████   ████████ ",
-            "░█░░░███░░░█░░███░░░░░█░░███░░░░░███ ░░██████ ██████  ███░░░░███ ███░░░░███",
-            "░   ░███  ░  ░███  █ ░  ░███    ░███  ░███░█████░███ ░░░    ░███░███   ░███",
-            "    ░███     ░██████    ░██████████   ░███░░███ ░███    ██████░ ░░█████████",
-            "    ░███     ░███░░█    ░███░░░░░███  ░███ ░░░  ░███   ░░░░░░███ ░░░░░░░███",
-            "    ░███     ░███ ░   █ ░███    ░███  ░███      ░███  ███   ░███ ███   ░███",
-            "    █████    ██████████ █████   █████ █████     █████░░████████ ░░████████ ",
-            "   ░░░░░    ░░░░░░░░░░ ░░░░░   ░░░░░ ░░░░░     ░░░░░  ░░░░░░░░   ░░░░░░░░  ",
-        ],
-        charset::CharsetMode::Ascii => vec![
-            "TTTTTTT EEEEEEE RRRRRR  M     M  333333   999999 ",
-            "  TTT   EE      RR   RR MM   MM       33 99   99",
-            "  TTT   EEEEE   RRRRRR  M M M M  333333  9999999",
-            "  TTT   EE      RR  RR  M  M  M       33      99",
-            "  TTT   EEEEEEE RR   RR M     M  333333   99999 ",
-        ],
-    };
-
-    // License information to display below ASCII art
-    let license_lines = [
-        "",
-        &format!("Version {}", config::VERSION),
-        "MIT License",
-        &format!("Copyright (c) 2025 {}", config::AUTHORS),
-    ];
-
-    // Calculate window dimensions
-    let art_width = ascii_art[0].chars().count() as u16;
-    let art_height = ascii_art.len() as u16;
-    let license_height = license_lines.len() as u16;
-    let total_content_height = art_height + license_height;
-
-    let window_width = art_width + 6; // 2 for borders + 4 for padding
-    let window_height = total_content_height + 4; // Top border + padding + content + padding + bottom border
-
-    // Center the window
-    let window_x = (cols.saturating_sub(window_width)) / 2;
-    let window_y = (rows.saturating_sub(window_height)) / 2;
-
-    let border_color = theme.splash_border;
-    let content_bg = theme.splash_bg;
-
-    // Draw top border using charset
-    buffer.set(
-        window_x,
-        window_y,
-        Cell::new(charset.border_top_left, border_color, content_bg),
-    );
-    for x in 1..window_width - 1 {
-        buffer.set(
-            window_x + x,
-            window_y,
-            Cell::new(charset.border_horizontal, border_color, content_bg),
-        );
-    }
-    buffer.set(
-        window_x + window_width - 1,
-        window_y,
-        Cell::new(charset.border_top_right, border_color, content_bg),
-    );
-
-    // Draw middle rows (content area)
-    for y in 1..window_height - 1 {
-        // Left border
-        buffer.set(
-            window_x,
-            window_y + y,
-            Cell::new(charset.border_vertical, border_color, content_bg),
-        );
-
-        // Content
-        for x in 1..window_width - 1 {
-            buffer.set(
-                window_x + x,
-                window_y + y,
-                Cell::new(' ', theme.splash_fg, content_bg),
-            );
-        }
-
-        // Right border
-        buffer.set(
-            window_x + window_width - 1,
-            window_y + y,
-            Cell::new(charset.border_vertical, border_color, content_bg),
-        );
-    }
-
-    // Draw bottom border using charset
-    buffer.set(
-        window_x,
-        window_y + window_height - 1,
-        Cell::new(charset.border_bottom_left, border_color, content_bg),
-    );
-    for x in 1..window_width - 1 {
-        buffer.set(
-            window_x + x,
-            window_y + window_height - 1,
-            Cell::new(charset.border_horizontal, border_color, content_bg),
-        );
-    }
-    buffer.set(
-        window_x + window_width - 1,
-        window_y + window_height - 1,
-        Cell::new(charset.border_bottom_right, border_color, content_bg),
-    );
-
-    // Draw shadow (right and bottom) using shared function
-    video_buffer::render_shadow(
-        buffer,
-        window_x,
-        window_y,
-        window_width,
-        window_height,
-        charset,
-        theme,
-    );
-
-    // Render ASCII art centered in the window
-    let content_start_y = window_y + 2; // Start after top border and padding
-    let content_x = window_x + 3; // Left padding
-
-    for (i, line) in ascii_art.iter().enumerate() {
-        for (j, ch) in line.chars().enumerate() {
-            buffer.set(
-                content_x + j as u16,
-                content_start_y + i as u16,
-                Cell::new(ch, theme.splash_fg, content_bg),
-            );
-        }
-    }
-
-    // Render license information below ASCII art
-    let license_start_y = content_start_y + art_height;
-    for (i, line) in license_lines.iter().enumerate() {
-        // Center each license line
-        let line_len = line.chars().count() as u16;
-        let line_x = if line_len < art_width {
-            content_x + (art_width - line_len) / 2
-        } else {
-            content_x
-        };
-
-        for (j, ch) in line.chars().enumerate() {
-            buffer.set(
-                line_x + j as u16,
-                license_start_y + i as u16,
-                Cell::new(ch, theme.splash_fg, content_bg),
-            );
-        }
-    }
-
-    // Present to screen
-    backend.present(&mut *buffer)?;
-
-    // Wait for 1 second
-    thread::sleep(time::Duration::from_secs(1));
-
-    Ok(())
 }
 
 fn render_button_bar(
