@@ -171,7 +171,7 @@ impl TerminalGrid {
             rows_count: rows,
             cursor: Cursor::default(),
             current_attrs: CellAttributes::default(),
-            current_fg: Color::Named(NamedColor::White),
+            current_fg: Color::Named(NamedColor::BrightGreen),
             current_bg: Color::Named(NamedColor::Black),
             scroll_region_top: 0,
             scroll_region_bottom: rows.saturating_sub(1),
@@ -194,6 +194,16 @@ impl TerminalGrid {
 
     pub fn rows(&self) -> usize {
         self.rows_count
+    }
+
+    #[allow(dead_code)]
+    pub fn scroll_region_top(&self) -> usize {
+        self.scroll_region_top
+    }
+
+    #[allow(dead_code)]
+    pub fn scroll_region_bottom(&self) -> usize {
+        self.scroll_region_bottom
     }
 
     #[allow(dead_code)]
@@ -313,8 +323,13 @@ impl TerminalGrid {
         }
 
         if self.cursor.y == self.scroll_region_bottom {
-            // At bottom of scroll region, scroll up
-            self.scroll_up(1);
+            // At bottom of scroll region
+            // Don't scroll during synchronized output or in alternate screen (TUI apps manage their own layout)
+            if self.synchronized_output || self.alt_screen.is_some() {
+                // Stay at last row without scrolling
+            } else {
+                self.scroll_up(1);
+            }
         } else if self.cursor.y < self.rows_count - 1 {
             self.cursor.y += 1;
         }
@@ -351,7 +366,7 @@ impl TerminalGrid {
 
         // Reset attributes
         self.current_attrs = CellAttributes::default();
-        self.current_fg = Color::Named(NamedColor::White);
+        self.current_fg = Color::Named(NamedColor::BrightGreen);
         self.current_bg = Color::Named(NamedColor::Black);
 
         // Reset scroll region
@@ -398,14 +413,18 @@ impl TerminalGrid {
     /// Scroll the scroll region up by n lines
     pub fn scroll_up(&mut self, n: usize) {
         for _ in 0..n {
-            // Remove top line of scroll region and add to scrollback
+            // Remove top line of scroll region
             if self.scroll_region_top < self.rows_count {
                 let line = self.rows.remove(self.scroll_region_top);
-                self.scrollback.push(line);
 
-                // Limit scrollback size
-                if self.scrollback.len() > self.max_scrollback {
-                    self.scrollback.remove(0);
+                // Only add to scrollback if NOT in alternate screen
+                if self.alt_screen.is_none() {
+                    self.scrollback.push(line);
+
+                    // Limit scrollback size
+                    if self.scrollback.len() > self.max_scrollback {
+                        self.scrollback.remove(0);
+                    }
                 }
 
                 // Insert blank line at bottom of scroll region
@@ -489,7 +508,25 @@ impl TerminalGrid {
         self.goto(new_x, new_y);
     }
 
-    /// Save cursor position and attributes (DECSC)
+    /// Save cursor position only (CSI s - SCP)
+    pub fn save_cursor_position(&mut self) {
+        self.saved_cursor = Some(SavedCursorState {
+            cursor: self.cursor,
+            attrs: self.current_attrs,
+            fg: self.current_fg,
+            bg: self.current_bg,
+        });
+    }
+
+    /// Restore cursor position only (CSI u - RCP)
+    pub fn restore_cursor_position(&mut self) {
+        if let Some(saved) = self.saved_cursor {
+            self.cursor = saved.cursor;
+            // Don't restore colors/attrs for CSI u
+        }
+    }
+
+    /// Save cursor position and attributes (DECSC - ESC 7)
     pub fn save_cursor(&mut self) {
         self.saved_cursor = Some(SavedCursorState {
             cursor: self.cursor,
@@ -499,7 +536,7 @@ impl TerminalGrid {
         });
     }
 
-    /// Restore cursor position and attributes (DECRC)
+    /// Restore cursor position and attributes (DECRC - ESC 8)
     pub fn restore_cursor(&mut self) {
         if let Some(saved) = self.saved_cursor {
             self.cursor = saved.cursor;

@@ -672,6 +672,11 @@ fn convert_terminal_cell(term_cell: &TerminalCell, theme: &Theme, tint_terminal:
     let mut fg = convert_color(&term_cell.fg);
     let mut bg = convert_color(&term_cell.bg);
 
+    // Handle reverse video attribute - swap fg and bg
+    if term_cell.attrs.reverse {
+        std::mem::swap(&mut fg, &mut bg);
+    }
+
     // Apply theme-based tinting if enabled
     if tint_terminal {
         fg = apply_theme_tint(fg, theme, true);

@@ -27,7 +27,7 @@ impl<'a> AnsiHandler<'a> {
                 0 => {
                     // Reset
                     self.grid.current_attrs = Default::default();
-                    self.grid.current_fg = Color::Named(NamedColor::White);
+                    self.grid.current_fg = Color::Named(NamedColor::BrightGreen);
                     self.grid.current_bg = Color::Named(NamedColor::Black);
                 }
                 1 => self.grid.current_attrs.bold = true,
@@ -81,7 +81,7 @@ impl<'a> AnsiHandler<'a> {
                         }
                     }
                 }
-                39 => self.grid.current_fg = Color::Named(NamedColor::White), // Default
+                39 => self.grid.current_fg = Color::Named(NamedColor::BrightGreen), // Default foreground
                 // Background colors (40-47: normal, 100-107: bright)
                 40 => self.grid.current_bg = Color::Named(NamedColor::Black),
                 41 => self.grid.current_bg = Color::Named(NamedColor::Red),
@@ -360,7 +360,7 @@ impl Perform for AnsiHandler<'_> {
                         1015 => self.grid.mouse_urxvt_mode = true,     // URXVT mouse mode
                         1049 => self.grid.use_alt_screen(),            // Alt screen
                         2004 => self.grid.bracketed_paste_mode = true, // Bracketed paste
-                        2026 => self.grid.synchronized_output = true,  // Synchronized output
+                        2026 => self.grid.synchronized_output = true,
                         _ => {}
                     }
                 }
@@ -377,7 +377,7 @@ impl Perform for AnsiHandler<'_> {
                         1015 => self.grid.mouse_urxvt_mode = false,     // URXVT mouse mode
                         1049 => self.grid.use_main_screen(),            // Main screen
                         2004 => self.grid.bracketed_paste_mode = false, // Bracketed paste
-                        2026 => self.grid.synchronized_output = false,  // Synchronized output
+                        2026 => self.grid.synchronized_output = false,
                         _ => {}
                     }
                 }
@@ -399,12 +399,12 @@ impl Perform for AnsiHandler<'_> {
                     .set_scroll_region(top.saturating_sub(1), bottom.saturating_sub(1));
             }
             ('s', []) => {
-                // Save Cursor Position
-                self.grid.save_cursor();
+                // Save Cursor Position (CSI s - position only)
+                self.grid.save_cursor_position();
             }
             ('u', []) => {
-                // Restore Cursor Position
-                self.grid.restore_cursor();
+                // Restore Cursor Position (CSI u - position only)
+                self.grid.restore_cursor_position();
             }
             ('q', [b' ']) => {
                 // Set Cursor Shape (DECSCUSR)
