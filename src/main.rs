@@ -1,6 +1,7 @@
 #![allow(clippy::collapsible_if)]
 
 mod ansi_handler;
+mod app_state;
 mod button;
 mod charset;
 mod cli;
@@ -19,8 +20,10 @@ mod fuzzy_matcher;
 #[cfg(target_os = "linux")]
 mod gpm_handler;
 mod info_window;
+mod initialization;
 mod prompt;
 mod render_backend;
+mod render_frame;
 mod selection;
 mod session;
 mod slight_input;
@@ -34,34 +37,28 @@ mod video_buffer;
 mod window;
 mod window_manager;
 
+use app_state::AppState;
 use button::Button;
-use charset::Charset;
 use chrono::Local;
 use clipboard_manager::ClipboardManager;
 use command_history::CommandHistory;
 use command_indexer::CommandIndexer;
 use config_manager::AppConfig;
 use config_window::{ConfigAction, ConfigWindow};
-use context_menu::{ContextMenu, MenuAction};
+use context_menu::MenuAction;
 use crossterm::{
-    cursor,
     event::{self, Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind},
-    execute,
     terminal::{self, ClearType},
 };
 use error_dialog::ErrorDialog;
 use info_window::InfoWindow;
 use prompt::{Prompt, PromptAction, PromptButton, PromptType};
-#[cfg(feature = "framebuffer-backend")]
-use render_backend::FramebufferBackend;
-use render_backend::{RenderBackend, TerminalBackend};
 use selection::SelectionType;
 use slight_input::SlightInput;
-use std::io::{self, Write};
+use std::io;
 use std::time::{Duration, Instant};
 use theme::Theme;
 use ui_render::CalendarState;
-use video_buffer::VideoBuffer;
 use window_manager::{FocusState, WindowManager};
 
 // Platform detection helper - returns true if running on macOS
@@ -104,193 +101,37 @@ fn main() -> io::Result<()> {
         return Ok(());
     }
 
-    // Create charset based on CLI arguments
-    let mut charset = if cli_args.ascii {
-        Charset::ascii()
-    } else {
-        Charset::unicode()
-    };
-
     // Load application configuration
     let mut app_config = AppConfig::load();
 
-    // Set the background character from config
-    charset.set_background(app_config.get_background_char());
-
-    // Use theme from CLI args if provided, otherwise use config theme
-    let theme_name = cli_args.theme.as_ref().unwrap_or(&app_config.theme);
-    let mut theme = Theme::from_name(theme_name);
+    // Create charset and theme
+    let mut charset = initialization::initialize_charset(&cli_args, &app_config);
+    let mut theme = initialization::initialize_theme(&cli_args, &app_config);
 
     // Initialize rendering backend (framebuffer or terminal)
-    #[cfg(feature = "framebuffer-backend")]
-    let mut backend: Box<dyn RenderBackend> = if cli_args.framebuffer {
-        use framebuffer::text_modes::{TextMode, TextModeKind};
-
-        // Parse the framebuffer mode from CLI args
-        let mode_kind = TextModeKind::from_str(&cli_args.fb_mode).unwrap_or_else(|| {
-            eprintln!(
-                "Warning: Invalid framebuffer mode '{}', using default 80x25",
-                cli_args.fb_mode
-            );
-            TextModeKind::Mode80x25
-        });
-
-        let mode = TextMode::new(mode_kind);
-
-        // Parse the scale factor from CLI args
-        let scale = cli_args.fb_scale.as_ref().and_then(|s| {
-            if s == "auto" {
-                None // Auto-calculate scale
-            } else {
-                s.parse::<usize>().ok().filter(|&n| (1..=8).contains(&n))
-            }
-        });
-
-        // Get font name from CLI args
-        let font_name = cli_args.fb_font.as_deref();
-
-        // Get mouse device from CLI args
-        let mouse_device = cli_args.mouse_device.as_deref();
-
-        // Get mouse axis inversion flags from CLI args
-        let invert_x = cli_args.invert_mouse_x;
-        let invert_y = cli_args.invert_mouse_y;
-
-        // Try to initialize framebuffer backend
-        match FramebufferBackend::new(mode, scale, font_name, mouse_device, invert_x, invert_y) {
-            Ok(fb_backend) => {
-                println!("Framebuffer backend initialized: {}", mode_kind);
-                Box::new(fb_backend)
-            }
-            Err(e) => {
-                eprintln!("Failed to initialize framebuffer: {}", e);
-                eprintln!("Falling back to terminal backend...");
-                std::thread::sleep(std::time::Duration::from_secs(2));
-                Box::new(TerminalBackend::new()?)
-            }
-        }
-    } else {
-        // Framebuffer feature is enabled but flag not set - use terminal backend
-        Box::new(TerminalBackend::new()?)
-    };
-
-    #[cfg(not(feature = "framebuffer-backend"))]
-    let mut backend: Box<dyn RenderBackend> = Box::new(TerminalBackend::new()?);
+    let mut backend = initialization::initialize_backend(&cli_args)?;
 
     let mut stdout = io::stdout();
 
-    // Enter raw mode for low-level terminal control
-    terminal::enable_raw_mode()?;
-
-    // Disable flow control (CTRL+S/CTRL+Q) by sending escape sequences
-    // This prevents the terminal from intercepting CTRL+S
-    #[cfg(unix)]
-    {
-        use std::io::Write;
-        // Send escape sequence to disable software flow control
-        // CSI ? 2004 h disables bracketed paste, we use stty-like behavior
-        let _ = stdout.write_all(b"\x1b[?1036l"); // Disable metaSendsEscape
-        let _ = stdout.flush();
-
-        // Use libc to disable IXON (software flow control) on Unix systems
-        use std::os::unix::io::AsRawFd;
-        unsafe {
-            let mut termios: libc::termios = std::mem::zeroed();
-            if libc::tcgetattr(stdout.as_raw_fd(), &mut termios) == 0 {
-                // Disable IXON (software flow control) to allow CTRL+S/CTRL+Q
-                termios.c_iflag &= !libc::IXON;
-                let _ = libc::tcsetattr(stdout.as_raw_fd(), libc::TCSANOW, &termios);
-            }
-        }
-    }
+    // Set up terminal modes and mouse capture
+    initialization::setup_terminal(&mut stdout)?;
 
     // Initialize GPM (General Purpose Mouse) for Linux console if available
     #[cfg(target_os = "linux")]
-    let gpm_connection = gpm_handler::GpmConnection::open();
+    let gpm_connection = initialization::initialize_gpm();
 
-    // Hide cursor and enable mouse capture
-    execute!(stdout, cursor::Hide, event::EnableMouseCapture)?;
+    // Initialize video buffer and window manager
+    let mut video_buffer = initialization::initialize_video_buffer(&backend);
+    let mut window_manager = initialization::initialize_window_manager(&cli_args, &mut app_config)?;
 
-    // Clear the screen
-    execute!(stdout, terminal::Clear(ClearType::All))?;
-
-    // Initialize video buffer using backend dimensions
+    // Initialize application state
     let (cols, rows) = backend.dimensions();
-    let mut video_buffer = VideoBuffer::new(cols, rows);
-
-    // Initialize window manager (restore from session unless --no-restore is set)
-    let mut window_manager = if !cli_args.no_restore {
-        // Try to restore session, fall back to new if it fails
-        let manager =
-            WindowManager::restore_session_from_file().unwrap_or_else(|_| WindowManager::new());
-
-        // If auto-save is disabled, clear session after loading (one-time load)
-        if !app_config.auto_save {
-            let _ = WindowManager::clear_session_file();
-        }
-
-        manager
-    } else {
-        WindowManager::new()
-    };
-
-    // Create the "New Terminal" button
-    let mut new_terminal_button = Button::new(1, 0, "+New Terminal".to_string());
-
-    // Create clipboard-related buttons (centered in top bar)
-    let (initial_cols, initial_rows) = backend.dimensions();
-
-    // Paste button
-    let paste_label = "Paste".to_string();
-    let paste_button_width = (paste_label.len() as u16) + 4; // "[ Label ]"
-    let paste_x = (initial_cols.saturating_sub(paste_button_width + 5)) / 2; // +5 for [ X ] button
-    let mut paste_button = Button::new(paste_x, 0, paste_label);
-
-    // Clear clipboard button (X)
-    let clear_label = "X".to_string();
-    let mut clear_clipboard_button = Button::new(paste_x + paste_button_width, 0, clear_label);
-
-    // Copy button (shows when text is selected)
-    let copy_label = "Copy".to_string();
-    let mut copy_button = Button::new(0, 0, copy_label);
-
-    // Clear selection button (X) (shows when text is selected)
-    let clear_selection_label = "X".to_string();
-    let mut clear_selection_button = Button::new(0, 0, clear_selection_label);
-
-    // Auto-tiling toggle state and button (initialized from config)
-    // Button is on bottom bar (rows - 1), left side
-    let mut auto_tiling_enabled = app_config.auto_tiling_on_startup;
-    let auto_tiling_text = if auto_tiling_enabled {
-        "█ on] Auto Tiling"
-    } else {
-        "off ░] Auto Tiling"
-    };
-    let mut auto_tiling_button = Button::new(1, initial_rows - 1, auto_tiling_text.to_string());
-
-    // Terminal tinting toggle state (initialized from config, CLI arg can override)
-    let mut tint_terminal = app_config.tint_terminal || cli_args.tint_terminal;
-
-    // Prompt state (None when no prompt is active)
-    let mut active_prompt: Option<Prompt> = None;
-
-    // Calendar state (None when calendar is not shown)
-    let mut active_calendar: Option<CalendarState> = None;
-
-    // Config window state (None when not shown)
-    let mut active_config_window: Option<ConfigWindow> = None;
-
-    // Help window state (None when not shown)
-    let mut active_help_window: Option<InfoWindow> = None;
-
-    // About window state (None when not shown)
-    let mut active_about_window: Option<InfoWindow> = None;
-
-    // Slight input popup state (None when not shown)
-    let mut active_slight_input: Option<SlightInput> = None;
-
-    // Error dialog state (None when not shown)
-    let mut active_error_dialog: Option<ErrorDialog> = None;
+    let mut app_state = AppState::new(
+        cols,
+        rows,
+        app_config.auto_tiling_on_startup,
+        app_config.tint_terminal || cli_args.tint_terminal,
+    );
 
     // Initialize autocomplete system (command indexer and history)
     let command_indexer = CommandIndexer::new();
@@ -298,14 +139,6 @@ fn main() -> io::Result<()> {
 
     // Clipboard manager
     let mut clipboard_manager = ClipboardManager::new();
-
-    // Context menu state (None when not shown)
-    let mut context_menu = ContextMenu::new(0, 0);
-
-    // Selection state
-    let mut selection_active = false;
-    let mut last_click_time: Option<Instant> = None;
-    let mut click_count = 0;
 
     // Show splash screen for 1 second
     splash_screen::show_splash_screen(&mut video_buffer, &mut backend, &charset, &theme)?;
@@ -316,157 +149,39 @@ fn main() -> io::Result<()> {
     // Main loop
     loop {
         // Check if backend was resized and recreate buffer if needed
-        if let Some((new_cols, new_rows)) = backend.check_resize()? {
+        if let Some((_new_cols, new_rows)) = backend.check_resize()? {
             // Clear the terminal screen to remove artifacts
+            use crossterm::execute;
             execute!(stdout, terminal::Clear(ClearType::All))?;
-            video_buffer = VideoBuffer::new(new_cols, new_rows);
+            video_buffer = initialization::initialize_video_buffer(&backend);
+            app_state.update_auto_tiling_button_position(new_rows);
         }
 
         // Get current dimensions from backend
-        let (cols, rows) = backend.dimensions();
-
-        // Render the background (every frame for consistency)
-        ui_render::render_background(&mut video_buffer, &charset, &theme);
+        let (cols, _rows) = backend.dimensions();
 
         // Update clipboard buttons state and position
         let has_clipboard_content = clipboard_manager.has_content();
         let has_selection = window_manager.focused_window_has_meaningful_selection();
+        app_state.update_button_states(cols, has_clipboard_content, has_selection);
 
-        paste_button.enabled = has_clipboard_content;
-        clear_clipboard_button.enabled = has_clipboard_content;
-        copy_button.enabled = has_selection;
-        clear_selection_button.enabled = has_selection;
-
-        // Calculate button positions (centered)
-        let paste_width = paste_button.width();
-        let clear_clip_width = clear_clipboard_button.width();
-        let copy_width = copy_button.width();
-        let clear_sel_width = clear_selection_button.width();
-
-        // Position paste and clear clipboard buttons together in center
-        let paste_clear_total_width = paste_width + clear_clip_width;
-        let paste_x = (cols.saturating_sub(paste_clear_total_width)) / 2;
-        paste_button.x = paste_x;
-        clear_clipboard_button.x = paste_x + paste_width;
-
-        // Position copy and clear selection buttons
-        if has_selection && has_clipboard_content {
-            // Both visible: put copy[X] to the left of paste[X]
-            let copy_clear_sel_width = copy_width + clear_sel_width;
-            let total_width = copy_clear_sel_width + 1 + paste_clear_total_width; // +1 for gap
-            let start_x = (cols.saturating_sub(total_width)) / 2;
-            copy_button.x = start_x;
-            clear_selection_button.x = start_x + copy_width;
-            paste_button.x = start_x + copy_clear_sel_width + 1;
-            clear_clipboard_button.x = paste_button.x + paste_width;
-        } else if has_selection {
-            // Only copy[X] visible: center it
-            let copy_clear_sel_width = copy_width + clear_sel_width;
-            let start_x = (cols.saturating_sub(copy_clear_sel_width)) / 2;
-            copy_button.x = start_x;
-            clear_selection_button.x = start_x + copy_width;
-        }
-
-        // Render the top bar
-        let focus = window_manager.get_focus();
-        ui_render::render_top_bar(
+        // Render the complete frame
+        let windows_closed = render_frame::render_frame(
             &mut video_buffer,
-            focus,
-            &new_terminal_button,
-            &paste_button,
-            &clear_clipboard_button,
-            &copy_button,
-            &clear_selection_button,
-            &app_config,
+            &mut backend,
+            &mut stdout,
+            &mut window_manager,
+            &app_state,
+            &charset,
             &theme,
-        );
-
-        // Render all windows (returns true if any were closed)
-        let windows_closed =
-            window_manager.render_all(&mut video_buffer, &charset, &theme, tint_terminal);
+            &app_config,
+        )?;
 
         // Auto-reposition remaining windows if any were closed
-        if windows_closed && auto_tiling_enabled {
+        if windows_closed && app_state.auto_tiling_enabled {
             let (cols, rows) = backend.dimensions();
             window_manager.auto_position_windows(cols, rows);
         }
-
-        // Render snap preview overlay (if dragging and snap zone is active)
-        window_manager.render_snap_preview(&mut video_buffer, &charset, &theme);
-
-        // Render the button bar
-        ui_render::render_button_bar(
-            &mut video_buffer,
-            &window_manager,
-            &auto_tiling_button,
-            auto_tiling_enabled,
-            &theme,
-        );
-
-        // Render active prompt (if any) on top of everything
-        if let Some(ref prompt) = active_prompt {
-            video_buffer::render_fullscreen_shadow(&mut video_buffer);
-            prompt.render(&mut video_buffer, &charset, &theme);
-        }
-
-        // Render active Slight input (if any) on top of everything
-        if let Some(ref slight_input) = active_slight_input {
-            video_buffer::render_fullscreen_shadow(&mut video_buffer);
-            slight_input.render(&mut video_buffer, &charset, &theme);
-        }
-
-        // Render active calendar (if any) on top of everything
-        if let Some(ref calendar) = active_calendar {
-            video_buffer::render_fullscreen_shadow(&mut video_buffer);
-            ui_render::render_calendar(&mut video_buffer, calendar, &charset, &theme, cols, rows);
-        }
-
-        // Render active config window (if any) on top of everything
-        if let Some(ref config_win) = active_config_window {
-            video_buffer::render_fullscreen_shadow(&mut video_buffer);
-            config_win.render(
-                &mut video_buffer,
-                &charset,
-                &theme,
-                &app_config,
-                tint_terminal,
-            );
-        }
-
-        // Render active help window (if any)
-        if let Some(ref help_win) = active_help_window {
-            video_buffer::render_fullscreen_shadow(&mut video_buffer);
-            help_win.render(&mut video_buffer, &charset, &theme);
-        }
-
-        // Render active about window (if any)
-        if let Some(ref about_win) = active_about_window {
-            video_buffer::render_fullscreen_shadow(&mut video_buffer);
-            about_win.render(&mut video_buffer, &charset, &theme);
-        }
-
-        // Render error dialog (if any) on top of everything
-        if let Some(ref error_dialog) = active_error_dialog {
-            video_buffer::render_fullscreen_shadow(&mut video_buffer);
-            error_dialog.render(&mut video_buffer, &charset, &theme);
-        }
-
-        // Render context menu (if visible)
-        if context_menu.visible {
-            context_menu.render(&mut video_buffer, &charset);
-        }
-
-        // Restore old cursor area before presenting new frame
-        backend.restore_cursor_area();
-
-        // Present buffer to screen via rendering backend
-        backend.present(&mut video_buffer)?;
-
-        // Update cursor position from mouse input and draw at new position
-        backend.update_cursor();
-        backend.draw_cursor();
-
-        stdout.flush()?;
 
         // Check for GPM events first (Linux console mouse support)
         #[cfg(target_os = "linux")]
@@ -602,7 +317,7 @@ fn main() -> io::Result<()> {
                     let current_focus = window_manager.get_focus();
 
                     // Handle prompt keyboard navigation if a prompt is active
-                    if let Some(ref mut prompt) = active_prompt {
+                    if let Some(ref mut prompt) = app_state.active_prompt {
                         match key_event.code {
                             KeyCode::Tab => {
                                 // Tab or Shift+Tab to navigate buttons
@@ -633,7 +348,7 @@ fn main() -> io::Result<()> {
                                         }
                                         PromptAction::Cancel => {
                                             // Dismiss prompt
-                                            active_prompt = None;
+                                            app_state.active_prompt = None;
                                         }
                                         _ => {}
                                     }
@@ -642,7 +357,7 @@ fn main() -> io::Result<()> {
                             }
                             KeyCode::Esc => {
                                 // ESC dismisses the prompt
-                                active_prompt = None;
+                                app_state.active_prompt = None;
                                 continue;
                             }
                             _ => {
@@ -653,11 +368,11 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle error dialog keyboard events if active
-                    if active_error_dialog.is_some() {
+                    if app_state.active_error_dialog.is_some() {
                         match key_event.code {
                             KeyCode::Enter | KeyCode::Esc => {
                                 // Dismiss error dialog
-                                active_error_dialog = None;
+                                app_state.active_error_dialog = None;
                                 continue;
                             }
                             _ => {
@@ -668,7 +383,7 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle Slight input keyboard events if active
-                    if let Some(ref mut slight_input) = active_slight_input {
+                    if let Some(ref mut slight_input) = app_state.active_slight_input {
                         match key_event.code {
                             KeyCode::Char(c) => {
                                 slight_input.insert_char(c);
@@ -721,7 +436,7 @@ fn main() -> io::Result<()> {
                                     command_history.record_command(&command);
                                 }
 
-                                active_slight_input = None;
+                                app_state.active_slight_input = None;
 
                                 if !command.is_empty() {
                                     // Create a new terminal window and run the command
@@ -732,7 +447,7 @@ fn main() -> io::Result<()> {
                                     let height = 50;
 
                                     // Get position: cascade if auto-tiling is off, center otherwise
-                                    let (x, y) = if auto_tiling_enabled {
+                                    let (x, y) = if app_state.auto_tiling_enabled {
                                         let x = (cols.saturating_sub(width)) / 2;
                                         let y = ((rows.saturating_sub(height)) / 2).max(1);
                                         (x, y)
@@ -751,13 +466,13 @@ fn main() -> io::Result<()> {
                                     ) {
                                         Ok(_terminal_id) => {
                                             // Auto-position all windows based on the snap pattern
-                                            if auto_tiling_enabled {
+                                            if app_state.auto_tiling_enabled {
                                                 window_manager.auto_position_windows(cols, rows);
                                             }
                                         }
                                         Err(error_msg) => {
                                             // Show error dialog
-                                            active_error_dialog =
+                                            app_state.active_error_dialog =
                                                 Some(ErrorDialog::new(cols, rows, error_msg));
                                         }
                                     }
@@ -766,7 +481,7 @@ fn main() -> io::Result<()> {
                             }
                             KeyCode::Esc => {
                                 // ESC dismisses the Slight input
-                                active_slight_input = None;
+                                app_state.active_slight_input = None;
                                 continue;
                             }
                             _ => {
@@ -777,7 +492,7 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle calendar keyboard navigation if calendar is active
-                    if let Some(ref mut calendar) = active_calendar {
+                    if let Some(ref mut calendar) = app_state.active_calendar {
                         match key_event.code {
                             KeyCode::Char('<') | KeyCode::Char(',') | KeyCode::Left => {
                                 // Previous month
@@ -806,7 +521,7 @@ fn main() -> io::Result<()> {
                             }
                             KeyCode::Esc => {
                                 // ESC dismisses the calendar
-                                active_calendar = None;
+                                app_state.active_calendar = None;
                                 continue;
                             }
                             _ => {
@@ -817,11 +532,11 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle help window keyboard events if help window is active
-                    if active_help_window.is_some() {
+                    if app_state.active_help_window.is_some() {
                         match key_event.code {
                             KeyCode::Esc => {
                                 // ESC dismisses the help window
-                                active_help_window = None;
+                                app_state.active_help_window = None;
                                 continue;
                             }
                             _ => {
@@ -832,11 +547,11 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle about window keyboard events if about window is active
-                    if active_about_window.is_some() {
+                    if app_state.active_about_window.is_some() {
                         match key_event.code {
                             KeyCode::Esc => {
                                 // ESC dismisses the about window
-                                active_about_window = None;
+                                app_state.active_about_window = None;
                                 continue;
                             }
                             _ => {
@@ -847,11 +562,11 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle config window keyboard events if config window is active
-                    if active_config_window.is_some() {
+                    if app_state.active_config_window.is_some() {
                         match key_event.code {
                             KeyCode::Esc => {
                                 // ESC dismisses the config window
-                                active_config_window = None;
+                                app_state.active_config_window = None;
                                 continue;
                             }
                             _ => {
@@ -913,7 +628,7 @@ fn main() -> io::Result<()> {
                                 copy_key, paste_key
                             );
 
-                            active_help_window = Some(InfoWindow::new(
+                            app_state.active_help_window = Some(InfoWindow::new(
                                 "Help".to_string(),
                                 &help_message,
                                 cols,
@@ -943,7 +658,7 @@ fn main() -> io::Result<()> {
                         if cli_args.no_save {
                             // Show info that saving is disabled by --no-save flag
                             let (cols, rows) = backend.dimensions();
-                            active_prompt = Some(Prompt::new(
+                            app_state.active_prompt = Some(Prompt::new(
                                 PromptType::Warning,
                                 "Session saving is disabled (--no-save flag)".to_string(),
                                 vec![PromptButton::new(
@@ -957,7 +672,7 @@ fn main() -> io::Result<()> {
                         } else if !app_config.auto_save {
                             // Show info that auto-save is disabled in settings
                             let (cols, rows) = backend.dimensions();
-                            active_prompt = Some(Prompt::new(
+                            app_state.active_prompt = Some(Prompt::new(
                                 PromptType::Warning,
                                 "Session auto-save is disabled in Settings".to_string(),
                                 vec![PromptButton::new(
@@ -971,7 +686,7 @@ fn main() -> io::Result<()> {
                         } else if window_manager.save_session_to_file().is_ok() {
                             // Show success prompt
                             let (cols, rows) = backend.dimensions();
-                            active_prompt = Some(Prompt::new(
+                            app_state.active_prompt = Some(Prompt::new(
                                 PromptType::Success,
                                 "Session saved successfully!".to_string(),
                                 vec![PromptButton::new(
@@ -985,7 +700,7 @@ fn main() -> io::Result<()> {
                         } else {
                             // Show error prompt if save failed
                             let (cols, rows) = backend.dimensions();
-                            active_prompt = Some(Prompt::new(
+                            app_state.active_prompt = Some(Prompt::new(
                                 PromptType::Danger,
                                 "Failed to save session!".to_string(),
                                 vec![PromptButton::new(
@@ -1029,7 +744,7 @@ fn main() -> io::Result<()> {
                         let mut slight_input = SlightInput::new(cols, rows);
                         slight_input
                             .set_autocomplete(command_indexer.clone(), command_history.clone());
-                        active_slight_input = Some(slight_input);
+                        app_state.active_slight_input = Some(slight_input);
                         continue;
                     }
 
@@ -1116,7 +831,7 @@ fn main() -> io::Result<()> {
                                 // If windows are open, show confirmation
                                 if window_manager.window_count() > 0 {
                                     let (cols, rows) = backend.dimensions();
-                                    active_prompt = Some(Prompt::new(
+                                    app_state.active_prompt = Some(Prompt::new(
                                         PromptType::Danger,
                                         "Exit with open windows?\nAll terminal sessions will be closed.".to_string(),
                                         vec![
@@ -1141,7 +856,7 @@ fn main() -> io::Result<()> {
                                 // If windows are open, show confirmation
                                 if window_manager.window_count() > 0 {
                                     let (cols, rows) = backend.dimensions();
-                                    active_prompt = Some(Prompt::new(
+                                    app_state.active_prompt = Some(Prompt::new(
                                         PromptType::Danger,
                                         "Exit with open windows?\nAll terminal sessions will be closed.".to_string(),
                                         vec![
@@ -1212,7 +927,7 @@ fn main() -> io::Result<()> {
                                     copy_key, paste_key
                                 );
 
-                                active_help_window = Some(InfoWindow::new(
+                                app_state.active_help_window = Some(InfoWindow::new(
                                     "Help".to_string(),
                                     &help_message,
                                     cols,
@@ -1256,7 +971,7 @@ fn main() -> io::Result<()> {
                                     config::REPOSITORY
                                 );
 
-                                active_about_window = Some(InfoWindow::new(
+                                app_state.active_about_window = Some(InfoWindow::new(
                                     "About".to_string(),
                                     &license_message,
                                     cols,
@@ -1270,7 +985,7 @@ fn main() -> io::Result<()> {
                         KeyCode::Char('c') => {
                             // Show calendar if desktop is focused
                             if current_focus == FocusState::Desktop {
-                                active_calendar = Some(CalendarState::new());
+                                app_state.active_calendar = Some(CalendarState::new());
                             } else if current_focus != FocusState::Desktop {
                                 // Send 'c' to terminal
                                 let _ = window_manager.send_char_to_focused('c');
@@ -1280,7 +995,8 @@ fn main() -> io::Result<()> {
                             // Show settings/config window if desktop is focused
                             if current_focus == FocusState::Desktop {
                                 let (cols, rows) = backend.dimensions();
-                                active_config_window = Some(ConfigWindow::new(cols, rows));
+                                app_state.active_config_window =
+                                    Some(ConfigWindow::new(cols, rows));
                             } else if current_focus != FocusState::Desktop {
                                 // Send 's' to terminal
                                 let _ = window_manager.send_char_to_focused('s');
@@ -1297,7 +1013,7 @@ fn main() -> io::Result<()> {
                                 let height = 50;
 
                                 // Get position: cascade if auto-tiling is off, center otherwise
-                                let (x, y) = if auto_tiling_enabled {
+                                let (x, y) = if app_state.auto_tiling_enabled {
                                     let x = (cols.saturating_sub(width)) / 2;
                                     let y = ((rows.saturating_sub(height)) / 2).max(1);
                                     (x, y)
@@ -1315,13 +1031,13 @@ fn main() -> io::Result<()> {
                                 ) {
                                     Ok(_) => {
                                         // Auto-position all windows based on the snap pattern
-                                        if auto_tiling_enabled {
+                                        if app_state.auto_tiling_enabled {
                                             window_manager.auto_position_windows(cols, rows);
                                         }
                                     }
                                     Err(error_msg) => {
                                         // Show error dialog
-                                        active_error_dialog =
+                                        app_state.active_error_dialog =
                                             Some(ErrorDialog::new(cols, rows, error_msg));
                                     }
                                 }
@@ -1342,7 +1058,7 @@ fn main() -> io::Result<()> {
 
                                 // Get position: cascade if auto-tiling is off, center otherwise
                                 // (will be maximized immediately, but still track for cascading)
-                                let (x, y) = if auto_tiling_enabled {
+                                let (x, y) = if app_state.auto_tiling_enabled {
                                     let x = (cols.saturating_sub(width)) / 2;
                                     let y = ((rows.saturating_sub(height)) / 2).max(1);
                                     (x, y)
@@ -1364,7 +1080,7 @@ fn main() -> io::Result<()> {
                                     }
                                     Err(error_msg) => {
                                         // Show error dialog
-                                        active_error_dialog =
+                                        app_state.active_error_dialog =
                                             Some(ErrorDialog::new(cols, rows, error_msg));
                                     }
                                 }
@@ -1483,7 +1199,7 @@ fn main() -> io::Result<()> {
 
                     // Check if there's an active prompt - it takes priority
                     #[allow(clippy::collapsible_if)]
-                    if let Some(ref prompt) = active_prompt {
+                    if let Some(ref prompt) = app_state.active_prompt {
                         if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
                             if let Some(action) =
                                 prompt.handle_click(mouse_event.column, mouse_event.row)
@@ -1495,7 +1211,7 @@ fn main() -> io::Result<()> {
                                     }
                                     PromptAction::Cancel => {
                                         // Dismiss prompt
-                                        active_prompt = None;
+                                        app_state.active_prompt = None;
                                     }
                                     _ => {}
                                 }
@@ -1510,13 +1226,13 @@ fn main() -> io::Result<()> {
                     // Check if there's an active error dialog (after prompt, before other events)
                     #[allow(clippy::collapsible_if)]
                     if !handled {
-                        if let Some(ref error_dialog) = active_error_dialog {
+                        if let Some(ref error_dialog) = app_state.active_error_dialog {
                             if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
                                 // Check if OK button was clicked
                                 if error_dialog
                                     .is_ok_button_clicked(mouse_event.column, mouse_event.row)
                                 {
-                                    active_error_dialog = None;
+                                    app_state.active_error_dialog = None;
                                     handled = true;
                                 }
                             }
@@ -1526,27 +1242,28 @@ fn main() -> io::Result<()> {
                     // Check if there's an active config window (after prompt, before other events)
                     #[allow(clippy::collapsible_if)]
                     if !handled {
-                        if let Some(ref config_win) = active_config_window {
+                        if let Some(ref config_win) = app_state.active_config_window {
                             if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
                                 let action =
                                     config_win.handle_click(mouse_event.column, mouse_event.row);
                                 match action {
                                     ConfigAction::Close => {
-                                        active_config_window = None;
+                                        app_state.active_config_window = None;
                                         handled = true;
                                     }
                                     ConfigAction::ToggleAutoTiling => {
                                         app_config.toggle_auto_tiling_on_startup();
                                         // Update runtime state to match config
-                                        auto_tiling_enabled = app_config.auto_tiling_on_startup;
+                                        app_state.auto_tiling_enabled =
+                                            app_config.auto_tiling_on_startup;
                                         // Update button text
                                         let (_, rows) = backend.dimensions();
-                                        let auto_tiling_text = if auto_tiling_enabled {
+                                        let auto_tiling_text = if app_state.auto_tiling_enabled {
                                             "█ on] Auto Tiling"
                                         } else {
                                             "off ░] Auto Tiling"
                                         };
-                                        auto_tiling_button =
+                                        app_state.auto_tiling_button =
                                             Button::new(1, rows - 1, auto_tiling_text.to_string());
 
                                         // Keep config window open (silent save)
@@ -1588,7 +1305,7 @@ fn main() -> io::Result<()> {
                                     ConfigAction::ToggleTintTerminal => {
                                         // Toggle terminal tinting and save
                                         app_config.toggle_tint_terminal();
-                                        tint_terminal = app_config.tint_terminal;
+                                        app_state.tint_terminal = app_config.tint_terminal;
 
                                         // Keep config window open (silent save)
                                         handled = true;
@@ -1621,61 +1338,102 @@ fn main() -> io::Result<()> {
 
                     // Update button hover state on mouse movement (always active)
                     if !handled {
-                        if new_terminal_button.contains(mouse_event.column, mouse_event.row) {
-                            new_terminal_button.set_state(button::ButtonState::Hovered);
+                        if app_state
+                            .new_terminal_button
+                            .contains(mouse_event.column, mouse_event.row)
+                        {
+                            app_state
+                                .new_terminal_button
+                                .set_state(button::ButtonState::Hovered);
                         } else {
-                            new_terminal_button.set_state(button::ButtonState::Normal);
+                            app_state
+                                .new_terminal_button
+                                .set_state(button::ButtonState::Normal);
                         }
 
                         // Clipboard buttons hover state
-                        if paste_button.contains(mouse_event.column, mouse_event.row) {
-                            paste_button.set_state(button::ButtonState::Hovered);
+                        if app_state
+                            .paste_button
+                            .contains(mouse_event.column, mouse_event.row)
+                        {
+                            app_state
+                                .paste_button
+                                .set_state(button::ButtonState::Hovered);
                         } else {
-                            paste_button.set_state(button::ButtonState::Normal);
+                            app_state
+                                .paste_button
+                                .set_state(button::ButtonState::Normal);
                         }
 
-                        if clear_clipboard_button.contains(mouse_event.column, mouse_event.row) {
-                            clear_clipboard_button.set_state(button::ButtonState::Hovered);
+                        if app_state
+                            .clear_clipboard_button
+                            .contains(mouse_event.column, mouse_event.row)
+                        {
+                            app_state
+                                .clear_clipboard_button
+                                .set_state(button::ButtonState::Hovered);
                         } else {
-                            clear_clipboard_button.set_state(button::ButtonState::Normal);
+                            app_state
+                                .clear_clipboard_button
+                                .set_state(button::ButtonState::Normal);
                         }
 
-                        if copy_button.contains(mouse_event.column, mouse_event.row) {
-                            copy_button.set_state(button::ButtonState::Hovered);
+                        if app_state
+                            .copy_button
+                            .contains(mouse_event.column, mouse_event.row)
+                        {
+                            app_state
+                                .copy_button
+                                .set_state(button::ButtonState::Hovered);
                         } else {
-                            copy_button.set_state(button::ButtonState::Normal);
+                            app_state.copy_button.set_state(button::ButtonState::Normal);
                         }
 
-                        if clear_selection_button.contains(mouse_event.column, mouse_event.row) {
-                            clear_selection_button.set_state(button::ButtonState::Hovered);
+                        if app_state
+                            .clear_selection_button
+                            .contains(mouse_event.column, mouse_event.row)
+                        {
+                            app_state
+                                .clear_selection_button
+                                .set_state(button::ButtonState::Hovered);
                         } else {
-                            clear_selection_button.set_state(button::ButtonState::Normal);
+                            app_state
+                                .clear_selection_button
+                                .set_state(button::ButtonState::Normal);
                         }
 
                         // Calculate position for toggle button hover detection (bottom bar, left side)
                         let (_, rows) = backend.dimensions();
                         let bar_y = rows - 1;
                         let button_start_x = 1u16;
-                        let button_text_width = auto_tiling_button.label.len() as u16 + 3; // +1 for "[", +1 for label, +1 for " "
+                        let button_text_width = app_state.auto_tiling_button.label.len() as u16 + 3; // +1 for "[", +1 for label, +1 for " "
                         let button_end_x = button_start_x + button_text_width;
 
                         if mouse_event.row == bar_y
                             && mouse_event.column >= button_start_x
                             && mouse_event.column < button_end_x
                         {
-                            auto_tiling_button.set_state(button::ButtonState::Hovered);
+                            app_state
+                                .auto_tiling_button
+                                .set_state(button::ButtonState::Hovered);
                         } else {
-                            auto_tiling_button.set_state(button::ButtonState::Normal);
+                            app_state
+                                .auto_tiling_button
+                                .set_state(button::ButtonState::Normal);
                         }
                     }
 
                     // Check if click is on the New Terminal button in the top bar (only if no prompt)
                     if !handled
-                        && active_prompt.is_none()
+                        && app_state.active_prompt.is_none()
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
-                        && new_terminal_button.contains(mouse_event.column, mouse_event.row)
+                        && app_state
+                            .new_terminal_button
+                            .contains(mouse_event.column, mouse_event.row)
                     {
-                        new_terminal_button.set_state(button::ButtonState::Pressed);
+                        app_state
+                            .new_terminal_button
+                            .set_state(button::ButtonState::Pressed);
 
                         // Create a new terminal window (same as pressing 't')
                         let (cols, rows) = backend.dimensions();
@@ -1683,7 +1441,7 @@ fn main() -> io::Result<()> {
                         let height = 50;
 
                         // Get position: cascade if auto-tiling is off, center otherwise
-                        let (x, y) = if auto_tiling_enabled {
+                        let (x, y) = if app_state.auto_tiling_enabled {
                             let x = (cols.saturating_sub(width)) / 2;
                             let y = ((rows.saturating_sub(height)) / 2).max(1);
                             (x, y)
@@ -1701,13 +1459,14 @@ fn main() -> io::Result<()> {
                         ) {
                             Ok(_) => {
                                 // Auto-position all windows based on the snap pattern
-                                if auto_tiling_enabled {
+                                if app_state.auto_tiling_enabled {
                                     window_manager.auto_position_windows(cols, rows);
                                 }
                             }
                             Err(error_msg) => {
                                 // Show error dialog
-                                active_error_dialog = Some(ErrorDialog::new(cols, rows, error_msg));
+                                app_state.active_error_dialog =
+                                    Some(ErrorDialog::new(cols, rows, error_msg));
                             }
                         }
 
@@ -1716,11 +1475,15 @@ fn main() -> io::Result<()> {
 
                     // Check if click is on the Copy button in the top bar (only if no prompt)
                     if !handled
-                        && active_prompt.is_none()
+                        && app_state.active_prompt.is_none()
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
-                        && copy_button.contains(mouse_event.column, mouse_event.row)
+                        && app_state
+                            .copy_button
+                            .contains(mouse_event.column, mouse_event.row)
                     {
-                        copy_button.set_state(button::ButtonState::Pressed);
+                        app_state
+                            .copy_button
+                            .set_state(button::ButtonState::Pressed);
 
                         // Copy selected text to clipboard and clear selection
                         if let FocusState::Window(window_id) = window_manager.get_focus() {
@@ -1736,11 +1499,15 @@ fn main() -> io::Result<()> {
 
                     // Check if click is on the Clear Selection (X) button in the top bar
                     if !handled
-                        && active_prompt.is_none()
+                        && app_state.active_prompt.is_none()
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
-                        && clear_selection_button.contains(mouse_event.column, mouse_event.row)
+                        && app_state
+                            .clear_selection_button
+                            .contains(mouse_event.column, mouse_event.row)
                     {
-                        clear_selection_button.set_state(button::ButtonState::Pressed);
+                        app_state
+                            .clear_selection_button
+                            .set_state(button::ButtonState::Pressed);
 
                         // Clear the selection
                         if let FocusState::Window(window_id) = window_manager.get_focus() {
@@ -1752,11 +1519,15 @@ fn main() -> io::Result<()> {
 
                     // Check if click is on the Paste button in the top bar (only if no prompt)
                     if !handled
-                        && active_prompt.is_none()
+                        && app_state.active_prompt.is_none()
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
-                        && paste_button.contains(mouse_event.column, mouse_event.row)
+                        && app_state
+                            .paste_button
+                            .contains(mouse_event.column, mouse_event.row)
                     {
-                        paste_button.set_state(button::ButtonState::Pressed);
+                        app_state
+                            .paste_button
+                            .set_state(button::ButtonState::Pressed);
 
                         // Paste clipboard content to focused window
                         if let FocusState::Window(window_id) = window_manager.get_focus() {
@@ -1770,11 +1541,15 @@ fn main() -> io::Result<()> {
 
                     // Check if click is on the Clear (X) button in the top bar (only if no prompt)
                     if !handled
-                        && active_prompt.is_none()
+                        && app_state.active_prompt.is_none()
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
-                        && clear_clipboard_button.contains(mouse_event.column, mouse_event.row)
+                        && app_state
+                            .clear_clipboard_button
+                            .contains(mouse_event.column, mouse_event.row)
                     {
-                        clear_clipboard_button.set_state(button::ButtonState::Pressed);
+                        app_state
+                            .clear_clipboard_button
+                            .set_state(button::ButtonState::Pressed);
 
                         // Clear the clipboard
                         clipboard_manager.clear();
@@ -1784,7 +1559,7 @@ fn main() -> io::Result<()> {
 
                     // Check if click is on the clock in the top bar (only if no prompt)
                     if !handled
-                        && active_prompt.is_none()
+                        && app_state.active_prompt.is_none()
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
                         && mouse_event.row == 0
                     {
@@ -1803,39 +1578,41 @@ fn main() -> io::Result<()> {
                         // Check if click is within clock area
                         if mouse_event.column >= time_pos && mouse_event.column < cols {
                             // Show calendar (same as pressing 'c')
-                            active_calendar = Some(CalendarState::new());
+                            app_state.active_calendar = Some(CalendarState::new());
                             handled = true;
                         }
                     }
 
                     // Check if click is on the Auto-Tiling toggle button (only if no prompt)
                     if !handled
-                        && active_prompt.is_none()
+                        && app_state.active_prompt.is_none()
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
                     {
                         // Calculate position for toggle button click detection (bottom bar, left side)
                         let (_, rows) = backend.dimensions();
                         let bar_y = rows - 1;
                         let button_start_x = 1u16;
-                        let button_text_width = auto_tiling_button.label.len() as u16 + 3; // +1 for "[", +1 for label, +1 for " "
+                        let button_text_width = app_state.auto_tiling_button.label.len() as u16 + 3; // +1 for "[", +1 for label, +1 for " "
                         let button_end_x = button_start_x + button_text_width;
 
                         if mouse_event.row == bar_y
                             && mouse_event.column >= button_start_x
                             && mouse_event.column < button_end_x
                         {
-                            auto_tiling_button.set_state(button::ButtonState::Pressed);
+                            app_state
+                                .auto_tiling_button
+                                .set_state(button::ButtonState::Pressed);
 
                             // Toggle the auto-tiling state
-                            auto_tiling_enabled = !auto_tiling_enabled;
+                            app_state.auto_tiling_enabled = !app_state.auto_tiling_enabled;
 
                             // Update button label to reflect new state
-                            let new_label = if auto_tiling_enabled {
+                            let new_label = if app_state.auto_tiling_enabled {
                                 "█ on] Auto Tiling".to_string()
                             } else {
                                 "off ░] Auto Tiling".to_string()
                             };
-                            auto_tiling_button = Button::new(1, bar_y, new_label);
+                            app_state.auto_tiling_button = Button::new(1, bar_y, new_label);
 
                             handled = true;
                         }
@@ -1843,13 +1620,13 @@ fn main() -> io::Result<()> {
 
                     // Check if click is on button bar (only if no prompt)
                     if !handled
-                        && active_prompt.is_none()
+                        && app_state.active_prompt.is_none()
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
                     {
                         // Calculate where window buttons start (after auto-tiling button)
                         // Format: "[label ]" + 2 spaces
                         let window_buttons_start =
-                            1 + 1 + auto_tiling_button.label.len() as u16 + 1 + 2;
+                            1 + 1 + app_state.auto_tiling_button.label.len() as u16 + 1 + 2;
 
                         handled = window_manager
                             .button_bar_click(
@@ -1863,20 +1640,25 @@ fn main() -> io::Result<()> {
 
                     // Handle right-click for context menu
                     if !handled
-                        && active_prompt.is_none()
+                        && app_state.active_prompt.is_none()
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Right)
                     {
                         if let FocusState::Window(_) = window_manager.get_focus() {
-                            context_menu.show(mouse_event.column, mouse_event.row);
+                            app_state
+                                .context_menu
+                                .show(mouse_event.column, mouse_event.row);
                             handled = true;
                         }
                     }
 
                     // Handle context menu interactions
-                    if !handled && context_menu.visible {
+                    if !handled && app_state.context_menu.visible {
                         if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
-                            if context_menu.contains_point(mouse_event.column, mouse_event.row) {
-                                if let Some(action) = context_menu.get_selected_action() {
+                            if app_state
+                                .context_menu
+                                .contains_point(mouse_event.column, mouse_event.row)
+                            {
+                                if let Some(action) = app_state.context_menu.get_selected_action() {
                                     if let FocusState::Window(window_id) =
                                         window_manager.get_focus()
                                     {
@@ -1906,43 +1688,50 @@ fn main() -> io::Result<()> {
                                         }
                                     }
                                 }
-                                context_menu.hide();
+                                app_state.context_menu.hide();
                                 handled = true;
                             } else {
                                 // Clicked outside menu - hide it
-                                context_menu.hide();
+                                app_state.context_menu.hide();
                             }
                         } else if mouse_event.kind == MouseEventKind::Moved {
                             // Update menu selection on hover
-                            if context_menu.contains_point(mouse_event.column, mouse_event.row) {
+                            if app_state
+                                .context_menu
+                                .contains_point(mouse_event.column, mouse_event.row)
+                            {
                                 // TODO: Update hover state if needed
                             }
                         }
                     }
 
                     // Handle selection events (left-click, drag)
-                    if !handled && active_prompt.is_none() && !context_menu.visible {
+                    if !handled
+                        && app_state.active_prompt.is_none()
+                        && !app_state.context_menu.visible
+                    {
                         match mouse_event.kind {
                             MouseEventKind::Down(MouseButton::Left) => {
                                 // Check if click is in a window content area
                                 if let FocusState::Window(window_id) = window_manager.get_focus() {
                                     // Track click timing for double/triple-click detection
                                     let now = Instant::now();
-                                    let is_multi_click = if let Some(last_time) = last_click_time {
-                                        now.duration_since(last_time).as_millis() < 500
-                                    } else {
-                                        false
-                                    };
+                                    let is_multi_click =
+                                        if let Some(last_time) = app_state.last_click_time {
+                                            now.duration_since(last_time).as_millis() < 500
+                                        } else {
+                                            false
+                                        };
 
                                     if is_multi_click {
-                                        click_count += 1;
+                                        app_state.click_count += 1;
                                     } else {
-                                        click_count = 1;
+                                        app_state.click_count = 1;
                                     }
-                                    last_click_time = Some(now);
+                                    app_state.last_click_time = Some(now);
 
                                     // Start or expand selection based on click count
-                                    let selection_type = match click_count {
+                                    let selection_type = match app_state.click_count {
                                         2 => {
                                             window_manager.start_selection(
                                                 window_id,
@@ -1984,13 +1773,15 @@ fn main() -> io::Result<()> {
                                         }
                                     };
 
-                                    if click_count <= 1 || selection_type == SelectionType::Block {
-                                        selection_active = true;
+                                    if app_state.click_count <= 1
+                                        || selection_type == SelectionType::Block
+                                    {
+                                        app_state.selection_active = true;
                                     }
                                 }
                             }
                             MouseEventKind::Drag(MouseButton::Left) => {
-                                if selection_active {
+                                if app_state.selection_active {
                                     if let FocusState::Window(window_id) =
                                         window_manager.get_focus()
                                     {
@@ -2003,13 +1794,13 @@ fn main() -> io::Result<()> {
                                 }
                             }
                             MouseEventKind::Up(MouseButton::Left) => {
-                                if selection_active {
+                                if app_state.selection_active {
                                     if let FocusState::Window(window_id) =
                                         window_manager.get_focus()
                                     {
                                         window_manager.complete_selection(window_id);
                                     }
-                                    selection_active = false;
+                                    app_state.selection_active = false;
                                 }
                             }
                             _ => {}
@@ -2017,11 +1808,14 @@ fn main() -> io::Result<()> {
                     }
 
                     // If not handled by buttons, let window manager handle it (only if no prompt)
-                    if !handled && active_prompt.is_none() && !context_menu.visible {
+                    if !handled
+                        && app_state.active_prompt.is_none()
+                        && !app_state.context_menu.visible
+                    {
                         let window_closed =
                             window_manager.handle_mouse_event(&mut video_buffer, mouse_event);
                         // Auto-reposition remaining windows if a window was closed
-                        if window_closed && auto_tiling_enabled {
+                        if window_closed && app_state.auto_tiling_enabled {
                             let (cols, rows) = backend.dimensions();
                             window_manager.auto_position_windows(cols, rows);
                         }
@@ -2043,23 +1837,7 @@ fn main() -> io::Result<()> {
     }
 
     // Cleanup: restore terminal
-    cleanup(&mut stdout)?;
-
-    Ok(())
-}
-
-fn cleanup(stdout: &mut io::Stdout) -> io::Result<()> {
-    // Disable mouse capture
-    execute!(stdout, event::DisableMouseCapture)?;
-
-    // Clear screen
-    execute!(stdout, terminal::Clear(ClearType::All))?;
-
-    // Show cursor
-    execute!(stdout, cursor::Show)?;
-
-    // Disable raw mode
-    terminal::disable_raw_mode()?;
+    initialization::cleanup(&mut stdout)?;
 
     Ok(())
 }
