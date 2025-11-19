@@ -13,6 +13,7 @@ mod config;
 mod config_manager;
 mod config_window;
 mod context_menu;
+mod dialog_handlers;
 mod error_dialog;
 #[cfg(feature = "framebuffer-backend")]
 mod framebuffer;
@@ -21,6 +22,7 @@ mod fuzzy_matcher;
 mod gpm_handler;
 mod info_window;
 mod initialization;
+mod keyboard_handlers;
 mod prompt;
 mod render_backend;
 mod render_frame;
@@ -44,15 +46,14 @@ use clipboard_manager::ClipboardManager;
 use command_history::CommandHistory;
 use command_indexer::CommandIndexer;
 use config_manager::AppConfig;
-use config_window::{ConfigAction, ConfigWindow};
+use config_window::ConfigAction;
 use context_menu::MenuAction;
 use crossterm::{
     event::{self, Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind},
     terminal::{self, ClearType},
 };
 use error_dialog::ErrorDialog;
-use info_window::InfoWindow;
-use prompt::{Prompt, PromptAction, PromptButton, PromptType};
+use prompt::PromptAction;
 use selection::SelectionType;
 use slight_input::SlightInput;
 use std::io;
@@ -60,11 +61,6 @@ use std::time::{Duration, Instant};
 use theme::Theme;
 use ui_render::CalendarState;
 use window_manager::{FocusState, WindowManager};
-
-// Platform detection helper - returns true if running on macOS
-fn is_macos() -> bool {
-    cfg!(target_os = "macos")
-}
 
 fn main() -> io::Result<()> {
     // Parse command-line arguments
@@ -316,430 +312,57 @@ fn main() -> io::Result<()> {
                 Event::Key(key_event) => {
                     let current_focus = window_manager.get_focus();
 
-                    // Handle prompt keyboard navigation if a prompt is active
-                    if let Some(ref mut prompt) = app_state.active_prompt {
-                        match key_event.code {
-                            KeyCode::Tab => {
-                                // Tab or Shift+Tab to navigate buttons
-                                if key_event.modifiers.contains(KeyModifiers::SHIFT) {
-                                    prompt.select_previous_button();
-                                } else {
-                                    prompt.select_next_button();
-                                }
-                                continue;
-                            }
-                            KeyCode::Left => {
-                                // Left arrow - previous button
-                                prompt.select_previous_button();
-                                continue;
-                            }
-                            KeyCode::Right => {
-                                // Right arrow - next button
-                                prompt.select_next_button();
-                                continue;
-                            }
-                            KeyCode::Enter => {
-                                // Enter - activate selected button
-                                if let Some(action) = prompt.get_selected_action() {
-                                    match action {
-                                        PromptAction::Confirm => {
-                                            // Exit confirmed
-                                            break;
-                                        }
-                                        PromptAction::Cancel => {
-                                            // Dismiss prompt
-                                            app_state.active_prompt = None;
-                                        }
-                                        _ => {}
-                                    }
-                                }
-                                continue;
-                            }
-                            KeyCode::Esc => {
-                                // ESC dismisses the prompt
-                                app_state.active_prompt = None;
-                                continue;
-                            }
-                            _ => {
-                                // Ignore other keys when prompt is active
-                                continue;
-                            }
-                        }
-                    }
-
-                    // Handle error dialog keyboard events if active
-                    if app_state.active_error_dialog.is_some() {
-                        match key_event.code {
-                            KeyCode::Enter | KeyCode::Esc => {
-                                // Dismiss error dialog
-                                app_state.active_error_dialog = None;
-                                continue;
-                            }
-                            _ => {
-                                // Ignore other keys when error dialog is active
-                                continue;
-                            }
-                        }
-                    }
-
-                    // Handle Slight input keyboard events if active
-                    if let Some(ref mut slight_input) = app_state.active_slight_input {
-                        match key_event.code {
-                            KeyCode::Char(c) => {
-                                slight_input.insert_char(c);
-                                continue;
-                            }
-                            KeyCode::Backspace => {
-                                slight_input.delete_char();
-                                continue;
-                            }
-                            KeyCode::Left => {
-                                slight_input.move_cursor_left();
-                                continue;
-                            }
-                            KeyCode::Right => {
-                                // If at end of input, accept inline suggestion
-                                // Otherwise, move cursor right
-                                if slight_input.cursor_position == slight_input.input_text.len() {
-                                    slight_input.accept_inline_suggestion();
-                                } else {
-                                    slight_input.move_cursor_right();
-                                }
-                                continue;
-                            }
-                            KeyCode::Up => {
-                                slight_input.previous_suggestion();
-                                continue;
-                            }
-                            KeyCode::Down => {
-                                slight_input.next_suggestion();
-                                continue;
-                            }
-                            KeyCode::Tab => {
-                                slight_input.accept_selected_suggestion();
-                                continue;
-                            }
-                            KeyCode::Home => {
-                                slight_input.move_cursor_home();
-                                continue;
-                            }
-                            KeyCode::End => {
-                                slight_input.move_cursor_end();
-                                continue;
-                            }
-                            KeyCode::Enter => {
-                                // Get the command and create a new terminal window with it
-                                let command = slight_input.get_input();
-
-                                // Record command in history before closing
-                                if !command.is_empty() {
-                                    command_history.record_command(&command);
-                                }
-
-                                app_state.active_slight_input = None;
-
-                                if !command.is_empty() {
-                                    // Create a new terminal window and run the command
-                                    let (cols, rows) = backend.dimensions();
-
-                                    // Window size: 2.5x larger (60*2.5=150, 20*2.5=50)
-                                    let width = 150;
-                                    let height = 50;
-
-                                    // Get position: cascade if auto-tiling is off, center otherwise
-                                    let (x, y) = if app_state.auto_tiling_enabled {
-                                        let x = (cols.saturating_sub(width)) / 2;
-                                        let y = ((rows.saturating_sub(height)) / 2).max(1);
-                                        (x, y)
-                                    } else {
-                                        window_manager
-                                            .get_cascade_position(width, height, cols, rows)
-                                    };
-
-                                    match window_manager.create_window(
-                                        x,
-                                        y,
-                                        width,
-                                        height,
-                                        format!("Terminal {}", window_manager.window_count() + 1),
-                                        Some(command),
-                                    ) {
-                                        Ok(_terminal_id) => {
-                                            // Auto-position all windows based on the snap pattern
-                                            if app_state.auto_tiling_enabled {
-                                                window_manager.auto_position_windows(cols, rows);
-                                            }
-                                        }
-                                        Err(error_msg) => {
-                                            // Show error dialog
-                                            app_state.active_error_dialog =
-                                                Some(ErrorDialog::new(cols, rows, error_msg));
-                                        }
-                                    }
-                                }
-                                continue;
-                            }
-                            KeyCode::Esc => {
-                                // ESC dismisses the Slight input
-                                app_state.active_slight_input = None;
-                                continue;
-                            }
-                            _ => {
-                                // Ignore other keys when Slight input is active
-                                continue;
-                            }
-                        }
-                    }
-
-                    // Handle calendar keyboard navigation if calendar is active
-                    if let Some(ref mut calendar) = app_state.active_calendar {
-                        match key_event.code {
-                            KeyCode::Char('<') | KeyCode::Char(',') | KeyCode::Left => {
-                                // Previous month
-                                calendar.previous_month();
-                                continue;
-                            }
-                            KeyCode::Char('>') | KeyCode::Char('.') | KeyCode::Right => {
-                                // Next month
-                                calendar.next_month();
-                                continue;
-                            }
-                            KeyCode::Up => {
-                                // Previous year
-                                calendar.previous_year();
-                                continue;
-                            }
-                            KeyCode::Down => {
-                                // Next year
-                                calendar.next_year();
-                                continue;
-                            }
-                            KeyCode::Char('t') | KeyCode::Home => {
-                                // Reset to today
-                                calendar.reset_to_today();
-                                continue;
-                            }
-                            KeyCode::Esc => {
-                                // ESC dismisses the calendar
-                                app_state.active_calendar = None;
-                                continue;
-                            }
-                            _ => {
-                                // Ignore other keys when calendar is active
-                                continue;
-                            }
-                        }
-                    }
-
-                    // Handle help window keyboard events if help window is active
-                    if app_state.active_help_window.is_some() {
-                        match key_event.code {
-                            KeyCode::Esc => {
-                                // ESC dismisses the help window
-                                app_state.active_help_window = None;
-                                continue;
-                            }
-                            _ => {
-                                // Ignore other keys when help window is active
-                                continue;
-                            }
-                        }
-                    }
-
-                    // Handle about window keyboard events if about window is active
-                    if app_state.active_about_window.is_some() {
-                        match key_event.code {
-                            KeyCode::Esc => {
-                                // ESC dismisses the about window
-                                app_state.active_about_window = None;
-                                continue;
-                            }
-                            _ => {
-                                // Ignore other keys when about window is active
-                                continue;
-                            }
-                        }
-                    }
-
-                    // Handle config window keyboard events if config window is active
-                    if app_state.active_config_window.is_some() {
-                        match key_event.code {
-                            KeyCode::Esc => {
-                                // ESC dismisses the config window
-                                app_state.active_config_window = None;
-                                continue;
-                            }
-                            _ => {
-                                // Ignore other keys when config window is active
-                                continue;
-                            }
-                        }
-                    }
-
-                    // Handle F1 to show help (universal help key)
-                    if key_event.code == KeyCode::F(1) {
-                        if current_focus == FocusState::Desktop {
-                            let (cols, rows) = backend.dimensions();
-
-                            // Platform-specific modifier key text
-                            let (copy_key, paste_key) = if is_macos() {
-                                ("CMD+C", "CMD+V")
-                            } else {
-                                ("CTRL+SHIFT+C", "CTRL+SHIFT+V")
-                            };
-
-                            let help_message = format!(
-                                "{{C}}KEYBOARD SHORTCUTS{{W}}\n\
-                                \n\
-                                {{Y}}'t'{{W}}       - Create new terminal window\n\
-                                {{Y}}'T'{{W}}       - Create new maximized terminal window\n\
-                                {{Y}}'q'/ESC{{W}}   - Exit application (from desktop)\n\
-                                {{Y}}F1{{W}} or {{Y}}'h'{{W}} - Show this help screen\n\
-                                {{Y}}'l'{{W}}       - Show license and about information\n\
-                                {{Y}}'s'{{W}}       - Show settings/configuration window\n\
-                                {{Y}}'c'{{W}}       - Show calendar ({{Y}}\u{2190}\u{2192}{{W}} months, {{Y}}\u{2191}\u{2193}{{W}} years, {{Y}}t{{W}} today)\n\
-                                {{Y}}CTRL+Space{{W}} - Command launcher (Slight)\n\
-                                \n\
-                                {{C}}WINDOW & SESSION{{W}}\n\
-                                \n\
-                                {{Y}}F2{{W}} or {{Y}}ALT+TAB{{W}} - Switch between windows\n\
-                                {{Y}}F3{{W}}              - Save session manually\n\
-                                {{Y}}F4{{W}} or {{Y}}CTRL+L{{W}}  - Clear terminal\n\
-                                \n\
-                                {{C}}COPY & PASTE{{W}}\n\
-                                \n\
-                                {{Y}}{}{{W}} or {{Y}}F6{{W}} - Copy selected text\n\
-                                {{Y}}{}{{W}} or {{Y}}F7{{W}} - Paste from clipboard\n\
-                                \n\
-                                {{C}}POPUP DIALOG CONTROLS{{W}}\n\
-                                \n\
-                                {{Y}}TAB/Arrow keys{{W}} - Navigate between buttons\n\
-                                {{Y}}ENTER{{W}}          - Activate selected button\n\
-                                {{Y}}ESC{{W}}            - Close dialog\n\
-                                \n\
-                                {{C}}MOUSE CONTROLS{{W}}\n\
-                                \n\
-                                {{Y}}Click title bar{{W}}     - Drag window\n\
-                                {{Y}}CTRL+Drag{{W}}          - Drag without snap\n\
-                                {{Y}}Click [X]{{W}}           - Close window\n\
-                                {{Y}}Drag border{{W}}         - Resize window\n\
-                                {{Y}}Click window{{W}}        - Focus window\n\
-                                {{Y}}Click bottom bar{{W}}    - Switch windows",
-                                copy_key, paste_key
-                            );
-
-                            app_state.active_help_window = Some(InfoWindow::new(
-                                "Help".to_string(),
-                                &help_message,
-                                cols,
-                                rows,
-                            ));
-                        }
-                        continue;
-                    }
-
-                    // Handle F2 for window cycling (more compatible than ALT+TAB)
-                    if key_event.code == KeyCode::F(2) {
-                        window_manager.cycle_to_next_window();
-                        continue;
-                    }
-
-                    // Handle ALT+TAB for window cycling (fallback, may be intercepted by OS)
-                    if key_event.code == KeyCode::Tab
-                        && key_event.modifiers.contains(KeyModifiers::ALT)
+                    // Handle prompt keyboard navigation
+                    if let Some(should_exit) =
+                        dialog_handlers::handle_prompt_keyboard(&mut app_state, key_event)
                     {
-                        window_manager.cycle_to_next_window();
-                        continue;
-                    }
-
-                    // Handle F3 to save session (more compatible than CTRL+S)
-                    if key_event.code == KeyCode::F(3) {
-                        // Save session to file (unless --no-save flag is set OR auto-save is disabled)
-                        if cli_args.no_save {
-                            // Show info that saving is disabled by --no-save flag
-                            let (cols, rows) = backend.dimensions();
-                            app_state.active_prompt = Some(Prompt::new(
-                                PromptType::Warning,
-                                "Session saving is disabled (--no-save flag)".to_string(),
-                                vec![PromptButton::new(
-                                    "OK".to_string(),
-                                    PromptAction::Cancel,
-                                    true,
-                                )],
-                                cols,
-                                rows,
-                            ));
-                        } else if !app_config.auto_save {
-                            // Show info that auto-save is disabled in settings
-                            let (cols, rows) = backend.dimensions();
-                            app_state.active_prompt = Some(Prompt::new(
-                                PromptType::Warning,
-                                "Session auto-save is disabled in Settings".to_string(),
-                                vec![PromptButton::new(
-                                    "OK".to_string(),
-                                    PromptAction::Cancel,
-                                    true,
-                                )],
-                                cols,
-                                rows,
-                            ));
-                        } else if window_manager.save_session_to_file().is_ok() {
-                            // Show success prompt
-                            let (cols, rows) = backend.dimensions();
-                            app_state.active_prompt = Some(Prompt::new(
-                                PromptType::Success,
-                                "Session saved successfully!".to_string(),
-                                vec![PromptButton::new(
-                                    "OK".to_string(),
-                                    PromptAction::Cancel,
-                                    true,
-                                )],
-                                cols,
-                                rows,
-                            ));
-                        } else {
-                            // Show error prompt if save failed
-                            let (cols, rows) = backend.dimensions();
-                            app_state.active_prompt = Some(Prompt::new(
-                                PromptType::Danger,
-                                "Failed to save session!".to_string(),
-                                vec![PromptButton::new(
-                                    "OK".to_string(),
-                                    PromptAction::Cancel,
-                                    true,
-                                )],
-                                cols,
-                                rows,
-                            ));
+                        if should_exit {
+                            break;
                         }
                         continue;
                     }
 
-                    // Handle F4 to clear the terminal (alternative to CTRL+L)
-                    if key_event.code == KeyCode::F(4) {
-                        if current_focus != FocusState::Desktop {
-                            // Send Ctrl+L (form feed, 0x0c) to the shell
-                            let _ = window_manager.send_to_focused("\x0c");
-                        }
+                    // Handle error dialog keyboard events
+                    if dialog_handlers::handle_error_dialog_keyboard(&mut app_state, key_event) {
                         continue;
                     }
 
-                    // Handle CTRL+L to clear the terminal (like 'clear' command)
-                    if key_event.code == KeyCode::Char('l')
-                        && key_event.modifiers.contains(KeyModifiers::CONTROL)
-                    {
-                        if current_focus != FocusState::Desktop {
-                            // Send Ctrl+L (form feed, 0x0c) to the shell
-                            let _ = window_manager.send_to_focused("\x0c");
-                        }
+                    // Handle Slight input keyboard events
+                    if dialog_handlers::handle_slight_input_keyboard(
+                        &mut app_state,
+                        key_event,
+                        &command_indexer,
+                        &mut command_history,
+                        &mut window_manager,
+                        &backend,
+                    ) {
                         continue;
                     }
 
-                    // Handle CTRL+Space to open Slight input popup
+                    // Handle calendar keyboard navigation
+                    if dialog_handlers::handle_calendar_keyboard(&mut app_state, key_event) {
+                        continue;
+                    }
+
+                    // Handle help window keyboard events
+                    if dialog_handlers::handle_help_window_keyboard(&mut app_state, key_event) {
+                        continue;
+                    }
+
+                    // Handle about window keyboard events
+                    if dialog_handlers::handle_about_window_keyboard(&mut app_state, key_event) {
+                        continue;
+                    }
+
+                    // Handle config window keyboard events
+                    if dialog_handlers::handle_config_window_keyboard(&mut app_state, key_event) {
+                        continue;
+                    }
+
+                    // Handle CTRL+Space to open Slight input popup (needs inline access to command_indexer/history)
                     if key_event.code == KeyCode::Char(' ')
                         && key_event.modifiers.contains(KeyModifiers::CONTROL)
                     {
-                        // Create Slight input popup with autocomplete
                         let (cols, rows) = backend.dimensions();
                         let mut slight_input = SlightInput::new(cols, rows);
                         slight_input
@@ -748,441 +371,23 @@ fn main() -> io::Result<()> {
                         continue;
                     }
 
-                    // Handle F6 to copy selection (universal alternative)
-                    if key_event.code == KeyCode::F(6) {
-                        if let FocusState::Window(window_id) = current_focus {
-                            if let Some(text) = window_manager.get_selected_text(window_id) {
-                                if clipboard_manager.copy(text).is_ok() {
-                                    // Clear selection after copying
-                                    window_manager.clear_selection(window_id);
-                                }
-                            }
-                        }
+                    // Handle desktop keyboard shortcuts (F1-F7, ESC, 'q', 'h', 'l', 'c', 's', 't', 'T', copy/paste)
+                    if keyboard_handlers::handle_desktop_keyboard(
+                        &mut app_state,
+                        key_event,
+                        current_focus,
+                        &mut window_manager,
+                        &mut clipboard_manager,
+                        &backend,
+                        &app_config,
+                        &cli_args,
+                    ) {
                         continue;
                     }
 
-                    // Handle F7 to paste (universal alternative)
-                    if key_event.code == KeyCode::F(7) {
-                        if let FocusState::Window(window_id) = current_focus {
-                            if let Ok(text) = clipboard_manager.paste() {
-                                let _ = window_manager.paste_to_window(window_id, &text);
-                                // Clear selection after paste
-                                window_manager.clear_selection(window_id);
-                            }
-                        }
-                        continue;
-                    }
-
-                    // Platform-aware copy shortcut
-                    // macOS: CMD+C (SUPER modifier)
-                    // Linux/Windows: CTRL+SHIFT+C
-                    let is_copy_shortcut = if is_macos() {
-                        // On macOS: CMD+C
-                        key_event.code == KeyCode::Char('c')
-                            && key_event.modifiers.contains(KeyModifiers::SUPER)
-                    } else {
-                        // On Linux/Windows: CTRL+SHIFT+C
-                        key_event.code == KeyCode::Char('C')
-                            && key_event.modifiers.contains(KeyModifiers::CONTROL)
-                            && key_event.modifiers.contains(KeyModifiers::SHIFT)
-                    };
-
-                    if is_copy_shortcut {
-                        if let FocusState::Window(window_id) = current_focus {
-                            if let Some(text) = window_manager.get_selected_text(window_id) {
-                                if clipboard_manager.copy(text).is_ok() {
-                                    // Clear selection after copying
-                                    window_manager.clear_selection(window_id);
-                                }
-                            }
-                        }
-                        continue;
-                    }
-
-                    // Platform-aware paste shortcut
-                    // macOS: CMD+V (SUPER modifier)
-                    // Linux/Windows: CTRL+SHIFT+V
-                    let is_paste_shortcut = if is_macos() {
-                        // On macOS: CMD+V
-                        key_event.code == KeyCode::Char('v')
-                            && key_event.modifiers.contains(KeyModifiers::SUPER)
-                    } else {
-                        // On Linux/Windows: CTRL+SHIFT+V
-                        key_event.code == KeyCode::Char('V')
-                            && key_event.modifiers.contains(KeyModifiers::CONTROL)
-                            && key_event.modifiers.contains(KeyModifiers::SHIFT)
-                    };
-
-                    if is_paste_shortcut {
-                        if let FocusState::Window(window_id) = current_focus {
-                            if let Ok(text) = clipboard_manager.paste() {
-                                let _ = window_manager.paste_to_window(window_id, &text);
-                                // Clear selection after paste
-                                window_manager.clear_selection(window_id);
-                            }
-                        }
-                        continue;
-                    }
-
-                    match key_event.code {
-                        KeyCode::Esc => {
-                            // ESC exits only from desktop (prompts are handled above)
-                            if current_focus == FocusState::Desktop {
-                                // If windows are open, show confirmation
-                                if window_manager.window_count() > 0 {
-                                    let (cols, rows) = backend.dimensions();
-                                    app_state.active_prompt = Some(Prompt::new(
-                                        PromptType::Danger,
-                                        "Exit with open windows?\nAll terminal sessions will be closed.".to_string(),
-                                        vec![
-                                            PromptButton::new("Exit".to_string(), PromptAction::Confirm, true),
-                                            PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false),
-                                        ],
-                                        cols,
-                                        rows,
-                                    ));
-                                } else {
-                                    // No windows open, just exit
-                                    break;
-                                }
-                            } else {
-                                // Send ESC to terminal
-                                let _ = window_manager.send_to_focused("\x1b");
-                            }
-                        }
-                        KeyCode::Char('q') => {
-                            // Only exit if desktop is focused (prompts are handled above)
-                            if current_focus == FocusState::Desktop {
-                                // If windows are open, show confirmation
-                                if window_manager.window_count() > 0 {
-                                    let (cols, rows) = backend.dimensions();
-                                    app_state.active_prompt = Some(Prompt::new(
-                                        PromptType::Danger,
-                                        "Exit with open windows?\nAll terminal sessions will be closed.".to_string(),
-                                        vec![
-                                            PromptButton::new("Exit".to_string(), PromptAction::Confirm, true),
-                                            PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false),
-                                        ],
-                                        cols,
-                                        rows,
-                                    ));
-                                } else {
-                                    // No windows open, just exit
-                                    break;
-                                }
-                            } else {
-                                // Send 'q' to terminal
-                                let _ = window_manager.send_char_to_focused('q');
-                            }
-                        }
-                        KeyCode::Char('h') => {
-                            // Show help if desktop is focused (prompts are handled above)
-                            if current_focus == FocusState::Desktop {
-                                let (cols, rows) = backend.dimensions();
-
-                                // Platform-specific modifier key text
-                                let (copy_key, paste_key) = if is_macos() {
-                                    ("CMD+C", "CMD+V")
-                                } else {
-                                    ("CTRL+SHIFT+C", "CTRL+SHIFT+V")
-                                };
-
-                                let help_message = format!(
-                                    "{{C}}KEYBOARD SHORTCUTS{{W}}\n\
-                                    \n\
-                                    {{Y}}'t'{{W}}       - Create new terminal window\n\
-                                    {{Y}}'T'{{W}}       - Create new maximized terminal window\n\
-                                    {{Y}}'q'/ESC{{W}}   - Exit application (from desktop)\n\
-                                    {{Y}}F1{{W}} or {{Y}}'h'{{W}} - Show this help screen\n\
-                                    {{Y}}'l'{{W}}       - Show license and about information\n\
-                                    {{Y}}'s'{{W}}       - Show settings/configuration window\n\
-                                    {{Y}}'c'{{W}}       - Show calendar ({{Y}}\u{2190}\u{2192}{{W}} months, {{Y}}\u{2191}\u{2193}{{W}} years, {{Y}}t{{W}} today)\n\
-                                    {{Y}}CTRL+Space{{W}} - Command launcher (Slight)\n\
-                                    \n\
-                                    {{C}}WINDOW & SESSION{{W}}\n\
-                                    \n\
-                                    {{Y}}F2{{W}} or {{Y}}ALT+TAB{{W}} - Switch between windows\n\
-                                    {{Y}}F3{{W}}              - Save session manually\n\
-                                    {{Y}}F4{{W}} or {{Y}}CTRL+L{{W}}  - Clear terminal\n\
-                                    \n\
-                                    {{C}}COPY & PASTE{{W}}\n\
-                                    \n\
-                                    {{Y}}{}{{W}} or {{Y}}F6{{W}} - Copy selected text\n\
-                                    {{Y}}{}{{W}} or {{Y}}F7{{W}} - Paste from clipboard\n\
-                                    \n\
-                                    {{C}}POPUP DIALOG CONTROLS{{W}}\n\
-                                    \n\
-                                    {{Y}}TAB/Arrow keys{{W}} - Navigate between buttons\n\
-                                    {{Y}}ENTER{{W}}          - Activate selected button\n\
-                                    {{Y}}ESC{{W}}            - Close dialog\n\
-                                    \n\
-                                    {{C}}MOUSE CONTROLS{{W}}\n\
-                                    \n\
-                                    {{Y}}Click title bar{{W}}     - Drag window\n\
-                                    {{Y}}CTRL+Drag{{W}}          - Drag without snap\n\
-                                    {{Y}}Click [X]{{W}}           - Close window\n\
-                                    {{Y}}Drag border{{W}}         - Resize window\n\
-                                    {{Y}}Click window{{W}}        - Focus window\n\
-                                    {{Y}}Click bottom bar{{W}}    - Switch windows",
-                                    copy_key, paste_key
-                                );
-
-                                app_state.active_help_window = Some(InfoWindow::new(
-                                    "Help".to_string(),
-                                    &help_message,
-                                    cols,
-                                    rows,
-                                ));
-                            } else if current_focus != FocusState::Desktop {
-                                // Send 'h' to terminal
-                                let _ = window_manager.send_char_to_focused('h');
-                            }
-                        }
-                        KeyCode::Char('l') => {
-                            // Show license and about if desktop is focused
-                            if current_focus == FocusState::Desktop {
-                                let (cols, rows) = backend.dimensions();
-                                let license_message = format!(
-                                    "TERM39 - Terminal UI Windows Manager\n\
-                                    \n\
-                                    A low-level terminal UI windows manager built with Rust.\n\
-                                    \n\
-                                    Version: {}\n\
-                                    Author: {}\n\
-                                    Repository: {}\n\
-                                    \n\
-                                    LICENSE\n\
-                                    \n\
-                                    This software is licensed under the MIT License.\n\
-                                    See LICENSE file or visit the repository for details.\n\
-                                    \n\
-                                    BUILT WITH\n\
-                                    \n\
-                                    This project uses the following open source packages:\n\
-                                    \n\
-                                    - crossterm - Cross-platform terminal manipulation\n\
-                                    - portable-pty - Portable pseudo-terminal support\n\
-                                    - vte - Virtual terminal emulator parser\n\
-                                    - chrono - Date and time library\n\
-                                    \n\
-                                    All dependencies are used under their respective licenses.",
-                                    config::VERSION,
-                                    config::AUTHORS,
-                                    config::REPOSITORY
-                                );
-
-                                app_state.active_about_window = Some(InfoWindow::new(
-                                    "About".to_string(),
-                                    &license_message,
-                                    cols,
-                                    rows,
-                                ));
-                            } else if current_focus != FocusState::Desktop {
-                                // Send 'l' to terminal
-                                let _ = window_manager.send_char_to_focused('l');
-                            }
-                        }
-                        KeyCode::Char('c') => {
-                            // Show calendar if desktop is focused
-                            if current_focus == FocusState::Desktop {
-                                app_state.active_calendar = Some(CalendarState::new());
-                            } else if current_focus != FocusState::Desktop {
-                                // Send 'c' to terminal
-                                let _ = window_manager.send_char_to_focused('c');
-                            }
-                        }
-                        KeyCode::Char('s') => {
-                            // Show settings/config window if desktop is focused
-                            if current_focus == FocusState::Desktop {
-                                let (cols, rows) = backend.dimensions();
-                                app_state.active_config_window =
-                                    Some(ConfigWindow::new(cols, rows));
-                            } else if current_focus != FocusState::Desktop {
-                                // Send 's' to terminal
-                                let _ = window_manager.send_char_to_focused('s');
-                            }
-                        }
-                        KeyCode::Char('t') => {
-                            // Only create new window if desktop is focused
-                            if current_focus == FocusState::Desktop {
-                                // Create a new terminal window
-                                let (cols, rows) = backend.dimensions();
-
-                                // Window size: 2.5x larger (60*2.5=150, 20*2.5=50)
-                                let width = 150;
-                                let height = 50;
-
-                                // Get position: cascade if auto-tiling is off, center otherwise
-                                let (x, y) = if app_state.auto_tiling_enabled {
-                                    let x = (cols.saturating_sub(width)) / 2;
-                                    let y = ((rows.saturating_sub(height)) / 2).max(1);
-                                    (x, y)
-                                } else {
-                                    window_manager.get_cascade_position(width, height, cols, rows)
-                                };
-
-                                match window_manager.create_window(
-                                    x,
-                                    y,
-                                    width,
-                                    height,
-                                    format!("Terminal {}", window_manager.window_count() + 1),
-                                    None,
-                                ) {
-                                    Ok(_) => {
-                                        // Auto-position all windows based on the snap pattern
-                                        if app_state.auto_tiling_enabled {
-                                            window_manager.auto_position_windows(cols, rows);
-                                        }
-                                    }
-                                    Err(error_msg) => {
-                                        // Show error dialog
-                                        app_state.active_error_dialog =
-                                            Some(ErrorDialog::new(cols, rows, error_msg));
-                                    }
-                                }
-                            } else {
-                                // Send 't' to terminal
-                                let _ = window_manager.send_char_to_focused('t');
-                            }
-                        }
-                        KeyCode::Char('T') => {
-                            // Only create maximized window if desktop is focused
-                            if current_focus == FocusState::Desktop {
-                                // Create a new terminal window
-                                let (cols, rows) = backend.dimensions();
-
-                                // Window size: 2.5x larger (60*2.5=150, 20*2.5=50)
-                                let width = 150;
-                                let height = 50;
-
-                                // Get position: cascade if auto-tiling is off, center otherwise
-                                // (will be maximized immediately, but still track for cascading)
-                                let (x, y) = if app_state.auto_tiling_enabled {
-                                    let x = (cols.saturating_sub(width)) / 2;
-                                    let y = ((rows.saturating_sub(height)) / 2).max(1);
-                                    (x, y)
-                                } else {
-                                    window_manager.get_cascade_position(width, height, cols, rows)
-                                };
-
-                                match window_manager.create_window(
-                                    x,
-                                    y,
-                                    width,
-                                    height,
-                                    format!("Terminal {}", window_manager.window_count() + 1),
-                                    None,
-                                ) {
-                                    Ok(window_id) => {
-                                        // Maximize the newly created window
-                                        window_manager.maximize_window(window_id, cols, rows);
-                                    }
-                                    Err(error_msg) => {
-                                        // Show error dialog
-                                        app_state.active_error_dialog =
-                                            Some(ErrorDialog::new(cols, rows, error_msg));
-                                    }
-                                }
-                            } else {
-                                // Send 'T' to terminal
-                                let _ = window_manager.send_char_to_focused('T');
-                            }
-                        }
-                        KeyCode::Char(c) => {
-                            // Send character to focused terminal
-                            if current_focus != FocusState::Desktop {
-                                // Check if CTRL is pressed (but not handled by specific shortcuts above)
-                                if key_event.modifiers.contains(KeyModifiers::CONTROL) {
-                                    // Convert to control character (Ctrl+A = 0x01, Ctrl+B = 0x02, etc.)
-                                    // Ctrl+letter maps to ASCII 1-26 for a-z (case insensitive)
-                                    if c.is_ascii_alphabetic() {
-                                        let control_char = match c.to_ascii_lowercase() {
-                                            'a'..='z' => {
-                                                // Ctrl+A = 1, Ctrl+B = 2, ..., Ctrl+Z = 26
-                                                (c.to_ascii_lowercase() as u8 - b'a' + 1) as char
-                                            }
-                                            _ => c,
-                                        };
-                                        let _ = window_manager
-                                            .send_to_focused(&control_char.to_string());
-                                    } else {
-                                        // For non-alphabetic characters with Ctrl, send as-is
-                                        // This handles cases like Ctrl+[ which is ESC
-                                        let _ = window_manager.send_char_to_focused(c);
-                                    }
-                                } else {
-                                    // Normal character without Ctrl
-                                    let _ = window_manager.send_char_to_focused(c);
-                                }
-                            }
-                        }
-                        KeyCode::Enter => {
-                            if current_focus != FocusState::Desktop {
-                                let _ = window_manager.send_to_focused("\r");
-                            }
-                        }
-                        KeyCode::Backspace => {
-                            if current_focus != FocusState::Desktop {
-                                let _ = window_manager.send_to_focused("\x7f");
-                            }
-                        }
-                        KeyCode::Tab => {
-                            if current_focus != FocusState::Desktop {
-                                let _ = window_manager.send_to_focused("\t");
-                            }
-                        }
-                        KeyCode::Up => {
-                            if current_focus != FocusState::Desktop {
-                                let _ = window_manager.send_to_focused("\x1b[A");
-                            }
-                        }
-                        KeyCode::Down => {
-                            if current_focus != FocusState::Desktop {
-                                let _ = window_manager.send_to_focused("\x1b[B");
-                            }
-                        }
-                        KeyCode::Right => {
-                            if current_focus != FocusState::Desktop {
-                                let _ = window_manager.send_to_focused("\x1b[C");
-                            }
-                        }
-                        KeyCode::Left => {
-                            if current_focus != FocusState::Desktop {
-                                let _ = window_manager.send_to_focused("\x1b[D");
-                            }
-                        }
-                        KeyCode::Home => {
-                            if current_focus != FocusState::Desktop {
-                                let _ = window_manager.send_to_focused("\x1b[H");
-                            }
-                        }
-                        KeyCode::End => {
-                            if current_focus != FocusState::Desktop {
-                                let _ = window_manager.send_to_focused("\x1b[F");
-                            }
-                        }
-                        KeyCode::PageUp => {
-                            if current_focus != FocusState::Desktop {
-                                let _ = window_manager.send_to_focused("\x1b[5~");
-                            }
-                        }
-                        KeyCode::PageDown => {
-                            if current_focus != FocusState::Desktop {
-                                let _ = window_manager.send_to_focused("\x1b[6~");
-                            }
-                        }
-                        KeyCode::Delete => {
-                            if current_focus != FocusState::Desktop {
-                                let _ = window_manager.send_to_focused("\x1b[3~");
-                            }
-                        }
-                        KeyCode::Insert => {
-                            if current_focus != FocusState::Desktop {
-                                let _ = window_manager.send_to_focused("\x1b[2~");
-                            }
-                        }
-                        _ => {}
+                    // Forward input to terminal window if not Desktop
+                    if current_focus != FocusState::Desktop {
+                        keyboard_handlers::forward_to_terminal(key_event, &mut window_manager);
                     }
                 }
                 Event::Mouse(mut mouse_event) => {
