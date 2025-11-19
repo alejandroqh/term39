@@ -132,6 +132,15 @@ pub struct TerminalGrid {
     alt_screen: Option<Vec<Vec<TerminalCell>>>,
     /// Tab stops (every 8 columns by default)
     tab_stops: Vec<bool>,
+    /// DEC Private Modes
+    /// Application cursor keys mode (DECCKM ?1)
+    pub application_cursor_keys: bool,
+    /// Bracketed paste mode (?2004)
+    pub bracketed_paste_mode: bool,
+    /// Focus event reporting (?1004)
+    pub focus_event_mode: bool,
+    /// Synchronized output mode (?2026)
+    pub synchronized_output: bool,
 }
 
 impl TerminalGrid {
@@ -156,6 +165,10 @@ impl TerminalGrid {
             saved_cursor: None,
             alt_screen: None,
             tab_stops,
+            application_cursor_keys: false,
+            bracketed_paste_mode: false,
+            focus_event_mode: false,
+            synchronized_output: false,
         }
     }
 
@@ -331,6 +344,12 @@ impl TerminalGrid {
 
         // Reset scrollback
         self.scrollback.clear();
+
+        // Reset DEC private modes
+        self.application_cursor_keys = false;
+        self.bracketed_paste_mode = false;
+        self.focus_event_mode = false;
+        self.synchronized_output = false;
     }
 
     /// Move cursor to next tab stop

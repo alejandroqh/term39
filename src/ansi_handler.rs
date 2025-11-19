@@ -352,9 +352,15 @@ impl Perform for AnsiHandler<'_> {
                 // DEC Private Mode Set
                 for param in params.iter() {
                     match param[0] {
-                        25 => self.grid.cursor.visible = true, // Show cursor
-                        1049 => self.grid.use_alt_screen(),    // Alt screen
-                        _ => {}
+                        1 => self.grid.application_cursor_keys = true, // DECCKM
+                        25 => self.grid.cursor.visible = true,         // Show cursor
+                        1004 => self.grid.focus_event_mode = true,     // Focus events
+                        1049 => self.grid.use_alt_screen(),            // Alt screen
+                        2004 => self.grid.bracketed_paste_mode = true, // Bracketed paste
+                        2026 => self.grid.synchronized_output = true,  // Synchronized output
+                        _ => {
+                            eprintln!("[DEBUG] Unhandled DEC Private Mode SET: ?{}", param[0]);
+                        }
                     }
                 }
             }
@@ -362,9 +368,15 @@ impl Perform for AnsiHandler<'_> {
                 // DEC Private Mode Reset
                 for param in params.iter() {
                     match param[0] {
-                        25 => self.grid.cursor.visible = false, // Hide cursor
-                        1049 => self.grid.use_main_screen(),    // Main screen
-                        _ => {}
+                        1 => self.grid.application_cursor_keys = false, // DECCKM
+                        25 => self.grid.cursor.visible = false,         // Hide cursor
+                        1004 => self.grid.focus_event_mode = false,     // Focus events
+                        1049 => self.grid.use_main_screen(),            // Main screen
+                        2004 => self.grid.bracketed_paste_mode = false, // Bracketed paste
+                        2026 => self.grid.synchronized_output = false,  // Synchronized output
+                        _ => {
+                            eprintln!("[DEBUG] Unhandled DEC Private Mode RESET: ?{}", param[0]);
+                        }
                     }
                 }
             }
