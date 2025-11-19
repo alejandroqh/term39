@@ -8,6 +8,10 @@ pub enum ResizeEdge {
     Left,
     Right,
     Bottom,
+    BottomLeft,
+    BottomRight,
+    TopLeft,
+    TopRight,
 }
 
 /// Represents a window in the UI
@@ -98,10 +102,41 @@ impl Window {
         x == self.x + self.width - 1 && y > self.y && y < self.y + self.height - 1
     }
 
+    /// Check if point is in bottom-left corner (2-char wide corner area)
+    pub fn is_in_bottom_left_corner(&self, x: u16, y: u16) -> bool {
+        y == self.y + self.height - 1 && (x == self.x || x == self.x + 1)
+    }
+
+    /// Check if point is in bottom-right corner (2-char wide corner area)
+    pub fn is_in_bottom_right_corner(&self, x: u16, y: u16) -> bool {
+        y == self.y + self.height - 1
+            && (x == self.x + self.width - 2 || x == self.x + self.width - 1)
+    }
+
+    /// Check if point is in top-left corner (2-char wide corner area)
+    pub fn is_in_top_left_corner(&self, x: u16, y: u16) -> bool {
+        y == self.y && (x == self.x || x == self.x + 1)
+    }
+
+    /// Check if point is in top-right corner (2-char wide corner area)
+    pub fn is_in_top_right_corner(&self, x: u16, y: u16) -> bool {
+        y == self.y && (x == self.x + self.width - 2 || x == self.x + self.width - 1)
+    }
+
     /// Determine which resize edge (if any) is at the given point
     /// Returns Some(edge) if on a resizable border, None otherwise
+    /// Checks corners first, then edges
     pub fn get_resize_edge(&self, x: u16, y: u16) -> Option<ResizeEdge> {
-        if self.is_on_left_border(x, y) {
+        // Check corners first (they take priority over edges)
+        if self.is_in_bottom_left_corner(x, y) {
+            Some(ResizeEdge::BottomLeft)
+        } else if self.is_in_bottom_right_corner(x, y) {
+            Some(ResizeEdge::BottomRight)
+        } else if self.is_in_top_left_corner(x, y) {
+            Some(ResizeEdge::TopLeft)
+        } else if self.is_in_top_right_corner(x, y) {
+            Some(ResizeEdge::TopRight)
+        } else if self.is_on_left_border(x, y) {
             Some(ResizeEdge::Left)
         } else if self.is_on_right_border(x, y) {
             Some(ResizeEdge::Right)

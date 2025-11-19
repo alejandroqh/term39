@@ -653,6 +653,50 @@ impl WindowManager {
                         let new_height = (resize.start_height as i16 + delta_y).max(5) as u16;
                         terminal_window.window.height = new_height;
                     }
+                    ResizeEdge::BottomLeft => {
+                        // Bottom-left corner: adjust x position and width (like Left) AND height (like Bottom)
+                        let new_width = (resize.start_width as i16 - delta_x).max(24) as u16;
+                        let new_x = (resize.start_window_x as i16 + delta_x).max(0) as u16;
+                        let new_height = (resize.start_height as i16 + delta_y).max(5) as u16;
+
+                        terminal_window.window.x = new_x;
+                        terminal_window.window.width = new_width;
+                        terminal_window.window.height = new_height;
+                    }
+                    ResizeEdge::BottomRight => {
+                        // Bottom-right corner: adjust width (like Right) AND height (like Bottom)
+                        let new_width = (resize.start_width as i16 + delta_x).max(24) as u16;
+                        let new_height = (resize.start_height as i16 + delta_y).max(5) as u16;
+
+                        terminal_window.window.width = new_width;
+                        terminal_window.window.height = new_height;
+                    }
+                    ResizeEdge::TopLeft => {
+                        // Top-left corner: adjust x and y position while changing width and height
+                        // delta_x > 0 (right) = decrease width, move right
+                        // delta_y > 0 (down) = decrease height, move down
+                        let new_width = (resize.start_width as i16 - delta_x).max(24) as u16;
+                        let new_height = (resize.start_height as i16 - delta_y).max(5) as u16;
+                        let new_x = (resize.start_window_x as i16 + delta_x).max(0) as u16;
+                        let new_y = (resize.start_y as i16 + delta_y).max(1) as u16; // min y=1 (below top bar)
+
+                        terminal_window.window.x = new_x;
+                        terminal_window.window.y = new_y;
+                        terminal_window.window.width = new_width;
+                        terminal_window.window.height = new_height;
+                    }
+                    ResizeEdge::TopRight => {
+                        // Top-right corner: adjust y position and width/height
+                        // delta_x > 0 (right) = increase width
+                        // delta_y > 0 (down) = decrease height, move down
+                        let new_width = (resize.start_width as i16 + delta_x).max(24) as u16;
+                        let new_height = (resize.start_height as i16 - delta_y).max(5) as u16;
+                        let new_y = (resize.start_y as i16 + delta_y).max(1) as u16; // min y=1 (below top bar)
+
+                        terminal_window.window.y = new_y;
+                        terminal_window.window.width = new_width;
+                        terminal_window.window.height = new_height;
+                    }
                 }
 
                 // DON'T resize the terminal PTY during drag - it causes artifacts
