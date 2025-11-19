@@ -141,6 +141,10 @@ pub struct TerminalGrid {
     pub focus_event_mode: bool,
     /// Synchronized output mode (?2026)
     pub synchronized_output: bool,
+    /// Mouse tracking modes
+    pub mouse_button_tracking: bool, // ?1002 - Button event tracking
+    pub mouse_sgr_mode: bool,   // ?1006 - SGR extended mouse mode
+    pub mouse_urxvt_mode: bool, // ?1015 - URXVT mouse mode
 }
 
 impl TerminalGrid {
@@ -169,6 +173,9 @@ impl TerminalGrid {
             bracketed_paste_mode: false,
             focus_event_mode: false,
             synchronized_output: false,
+            mouse_button_tracking: false,
+            mouse_sgr_mode: false,
+            mouse_urxvt_mode: false,
         }
     }
 
@@ -267,8 +274,14 @@ impl TerminalGrid {
 
                     // Auto-wrap at end of line
                     if self.cursor.x >= self.cols {
-                        self.cursor.x = 0;
-                        self.linefeed();
+                        // Don't auto-wrap at the very last row - just stay at the last column
+                        // This prevents unwanted scrolling when drawing the last row
+                        if self.cursor.y == self.rows_count - 1 {
+                            self.cursor.x = self.cols - 1;
+                        } else {
+                            self.cursor.x = 0;
+                            self.linefeed();
+                        }
                     }
                 }
             }
@@ -350,6 +363,9 @@ impl TerminalGrid {
         self.bracketed_paste_mode = false;
         self.focus_event_mode = false;
         self.synchronized_output = false;
+        self.mouse_button_tracking = false;
+        self.mouse_sgr_mode = false;
+        self.mouse_urxvt_mode = false;
     }
 
     /// Move cursor to next tab stop

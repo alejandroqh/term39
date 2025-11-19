@@ -354,13 +354,14 @@ impl Perform for AnsiHandler<'_> {
                     match param[0] {
                         1 => self.grid.application_cursor_keys = true, // DECCKM
                         25 => self.grid.cursor.visible = true,         // Show cursor
+                        1002 => self.grid.mouse_button_tracking = true, // Button event tracking
                         1004 => self.grid.focus_event_mode = true,     // Focus events
+                        1006 => self.grid.mouse_sgr_mode = true,       // SGR mouse mode
+                        1015 => self.grid.mouse_urxvt_mode = true,     // URXVT mouse mode
                         1049 => self.grid.use_alt_screen(),            // Alt screen
                         2004 => self.grid.bracketed_paste_mode = true, // Bracketed paste
                         2026 => self.grid.synchronized_output = true,  // Synchronized output
-                        _ => {
-                            eprintln!("[DEBUG] Unhandled DEC Private Mode SET: ?{}", param[0]);
-                        }
+                        _ => {}
                     }
                 }
             }
@@ -370,13 +371,14 @@ impl Perform for AnsiHandler<'_> {
                     match param[0] {
                         1 => self.grid.application_cursor_keys = false, // DECCKM
                         25 => self.grid.cursor.visible = false,         // Hide cursor
+                        1002 => self.grid.mouse_button_tracking = false, // Button event tracking
                         1004 => self.grid.focus_event_mode = false,     // Focus events
+                        1006 => self.grid.mouse_sgr_mode = false,       // SGR mouse mode
+                        1015 => self.grid.mouse_urxvt_mode = false,     // URXVT mouse mode
                         1049 => self.grid.use_main_screen(),            // Main screen
                         2004 => self.grid.bracketed_paste_mode = false, // Bracketed paste
                         2026 => self.grid.synchronized_output = false,  // Synchronized output
-                        _ => {
-                            eprintln!("[DEBUG] Unhandled DEC Private Mode RESET: ?{}", param[0]);
-                        }
+                        _ => {}
                     }
                 }
             }
@@ -474,6 +476,11 @@ impl Perform for AnsiHandler<'_> {
             (b'>', []) => {
                 // Switch keypad to numeric mode
                 // Not implemented - affects input handling
+            }
+
+            // ESC \ - String Terminator (ST)
+            (b'\\', []) => {
+                // Terminates OSC, DCS, APC sequences - nothing to do here
             }
 
             _ => {
