@@ -29,13 +29,14 @@ mod term_grid;
 mod terminal_emulator;
 mod terminal_window;
 mod theme;
+mod ui_render;
 mod video_buffer;
 mod window;
 mod window_manager;
 
 use button::Button;
 use charset::Charset;
-use chrono::{Datelike, Local, NaiveDate};
+use chrono::Local;
 use clipboard_manager::ClipboardManager;
 use command_history::CommandHistory;
 use command_indexer::CommandIndexer;
@@ -46,7 +47,6 @@ use crossterm::{
     cursor,
     event::{self, Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind},
     execute,
-    style::Color,
     terminal::{self, ClearType},
 };
 use error_dialog::ErrorDialog;
@@ -60,79 +60,13 @@ use slight_input::SlightInput;
 use std::io::{self, Write};
 use std::time::{Duration, Instant};
 use theme::Theme;
-use video_buffer::{Cell, VideoBuffer};
+use ui_render::CalendarState;
+use video_buffer::VideoBuffer;
 use window_manager::{FocusState, WindowManager};
 
 // Platform detection helper - returns true if running on macOS
 fn is_macos() -> bool {
     cfg!(target_os = "macos")
-}
-
-// Calendar state structure
-struct CalendarState {
-    year: i32,
-    month: u32,
-    today: NaiveDate,
-}
-
-impl CalendarState {
-    fn new() -> Self {
-        let today = Local::now().date_naive();
-        Self {
-            year: today.year(),
-            month: today.month(),
-            today,
-        }
-    }
-
-    fn next_month(&mut self) {
-        if self.month == 12 {
-            self.month = 1;
-            self.year += 1;
-        } else {
-            self.month += 1;
-        }
-    }
-
-    fn previous_month(&mut self) {
-        if self.month == 1 {
-            self.month = 12;
-            self.year -= 1;
-        } else {
-            self.month -= 1;
-        }
-    }
-
-    fn next_year(&mut self) {
-        self.year += 1;
-    }
-
-    fn previous_year(&mut self) {
-        self.year -= 1;
-    }
-
-    fn reset_to_today(&mut self) {
-        self.year = self.today.year();
-        self.month = self.today.month();
-    }
-
-    fn month_name(&self) -> &'static str {
-        match self.month {
-            1 => "January",
-            2 => "February",
-            3 => "March",
-            4 => "April",
-            5 => "May",
-            6 => "June",
-            7 => "July",
-            8 => "August",
-            9 => "September",
-            10 => "October",
-            11 => "November",
-            12 => "December",
-            _ => "Unknown",
-        }
-    }
 }
 
 fn main() -> io::Result<()> {
@@ -392,7 +326,7 @@ fn main() -> io::Result<()> {
         let (cols, rows) = backend.dimensions();
 
         // Render the background (every frame for consistency)
-        render_background(&mut video_buffer, &charset, &theme);
+        ui_render::render_background(&mut video_buffer, &charset, &theme);
 
         // Update clipboard buttons state and position
         let has_clipboard_content = clipboard_manager.has_content();
@@ -435,7 +369,7 @@ fn main() -> io::Result<()> {
 
         // Render the top bar
         let focus = window_manager.get_focus();
-        render_top_bar(
+        ui_render::render_top_bar(
             &mut video_buffer,
             focus,
             &new_terminal_button,
@@ -461,7 +395,7 @@ fn main() -> io::Result<()> {
         window_manager.render_snap_preview(&mut video_buffer, &charset, &theme);
 
         // Render the button bar
-        render_button_bar(
+        ui_render::render_button_bar(
             &mut video_buffer,
             &window_manager,
             &auto_tiling_button,
@@ -484,7 +418,7 @@ fn main() -> io::Result<()> {
         // Render active calendar (if any) on top of everything
         if let Some(ref calendar) = active_calendar {
             video_buffer::render_fullscreen_shadow(&mut video_buffer);
-            render_calendar(&mut video_buffer, calendar, &charset, &theme, cols, rows);
+            ui_render::render_calendar(&mut video_buffer, calendar, &charset, &theme, cols, rows);
         }
 
         // Render active config window (if any) on top of everything
@@ -2112,400 +2046,6 @@ fn main() -> io::Result<()> {
     cleanup(&mut stdout)?;
 
     Ok(())
-}
-
-fn render_background(buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
-    let (cols, rows) = buffer.dimensions();
-
-    // Use the background character from charset configuration
-    let background_cell = Cell::new(charset.background, theme.desktop_fg, theme.desktop_bg);
-
-    // Fill entire screen with the background character
-    for y in 0..rows {
-        for x in 0..cols {
-            buffer.set(x, y, background_cell);
-        }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn render_top_bar(
-    buffer: &mut VideoBuffer,
-    focus: FocusState,
-    new_terminal_button: &Button,
-    paste_button: &Button,
-    clear_clipboard_button: &Button,
-    copy_button: &Button,
-    clear_selection_button: &Button,
-    app_config: &AppConfig,
-    theme: &Theme,
-) {
-    let (cols, _rows) = buffer.dimensions();
-
-    // Change background color based on focus
-    let bg_color = match focus {
-        FocusState::Desktop => theme.topbar_bg_desktop,
-        FocusState::Window(_) => theme.topbar_bg_window,
-    };
-
-    let bar_cell = Cell::new(' ', theme.topbar_fg, bg_color);
-
-    // Create a blank top bar
-    for x in 0..cols {
-        buffer.set(x, 0, bar_cell);
-    }
-
-    // Left section - New Terminal button (always visible)
-    new_terminal_button.render(buffer, theme);
-
-    // Center section - Copy/Paste/Clear buttons (visible based on state)
-    copy_button.render(buffer, theme);
-    clear_selection_button.render(buffer, theme);
-    paste_button.render(buffer, theme);
-    clear_clipboard_button.render(buffer, theme);
-
-    // Right section - Clock with dark background
-    let now = Local::now();
-
-    // Format clock based on configuration
-    let time_str = if app_config.show_date_in_clock {
-        // Show date and time: "Tue Nov 11, 09:21"
-        now.format("%a %b %d, %H:%M").to_string()
-    } else {
-        // Show time only with seconds: "09:21:45"
-        now.format("%H:%M:%S").to_string()
-    };
-
-    // Format: "| Tue Nov 11, 09:21 " or "| 09:21:45 " (with separator and trailing space)
-    let clock_with_separator = format!("| {} ", time_str);
-    let clock_width = clock_with_separator.len() as u16;
-    let time_pos = cols.saturating_sub(clock_width);
-
-    // Render clock with dark background
-    for (i, ch) in clock_with_separator.chars().enumerate() {
-        buffer.set(
-            time_pos + i as u16,
-            0,
-            Cell::new(ch, theme.clock_fg, theme.clock_bg),
-        );
-    }
-}
-
-fn render_button_bar(
-    buffer: &mut VideoBuffer,
-    window_manager: &WindowManager,
-    auto_tiling_button: &Button,
-    auto_tiling_enabled: bool,
-    theme: &Theme,
-) {
-    let (cols, rows) = buffer.dimensions();
-    let bar_y = rows - 1;
-
-    // Fill button bar with black background
-    let bar_cell = Cell::new(' ', theme.bottombar_fg, theme.bottombar_bg);
-    for x in 0..cols {
-        buffer.set(x, bar_y, bar_cell);
-    }
-
-    // Render Auto Tiling toggle on the left side
-    let toggle_color = if auto_tiling_enabled {
-        theme.toggle_enabled_fg
-    } else {
-        theme.toggle_disabled_fg
-    };
-
-    let toggle_bg = match auto_tiling_button.state {
-        button::ButtonState::Normal => {
-            if auto_tiling_enabled {
-                theme.toggle_enabled_bg_normal
-            } else {
-                theme.toggle_disabled_bg_normal
-            }
-        }
-        button::ButtonState::Hovered => {
-            if auto_tiling_enabled {
-                theme.toggle_enabled_bg_hovered
-            } else {
-                theme.toggle_disabled_bg_hovered
-            }
-        }
-        button::ButtonState::Pressed => {
-            if auto_tiling_enabled {
-                theme.toggle_enabled_bg_pressed
-            } else {
-                theme.toggle_disabled_bg_pressed
-            }
-        }
-    };
-
-    let mut current_x = 1u16;
-
-    // Render "[ "
-    buffer.set(current_x, bar_y, Cell::new('[', toggle_color, toggle_bg));
-    current_x += 1;
-
-    // Render label
-    for ch in auto_tiling_button.label.chars() {
-        buffer.set(current_x, bar_y, Cell::new(ch, toggle_color, toggle_bg));
-        current_x += 1;
-    }
-
-    // Render " ]"
-    buffer.set(current_x, bar_y, Cell::new(' ', toggle_color, toggle_bg));
-    current_x += 1;
-
-    // Add spacing after toggle
-    current_x += 2;
-
-    // Render help text on the right side
-    let help_text = " > F1 Help | 's' Settings < ";
-    let help_text_len = help_text.len() as u16;
-    if cols > help_text_len {
-        let help_x = cols - help_text_len - 1;
-        for (i, ch) in help_text.chars().enumerate() {
-            buffer.set(
-                help_x + i as u16,
-                bar_y,
-                Cell::new(ch, theme.bottombar_fg, theme.bottombar_bg),
-            );
-        }
-    }
-
-    // Get list of windows
-    let windows = window_manager.get_window_list();
-    if windows.is_empty() {
-        return;
-    }
-
-    for (_id, title, is_focused, is_minimized) in windows {
-        // Max button width is 18 chars total
-        let max_title_len = 14;
-        let button_title = if title.len() > max_title_len {
-            &title[..max_title_len]
-        } else {
-            title
-        };
-
-        // Button format: [ Title ] for normal, ( Title ) for minimized
-        // Use different brackets and colors for minimized windows
-        let (open_bracket, close_bracket, button_bg, button_fg) = if is_minimized {
-            // Minimized windows: use parentheses and grey color
-            (
-                '(',
-                ')',
-                theme.bottombar_button_minimized_bg,
-                theme.bottombar_button_minimized_fg,
-            )
-        } else if is_focused {
-            // Focused window: cyan background
-            (
-                '[',
-                ']',
-                theme.bottombar_button_focused_bg,
-                theme.bottombar_button_focused_fg,
-            )
-        } else {
-            // Normal unfocused window: white text
-            (
-                '[',
-                ']',
-                theme.bottombar_button_normal_bg,
-                theme.bottombar_button_normal_fg,
-            )
-        };
-
-        // Render opening bracket and space
-        buffer.set(
-            current_x,
-            bar_y,
-            Cell::new(open_bracket, button_fg, button_bg),
-        );
-        current_x += 1;
-        buffer.set(current_x, bar_y, Cell::new(' ', button_fg, button_bg));
-        current_x += 1;
-
-        // Render title
-        for ch in button_title.chars() {
-            if current_x >= cols - 1 {
-                break;
-            }
-            buffer.set(current_x, bar_y, Cell::new(ch, button_fg, button_bg));
-            current_x += 1;
-        }
-
-        // Render space and closing bracket
-        if current_x < cols - 1 {
-            buffer.set(current_x, bar_y, Cell::new(' ', button_fg, button_bg));
-            current_x += 1;
-        }
-        if current_x < cols - 1 {
-            buffer.set(
-                current_x,
-                bar_y,
-                Cell::new(close_bracket, button_fg, button_bg),
-            );
-            current_x += 1;
-        }
-
-        // Add space between buttons
-        current_x += 1;
-
-        // Stop if we've run out of space
-        if current_x >= cols - 1 {
-            break;
-        }
-    }
-}
-
-fn render_calendar(
-    buffer: &mut VideoBuffer,
-    calendar: &CalendarState,
-    charset: &Charset,
-    theme: &Theme,
-    cols: u16,
-    rows: u16,
-) {
-    // Calendar dimensions
-    let width = 42u16;
-    let height = 18u16;
-    let x = (cols.saturating_sub(width)) / 2;
-    let y = (rows.saturating_sub(height)) / 2;
-
-    // Get the first day of the month
-    let first_day = match NaiveDate::from_ymd_opt(calendar.year, calendar.month, 1) {
-        Some(date) => date,
-        None => return, // Invalid date, don't render
-    };
-
-    // Get the number of days in the month
-    let days_in_month = if calendar.month == 12 {
-        match NaiveDate::from_ymd_opt(calendar.year + 1, 1, 1) {
-            Some(next_month) => (next_month - chrono::Duration::days(1)).day(),
-            None => 31,
-        }
-    } else {
-        match NaiveDate::from_ymd_opt(calendar.year, calendar.month + 1, 1) {
-            Some(next_month) => (next_month - chrono::Duration::days(1)).day(),
-            None => 31,
-        }
-    };
-
-    // Get the weekday of the first day (0 = Sunday, 6 = Saturday)
-    let first_weekday = first_day.weekday().num_days_from_sunday() as u16;
-
-    // Colors
-    let bg_color = theme.calendar_bg;
-    let fg_color = theme.calendar_fg;
-    let title_color = theme.calendar_title_color;
-    let today_bg = theme.calendar_today_bg;
-    let today_fg = theme.calendar_today_fg;
-
-    // Fill calendar background
-    for cy in 0..height {
-        for cx in 0..width {
-            buffer.set(x + cx, y + cy, Cell::new(' ', fg_color, bg_color));
-        }
-    }
-
-    // Render title (Month Year)
-    let title = format!("{} {}", calendar.month_name(), calendar.year);
-    let title_len = title.len() as u16;
-    let title_x = if title_len < width {
-        x + (width - title_len) / 2
-    } else {
-        x + 1
-    };
-    for (i, ch) in title.chars().enumerate() {
-        let char_x = title_x + i as u16;
-        if char_x < x + width {
-            buffer.set(char_x, y + 1, Cell::new(ch, title_color, bg_color));
-        }
-    }
-
-    // Render day headers (Su  Mo  Tu  We  Th  Fr  Sa)
-    let day_headers = "Su   Mo   Tu   We   Th   Fr   Sa";
-    let header_len = day_headers.len() as u16;
-    let header_x = if header_len < width {
-        x + (width - header_len) / 2
-    } else {
-        x + 1
-    };
-    for (i, ch) in day_headers.chars().enumerate() {
-        let char_x = header_x + i as u16;
-        if char_x < x + width {
-            buffer.set(char_x, y + 3, Cell::new(ch, fg_color, bg_color));
-        }
-    }
-
-    // Render calendar days
-    let mut day = 1u32;
-    let calendar_start_y = y + 5;
-
-    for week in 0..6 {
-        for weekday in 0..7 {
-            let day_x = header_x + (weekday * 5);
-            let day_y = calendar_start_y + (week * 2);
-
-            if (week == 0 && weekday < first_weekday) || day > days_in_month {
-                continue;
-            }
-
-            // Check if this is today
-            let is_today = calendar.today.year() == calendar.year
-                && calendar.today.month() == calendar.month
-                && calendar.today.day() == day;
-
-            let (day_fg, day_bg) = if is_today {
-                (today_fg, today_bg)
-            } else {
-                (fg_color, bg_color)
-            };
-
-            // Render day number (right-aligned in 2-char space)
-            let day_str = format!("{:>2}", day);
-            for (i, ch) in day_str.chars().enumerate() {
-                buffer.set(day_x + i as u16, day_y, Cell::new(ch, day_fg, day_bg));
-            }
-
-            day += 1;
-        }
-    }
-
-    // Render navigation hints at bottom
-    let hint = "\u{2190}\u{2192} Month | \u{2191}\u{2193} Year | T Today | ESC Close";
-    let hint_len = hint.chars().count() as u16;
-    let hint_x = if hint_len < width {
-        x + (width - hint_len) / 2
-    } else {
-        x + 1
-    };
-    for (i, ch) in hint.chars().enumerate() {
-        let char_x = hint_x + i as u16;
-        if char_x < x + width {
-            buffer.set(
-                char_x,
-                y + height - 1,
-                Cell::new(ch, theme.config_instructions_fg, bg_color),
-            );
-        }
-    }
-
-    // Add shadow effect
-    let shadow_char = charset.shadow;
-    for sy in 1..height {
-        buffer.set(
-            x + width,
-            y + sy,
-            Cell::new(shadow_char, theme.window_shadow_color, Color::Black),
-        );
-    }
-    for sx in 1..=width {
-        buffer.set(
-            x + sx,
-            y + height,
-            Cell::new(shadow_char, theme.window_shadow_color, Color::Black),
-        );
-    }
 }
 
 fn cleanup(stdout: &mut io::Stdout) -> io::Result<()> {
