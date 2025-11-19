@@ -253,7 +253,7 @@ impl Theme {
 
             // Splash screen
             splash_border: Color::White,
-            splash_bg: Color::DarkBlue,
+            splash_bg: Color::Black,
             splash_fg: Color::White,
 
             // Slight input popup - dark Spotlight-like style

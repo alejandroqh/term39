@@ -145,16 +145,64 @@ pub fn show_splash_screen(
         theme,
     );
 
-    // Render ASCII art centered in the window
+    // Define gradient colors for TERM39 logo (fixed colors, independent of theme)
+    // Only 7 colors so row 8 (shadow area) stays dark
+    let gradient_colors = [
+        Color::Rgb {
+            r: 0xFF,
+            g: 0xE8,
+            b: 0xB3,
+        }, // #ffe8b3ff - White
+        Color::Rgb {
+            r: 0xF7,
+            g: 0xC7,
+            b: 0x45,
+        }, // #F7C745 - Yellow-orange
+        Color::Rgb {
+            r: 0xF1,
+            g: 0x74,
+            b: 0x31,
+        }, // #F17431 - Orange
+        Color::Rgb {
+            r: 0xE8,
+            g: 0x55,
+            b: 0x39,
+        }, // #E85539 - Red-orange
+        Color::Rgb {
+            r: 0xCD,
+            g: 0x41,
+            b: 0x3F,
+        }, // #CD413F - Red
+        Color::Rgb {
+            r: 0x9E,
+            g: 0x2F,
+            b: 0x3C,
+        }, // #9E2F3C - Dark red
+        Color::Rgb {
+            r: 0x61,
+            g: 0x21,
+            b: 0x3B,
+        }, // #61213B - Purple-red
+        Color::DarkGrey, // Shadow area
+    ];
+
+    // Render ASCII art centered in the window with gradient colors
     let content_start_y = window_y + 2; // Start after top border and padding
     let content_x = window_x + 3; // Left padding
 
     for (i, line) in ascii_art.iter().enumerate() {
+        // Get the color for this row (use gradient color if available, otherwise use first color)
+        let row_color = gradient_colors
+            .get(i)
+            .copied()
+            .unwrap_or(gradient_colors[0]);
+
         for (j, ch) in line.chars().enumerate() {
+            // Render the actual character with gradient color
             buffer.set(
                 content_x + j as u16,
                 content_start_y + i as u16,
-                Cell::new(ch, theme.splash_fg, content_bg),
+                Cell::new_unchecked(ch, row_color, content_bg),
             );
         }
     }
