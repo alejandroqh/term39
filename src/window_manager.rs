@@ -977,6 +977,16 @@ impl WindowManager {
         Ok(())
     }
 
+    /// Get application cursor keys mode (DECCKM) state for the focused window
+    pub fn get_focused_application_cursor_keys(&self) -> bool {
+        if let FocusState::Window(id) = self.focus {
+            if let Some(terminal_window) = self.windows.iter().find(|w| w.id() == id) {
+                return terminal_window.get_application_cursor_keys();
+            }
+        }
+        false
+    }
+
     /// Close window by ID
     /// Returns true if a window was actually closed
     pub fn close_window(&mut self, id: u32) -> bool {

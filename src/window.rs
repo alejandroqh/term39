@@ -288,11 +288,11 @@ impl Window {
             );
         }
 
-        // T-junction separator before corner (╠ - double line on right)
+        // T-junction separator before corner
         buffer.set(
             self.x + self.width - 3,
             self.y,
-            Cell::new('╠', theme.window_border, title_bg),
+            Cell::new(charset.border_vertical_right, theme.window_border, title_bg),
         );
 
         // Top-right corner (2 chars wide)

@@ -20,6 +20,7 @@ pub struct Charset {
     pub border_bottom_right: char,
     pub border_horizontal: char,
     pub border_vertical: char,
+    pub border_vertical_right: char, // T-junction (╠ or +)
 
     // Window controls
     pub shadow: char,
@@ -34,16 +35,17 @@ impl Charset {
     pub fn unicode() -> Self {
         Self {
             mode: CharsetMode::Unicode,
-            background: '░',          // U+2591 light shade (DOS CP437 177)
-            border_top_left: '╔',     // U+2554
-            border_top_right: '╗',    // U+2557
-            border_bottom_left: '╚',  // U+255A
-            border_bottom_right: '╝', // U+255D
-            border_horizontal: '═',   // U+2550
-            border_vertical: '║',     // U+2551
-            shadow: '▓',              // U+2593 dark shade
-            block: '█',               // U+2588 full block
-            shade: '░',               // U+2591 light shade
+            background: '░',            // U+2591 light shade (DOS CP437 177)
+            border_top_left: '╔',       // U+2554
+            border_top_right: '╗',      // U+2557
+            border_bottom_left: '╚',    // U+255A
+            border_bottom_right: '╝',   // U+255D
+            border_horizontal: '═',     // U+2550
+            border_vertical: '║',       // U+2551
+            border_vertical_right: '╠', // U+2560 T-junction
+            shadow: '▓',                // U+2593 dark shade
+            block: '█',                 // U+2588 full block
+            shade: '░',                 // U+2591 light shade
         }
     }
 
@@ -56,11 +58,12 @@ impl Charset {
             border_top_right: '+',
             border_bottom_left: '+',
             border_bottom_right: '+',
-            border_horizontal: '-', // Dash for horizontal
-            border_vertical: '|',   // Pipe for vertical
-            shadow: '#',            // Hash for shadow
-            block: '#',             // Hash for "on" state in ASCII mode
-            shade: ' ',             // Space for "off" state in ASCII mode
+            border_horizontal: '-',     // Dash for horizontal
+            border_vertical: '|',       // Pipe for vertical
+            border_vertical_right: '+', // Plus for T-junction
+            shadow: '#',                // Hash for shadow
+            block: '#',                 // Hash for "on" state in ASCII mode
+            shade: ' ',                 // Space for "off" state in ASCII mode
         }
     }
 

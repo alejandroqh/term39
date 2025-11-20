@@ -628,6 +628,99 @@ impl TerminalGrid {
         }
     }
 
+    /// Erase from beginning of screen to cursor (inclusive)
+    pub fn erase_from_bos(&mut self) {
+        let bg = self.current_bg;
+
+        // Clear all lines above cursor
+        for y in 0..self.cursor.y {
+            if let Some(row) = self.rows.get_mut(y) {
+                for cell in row {
+                    cell.c = ' ';
+                    cell.fg = Color::Named(NamedColor::White);
+                    cell.bg = bg;
+                    cell.attrs = CellAttributes::default();
+                }
+            }
+        }
+
+        // Clear from beginning of current line to cursor (inclusive)
+        self.erase_to_bol();
+    }
+
+    /// Delete n characters at cursor, shifting remaining characters left (DCH)
+    pub fn delete_chars(&mut self, n: usize) {
+        if let Some(row) = self.rows.get_mut(self.cursor.y) {
+            let start = self.cursor.x;
+            let end = self.cols;
+            let n = n.min(end.saturating_sub(start));
+
+            // Shift characters left
+            for x in start..(end - n) {
+                if let Some(src_cell) = row.get(x + n).cloned() {
+                    if let Some(cell) = row.get_mut(x) {
+                        *cell = src_cell;
+                    }
+                }
+            }
+
+            // Fill vacated positions with blanks
+            let bg = self.current_bg;
+            for x in (end - n)..end {
+                if let Some(cell) = row.get_mut(x) {
+                    cell.c = ' ';
+                    cell.fg = Color::Named(NamedColor::White);
+                    cell.bg = bg;
+                    cell.attrs = CellAttributes::default();
+                }
+            }
+        }
+    }
+
+    /// Insert n blank characters at cursor, shifting existing characters right (ICH)
+    pub fn insert_chars(&mut self, n: usize) {
+        if let Some(row) = self.rows.get_mut(self.cursor.y) {
+            let start = self.cursor.x;
+            let end = self.cols;
+            let n = n.min(end.saturating_sub(start));
+
+            // Shift characters right (from end to start to avoid overwriting)
+            for x in (start + n..end).rev() {
+                if let Some(src_cell) = row.get(x - n).cloned() {
+                    if let Some(cell) = row.get_mut(x) {
+                        *cell = src_cell;
+                    }
+                }
+            }
+
+            // Fill inserted positions with blanks
+            let bg = self.current_bg;
+            for x in start..(start + n).min(end) {
+                if let Some(cell) = row.get_mut(x) {
+                    cell.c = ' ';
+                    cell.fg = Color::Named(NamedColor::White);
+                    cell.bg = bg;
+                    cell.attrs = CellAttributes::default();
+                }
+            }
+        }
+    }
+
+    /// Erase n characters at cursor without moving cursor (ECH)
+    pub fn erase_chars(&mut self, n: usize) {
+        let bg = self.current_bg;
+        if let Some(row) = self.rows.get_mut(self.cursor.y) {
+            for x in self.cursor.x..(self.cursor.x + n).min(self.cols) {
+                if let Some(cell) = row.get_mut(x) {
+                    cell.c = ' ';
+                    cell.fg = Color::Named(NamedColor::White);
+                    cell.bg = bg;
+                    cell.attrs = CellAttributes::default();
+                }
+            }
+        }
+    }
+
     /// Move cursor to absolute position (0-indexed)
     pub fn goto(&mut self, x: usize, y: usize) {
         self.cursor.x = x.min(self.cols.saturating_sub(1));

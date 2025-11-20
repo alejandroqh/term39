@@ -213,22 +213,53 @@ pub fn forward_to_terminal(key_event: KeyEvent, window_manager: &mut WindowManag
             let _ = window_manager.send_to_focused("\t");
         }
         KeyCode::Up => {
-            let _ = window_manager.send_to_focused("\x1b[A");
+            // Check application cursor keys mode (DECCKM)
+            let seq = if window_manager.get_focused_application_cursor_keys() {
+                "\x1bOA" // Application mode
+            } else {
+                "\x1b[A" // Normal mode
+            };
+            let _ = window_manager.send_to_focused(seq);
         }
         KeyCode::Down => {
-            let _ = window_manager.send_to_focused("\x1b[B");
+            let seq = if window_manager.get_focused_application_cursor_keys() {
+                "\x1bOB"
+            } else {
+                "\x1b[B"
+            };
+            let _ = window_manager.send_to_focused(seq);
         }
         KeyCode::Right => {
-            let _ = window_manager.send_to_focused("\x1b[C");
+            let seq = if window_manager.get_focused_application_cursor_keys() {
+                "\x1bOC"
+            } else {
+                "\x1b[C"
+            };
+            let _ = window_manager.send_to_focused(seq);
         }
         KeyCode::Left => {
-            let _ = window_manager.send_to_focused("\x1b[D");
+            let seq = if window_manager.get_focused_application_cursor_keys() {
+                "\x1bOD"
+            } else {
+                "\x1b[D"
+            };
+            let _ = window_manager.send_to_focused(seq);
         }
         KeyCode::Home => {
-            let _ = window_manager.send_to_focused("\x1b[H");
+            let seq = if window_manager.get_focused_application_cursor_keys() {
+                "\x1bOH"
+            } else {
+                "\x1b[H"
+            };
+            let _ = window_manager.send_to_focused(seq);
         }
         KeyCode::End => {
-            let _ = window_manager.send_to_focused("\x1b[F");
+            let seq = if window_manager.get_focused_application_cursor_keys() {
+                "\x1bOF"
+            } else {
+                "\x1b[F"
+            };
+            let _ = window_manager.send_to_focused(seq);
         }
         KeyCode::PageUp => {
             let _ = window_manager.send_to_focused("\x1b[5~");

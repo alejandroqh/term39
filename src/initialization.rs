@@ -9,7 +9,7 @@ use crate::render_backend::{RenderBackend, TerminalBackend};
 use crate::theme::Theme;
 use crate::video_buffer::VideoBuffer;
 use crate::window_manager::WindowManager;
-use crossterm::{cursor, event, execute, terminal};
+use crossterm::{cursor, event, execute, style, terminal};
 use std::io::{self, Write};
 
 /// Initializes the rendering backend based on CLI arguments
@@ -168,6 +168,9 @@ pub fn cleanup(stdout: &mut io::Stdout) -> io::Result<()> {
 
     // Clear screen
     execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
+
+    // Reset colors to default
+    execute!(stdout, style::ResetColor)?;
 
     // Show cursor and leave alternate screen
     execute!(stdout, cursor::Show, terminal::LeaveAlternateScreen)?;

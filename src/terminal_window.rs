@@ -708,6 +708,13 @@ impl TerminalWindow {
             &self.window.title
         }
     }
+
+    /// Get application cursor keys mode state (DECCKM)
+    pub fn get_application_cursor_keys(&self) -> bool {
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+        grid.application_cursor_keys
+    }
 }
 
 /// Convert a terminal cell to a video buffer cell

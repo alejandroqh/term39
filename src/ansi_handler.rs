@@ -14,9 +14,9 @@ impl<'a> AnsiHandler<'a> {
     /// Parse SGR (Select Graphic Rendition) parameters
     fn handle_sgr(&mut self, params: &Params) {
         if params.is_empty() {
-            // Reset all attributes
+            // Reset all attributes (same as SGR 0)
             self.grid.current_attrs = Default::default();
-            self.grid.current_fg = Color::Named(NamedColor::White);
+            self.grid.current_fg = Color::Named(NamedColor::BrightGreen);
             self.grid.current_bg = Color::Named(NamedColor::Black);
             return;
         }
@@ -289,7 +289,7 @@ impl Perform for AnsiHandler<'_> {
                     .unwrap_or(0);
                 match mode {
                     0 => self.grid.erase_to_eos(),     // Erase below
-                    1 => {}                            // Erase above (TODO)
+                    1 => self.grid.erase_from_bos(),   // Erase above
                     2 | 3 => self.grid.clear_screen(), // Erase all
                     _ => {}
                 }
@@ -308,6 +308,36 @@ impl Perform for AnsiHandler<'_> {
                     2 => self.grid.clear_line(),   // Erase all
                     _ => {}
                 }
+            }
+            ('P', []) => {
+                // Delete Characters (DCH)
+                let n = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.first())
+                    .copied()
+                    .unwrap_or(1) as usize;
+                self.grid.delete_chars(n);
+            }
+            ('@', []) => {
+                // Insert Characters (ICH)
+                let n = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.first())
+                    .copied()
+                    .unwrap_or(1) as usize;
+                self.grid.insert_chars(n);
+            }
+            ('X', []) => {
+                // Erase Characters (ECH)
+                let n = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.first())
+                    .copied()
+                    .unwrap_or(1) as usize;
+                self.grid.erase_chars(n);
             }
             ('L', []) => {
                 // Insert Lines
