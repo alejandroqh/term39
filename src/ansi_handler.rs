@@ -348,6 +348,15 @@ impl Perform for AnsiHandler<'_> {
                     .saturating_sub(1)
                     .min(self.grid.rows().saturating_sub(1));
             }
+            ('h', []) => {
+                // Standard Mode Set (SM)
+                for param in params.iter() {
+                    match param[0] {
+                        20 => self.grid.lnm_mode = true, // LNM - Line Feed/New Line Mode
+                        _ => {}
+                    }
+                }
+            }
             ('h', [b'?']) => {
                 // DEC Private Mode Set
                 for param in params.iter() {
@@ -361,6 +370,15 @@ impl Perform for AnsiHandler<'_> {
                         1049 => self.grid.use_alt_screen(),            // Alt screen
                         2004 => self.grid.bracketed_paste_mode = true, // Bracketed paste
                         2026 => self.grid.synchronized_output = true,
+                        _ => {}
+                    }
+                }
+            }
+            ('l', []) => {
+                // Standard Mode Reset (RM)
+                for param in params.iter() {
+                    match param[0] {
+                        20 => self.grid.lnm_mode = false, // LNM - Line Feed/New Line Mode
                         _ => {}
                     }
                 }
@@ -380,6 +398,26 @@ impl Perform for AnsiHandler<'_> {
                         2026 => self.grid.synchronized_output = false,
                         _ => {}
                     }
+                }
+            }
+            ('n', []) => {
+                // Device Status Report (DSR)
+                let mode = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.first())
+                    .copied()
+                    .unwrap_or(0);
+                match mode {
+                    5 => {
+                        // Status report - respond with "OK"
+                        self.grid.queue_response("\x1b[0n".to_string());
+                    }
+                    6 => {
+                        // Cursor position report
+                        self.grid.queue_cursor_position_report();
+                    }
+                    _ => {}
                 }
             }
             ('m', []) => {

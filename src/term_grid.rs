@@ -154,6 +154,11 @@ pub struct TerminalGrid {
     pub mouse_button_tracking: bool, // ?1002 - Button event tracking
     pub mouse_sgr_mode: bool,   // ?1006 - SGR extended mouse mode
     pub mouse_urxvt_mode: bool, // ?1015 - URXVT mouse mode
+    /// Line Feed/New Line Mode (LNM - mode 20)
+    /// When set, LF also performs CR (linefeed acts as newline)
+    pub lnm_mode: bool,
+    /// Response queue for DSR and other queries that need to send data back
+    response_queue: Vec<String>,
 }
 
 impl TerminalGrid {
@@ -185,6 +190,8 @@ impl TerminalGrid {
             mouse_button_tracking: false,
             mouse_sgr_mode: false,
             mouse_urxvt_mode: false,
+            lnm_mode: false,
+            response_queue: Vec::new(),
         }
     }
 
@@ -209,6 +216,25 @@ impl TerminalGrid {
     #[allow(dead_code)]
     pub fn scrollback_len(&self) -> usize {
         self.scrollback.len()
+    }
+
+    /// Queue a response to be sent back to the PTY (for DSR and other queries)
+    pub fn queue_response(&mut self, response: String) {
+        self.response_queue.push(response);
+    }
+
+    /// Take all queued responses (drains the queue)
+    pub fn take_responses(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.response_queue)
+    }
+
+    /// Queue cursor position report (DSR response to CSI 6 n)
+    /// Format: CSI row ; col R (1-based coordinates)
+    pub fn queue_cursor_position_report(&mut self) {
+        let row = self.cursor.y + 1; // Convert to 1-based
+        let col = self.cursor.x + 1; // Convert to 1-based
+        let response = format!("\x1b[{};{}R", row, col);
+        self.queue_response(response);
     }
 
     /// Resize the terminal grid
@@ -308,6 +334,7 @@ impl TerminalGrid {
     }
 
     /// Move cursor to the next line, scrolling if necessary
+    /// If LNM (Line Feed/New Line Mode) is set, also performs carriage return
     fn linefeed(&mut self) {
         // Special case: if cursor is at row 0 and column 0, and row 0 is empty,
         // don't move down. This prevents the shell init newline from creating a blank line.
@@ -320,6 +347,11 @@ impl TerminalGrid {
                     return;
                 }
             }
+        }
+
+        // If LNM is set, linefeed also performs carriage return
+        if self.lnm_mode {
+            self.cursor.x = 0;
         }
 
         if self.cursor.y == self.scroll_region_bottom {
@@ -390,6 +422,10 @@ impl TerminalGrid {
         self.mouse_button_tracking = false;
         self.mouse_sgr_mode = false;
         self.mouse_urxvt_mode = false;
+        self.lnm_mode = false;
+
+        // Clear response queue
+        self.response_queue.clear();
     }
 
     /// Move cursor to next tab stop

@@ -136,7 +136,7 @@ impl TerminalEmulator {
     /// Read output from PTY and process it through the parser
     pub fn process_output(&mut self) -> std::io::Result<bool> {
         // Try to receive data from PTY reader thread (non-blocking)
-        match self.rx.try_recv() {
+        let result = match self.rx.try_recv() {
             Ok(data) => {
                 // Process the bytes through VTE parser
                 let mut grid = self.grid.lock().unwrap();
@@ -154,7 +154,20 @@ impl TerminalEmulator {
                 // Reader thread died - child process exited
                 Ok(false)
             }
+        };
+
+        // Process any queued responses (e.g., DSR cursor position reports)
+        let responses = {
+            let mut grid = self.grid.lock().unwrap();
+            grid.take_responses()
+        };
+
+        for response in responses {
+            // Send response back to PTY (ignore errors)
+            let _ = self.write_input(response.as_bytes());
         }
+
+        result
     }
 
     /// Write input to the PTY (send to shell)
