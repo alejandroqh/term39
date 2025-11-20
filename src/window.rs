@@ -464,9 +464,16 @@ impl Window {
         let content_cell =
             Cell::new_unchecked(' ', theme.window_content_fg, theme.window_content_bg);
 
-        for y in 1..self.height - 1 {
-            for x in 2..self.width - 2 {
-                buffer.set(self.x + x, self.y + y, content_cell);
+        // Pre-compute base positions to avoid repeated additions
+        let base_x = self.x + 2;
+        let base_y = self.y + 1;
+        let content_width = self.width.saturating_sub(4); // -2 left, -2 right
+        let content_height = self.height.saturating_sub(2); // -1 top, -1 bottom
+
+        for dy in 0..content_height {
+            let y = base_y + dy;
+            for dx in 0..content_width {
+                buffer.set(base_x + dx, y, content_cell);
             }
         }
     }

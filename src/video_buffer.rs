@@ -125,49 +125,101 @@ impl VideoBuffer {
         (self.width, self.height)
     }
 
+    /// Apply shadow overlay to all cells in the back buffer
+    /// This is an optimized version that directly modifies the buffer
+    /// without the overhead of get/set methods
+    pub fn apply_fullscreen_shadow(&mut self, shadow_fg: Color, shadow_bg: Color) {
+        for cell in &mut self.back_buffer {
+            cell.fg_color = shadow_fg;
+            cell.bg_color = shadow_bg;
+        }
+    }
+
     /// Present back buffer to screen, only updating changed cells
     /// Uses queued commands for batched I/O - significantly reduces syscalls
+    /// Optimized with run-length encoding for consecutive cells
     pub fn present(&mut self, stdout: &mut io::Stdout) -> io::Result<()> {
         let mut current_fg = Color::Reset;
         let mut current_bg = Color::Reset;
 
+        // Buffer for accumulating consecutive characters with same colors
+        // Pre-allocate with reasonable capacity to avoid reallocations
+        let mut run_buffer = String::with_capacity(256);
+        let mut run_start_x: u16 = 0;
+        let mut run_y: u16 = 0;
+        let mut run_char_count: u16 = 0; // Track character count separately for O(1) access
+        let mut in_run = false;
+
         for y in 0..self.height {
+            // Calculate row start index once per row
+            let row_start = (y as usize) * (self.width as usize);
+
             for x in 0..self.width {
-                // Use checked arithmetic for index calculation
-                let idx = match (y as usize)
-                    .checked_mul(self.width as usize)
-                    .and_then(|row| row.checked_add(x as usize))
-                {
-                    Some(i) if i < self.front_buffer.len() => i,
-                    _ => continue, // Skip invalid indices
-                };
+                let idx = row_start + (x as usize);
+
+                // Safety: we know idx is valid because we control the loop bounds
+                if idx >= self.front_buffer.len() {
+                    continue;
+                }
+
                 let front_cell = &self.front_buffer[idx];
                 let back_cell = &self.back_buffer[idx];
 
                 // Only update if cell changed
                 if front_cell != back_cell {
-                    // Update colors only if they changed
-                    if back_cell.fg_color != current_fg {
-                        stdout.queue(SetForegroundColor(back_cell.fg_color))?;
-                        current_fg = back_cell.fg_color;
-                    }
-                    if back_cell.bg_color != current_bg {
-                        stdout.queue(SetBackgroundColor(back_cell.bg_color))?;
-                        current_bg = back_cell.bg_color;
-                    }
+                    // Check if we can extend the current run
+                    // Cell must be immediately adjacent (same row, next column) with same colors
+                    let can_extend = in_run
+                        && y == run_y
+                        && x == run_start_x + run_char_count
+                        && back_cell.fg_color == current_fg
+                        && back_cell.bg_color == current_bg;
 
-                    // Move cursor and print character
-                    stdout.queue(cursor::MoveTo(x, y))?;
-                    // Write character directly - more efficient than Print command
-                    let mut buf = [0u8; 4];
-                    let s = back_cell.character.encode_utf8(&mut buf);
-                    stdout.write_all(s.as_bytes())?;
+                    if can_extend {
+                        // Extend the current run
+                        run_buffer.push(back_cell.character);
+                        run_char_count += 1;
+                    } else {
+                        // Flush previous run if any
+                        if in_run && !run_buffer.is_empty() {
+                            stdout.queue(cursor::MoveTo(run_start_x, run_y))?;
+                            stdout.write_all(run_buffer.as_bytes())?;
+                            run_buffer.clear();
+                        }
+
+                        // Update colors if needed
+                        if back_cell.fg_color != current_fg {
+                            stdout.queue(SetForegroundColor(back_cell.fg_color))?;
+                            current_fg = back_cell.fg_color;
+                        }
+                        if back_cell.bg_color != current_bg {
+                            stdout.queue(SetBackgroundColor(back_cell.bg_color))?;
+                            current_bg = back_cell.bg_color;
+                        }
+
+                        // Start new run
+                        run_start_x = x;
+                        run_y = y;
+                        run_buffer.push(back_cell.character);
+                        run_char_count = 1;
+                        in_run = true;
+                    }
                 }
+            }
+
+            // Flush run at end of each row (can't span rows)
+            if in_run && !run_buffer.is_empty() {
+                stdout.queue(cursor::MoveTo(run_start_x, run_y))?;
+                stdout.write_all(run_buffer.as_bytes())?;
+                run_buffer.clear();
+                run_char_count = 0;
+                in_run = false;
             }
         }
 
-        // Swap buffers
-        std::mem::swap(&mut self.front_buffer, &mut self.back_buffer);
+        // Swap buffers by copying back to front
+        // This preserves the back buffer for next frame comparison
+        self.front_buffer.copy_from_slice(&self.back_buffer);
 
         // Hide cursor after rendering to prevent it from being visible or affecting PTY output
         // Even hidden cursors have a position, so we also move it to (0, 0)
@@ -236,36 +288,49 @@ pub fn render_shadow(
     let shadow_bg = Color::Black;
     let (buffer_width, buffer_height) = buffer.dimensions();
 
+    // Pre-compute shadow boundaries
+    let right_shadow_x1 = x + width;
+    let right_shadow_x2 = x + width + 1;
+    let bottom_shadow_y = y + height;
+
     // Right shadow (2 cells wide to the right)
-    for shadow_offset in 0..2 {
-        let shadow_x = x + width + shadow_offset;
-        if shadow_x < buffer_width {
-            for dy in 1..=height {
-                let shadow_y = y + dy;
-                if shadow_y < buffer_height {
-                    // Get existing cell and preserve its character
-                    if let Some(existing_cell) = buffer.get(shadow_x, shadow_y) {
-                        let shadowed_cell =
-                            Cell::new_unchecked(existing_cell.character, shadow_fg, shadow_bg);
-                        buffer.set(shadow_x, shadow_y, shadowed_cell);
-                    }
-                }
+    // Process both columns together for better cache locality
+    for dy in 1..=height {
+        let shadow_y = y + dy;
+        if shadow_y >= buffer_height {
+            continue;
+        }
+
+        // First column of right shadow
+        if right_shadow_x1 < buffer_width {
+            if let Some(existing_cell) = buffer.get(right_shadow_x1, shadow_y) {
+                let shadowed_cell =
+                    Cell::new_unchecked(existing_cell.character, shadow_fg, shadow_bg);
+                buffer.set(right_shadow_x1, shadow_y, shadowed_cell);
+            }
+        }
+
+        // Second column of right shadow
+        if right_shadow_x2 < buffer_width {
+            if let Some(existing_cell) = buffer.get(right_shadow_x2, shadow_y) {
+                let shadowed_cell =
+                    Cell::new_unchecked(existing_cell.character, shadow_fg, shadow_bg);
+                buffer.set(right_shadow_x2, shadow_y, shadowed_cell);
             }
         }
     }
 
     // Bottom shadow (1 cell down)
-    let shadow_y = y + height;
-    if shadow_y < buffer_height {
-        for dx in 1..=width {
-            let shadow_x = x + dx;
-            if shadow_x < buffer_width {
-                // Get existing cell and preserve its character
-                if let Some(existing_cell) = buffer.get(shadow_x, shadow_y) {
-                    let shadowed_cell =
-                        Cell::new_unchecked(existing_cell.character, shadow_fg, shadow_bg);
-                    buffer.set(shadow_x, shadow_y, shadowed_cell);
-                }
+    if bottom_shadow_y < buffer_height {
+        // Calculate the shadow end position, clamped to buffer width
+        let shadow_end = (x + width + 1).min(buffer_width);
+
+        for shadow_x in (x + 1)..shadow_end {
+            // Get existing cell and preserve its character
+            if let Some(existing_cell) = buffer.get(shadow_x, bottom_shadow_y) {
+                let shadowed_cell =
+                    Cell::new_unchecked(existing_cell.character, shadow_fg, shadow_bg);
+                buffer.set(shadow_x, bottom_shadow_y, shadowed_cell);
             }
         }
     }
@@ -277,17 +342,7 @@ pub fn render_shadow(
 pub fn render_fullscreen_shadow(buffer: &mut VideoBuffer, theme: &Theme) {
     let shadow_fg = theme.window_shadow_color;
     let shadow_bg = Color::Black;
-    let (width, height) = buffer.dimensions();
 
-    // Shadow every cell in the buffer
-    for y in 0..height {
-        for x in 0..width {
-            // Get existing cell and preserve its character
-            if let Some(existing_cell) = buffer.get(x, y) {
-                let shadowed_cell =
-                    Cell::new_unchecked(existing_cell.character, shadow_fg, shadow_bg);
-                buffer.set(x, y, shadowed_cell);
-            }
-        }
-    }
+    // Use the optimized method that directly modifies the buffer
+    buffer.apply_fullscreen_shadow(shadow_fg, shadow_bg);
 }
