@@ -59,25 +59,25 @@ pub fn render_frame(
 
     // Render active prompt (if any) on top of everything
     if let Some(ref prompt) = app_state.active_prompt {
-        video_buffer::render_fullscreen_shadow(video_buffer);
+        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         prompt.render(video_buffer, charset, theme);
     }
 
     // Render active Slight input (if any) on top of everything
     if let Some(ref slight_input) = app_state.active_slight_input {
-        video_buffer::render_fullscreen_shadow(video_buffer);
+        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         slight_input.render(video_buffer, charset, theme);
     }
 
     // Render active calendar (if any) on top of everything
     if let Some(ref calendar) = app_state.active_calendar {
-        video_buffer::render_fullscreen_shadow(video_buffer);
+        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         ui_render::render_calendar(video_buffer, calendar, charset, theme, cols, rows);
     }
 
     // Render active config window (if any) on top of everything
     if let Some(ref config_win) = app_state.active_config_window {
-        video_buffer::render_fullscreen_shadow(video_buffer);
+        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         config_win.render(
             video_buffer,
             charset,
@@ -89,25 +89,25 @@ pub fn render_frame(
 
     // Render active help window (if any)
     if let Some(ref help_win) = app_state.active_help_window {
-        video_buffer::render_fullscreen_shadow(video_buffer);
+        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         help_win.render(video_buffer, charset, theme);
     }
 
     // Render active about window (if any)
     if let Some(ref about_win) = app_state.active_about_window {
-        video_buffer::render_fullscreen_shadow(video_buffer);
+        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         about_win.render(video_buffer, charset, theme);
     }
 
     // Render error dialog (if any) on top of everything
     if let Some(ref error_dialog) = app_state.active_error_dialog {
-        video_buffer::render_fullscreen_shadow(video_buffer);
+        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         error_dialog.render(video_buffer, charset, theme);
     }
 
     // Render context menu (if visible)
     if app_state.context_menu.visible {
-        app_state.context_menu.render(video_buffer, charset);
+        app_state.context_menu.render(video_buffer, charset, theme);
     }
 
     // Restore old cursor area before presenting new frame

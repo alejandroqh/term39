@@ -257,16 +257,23 @@ impl Window {
     fn render_frame(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
         // Use different backgrounds based on focus state
         let title_bg = if self.is_focused {
-            theme.window_content_bg
+            theme.window_title_bg_focused
         } else {
             theme.window_title_bg
         };
 
         // Border background uses same as title bar
         let border_bg = if self.is_focused {
-            theme.window_content_bg
+            theme.window_title_bg_focused
         } else {
             theme.window_title_bg
+        };
+
+        // Border foreground color based on focus state
+        let border_fg = if self.is_focused {
+            theme.window_border_focused
+        } else {
+            theme.window_border
         };
 
         // Top border (title bar) with corner characters
@@ -275,12 +282,12 @@ impl Window {
         buffer.set(
             self.x,
             self.y,
-            Cell::new_unchecked(charset.border_top_left, theme.window_border, title_bg),
+            Cell::new_unchecked(charset.border_top_left, border_fg, title_bg),
         );
         buffer.set(
             self.x + 1,
             self.y,
-            Cell::new_unchecked(charset.border_horizontal, theme.window_border, title_bg),
+            Cell::new_unchecked(charset.border_horizontal, border_fg, title_bg),
         );
 
         // Top border middle
@@ -288,7 +295,7 @@ impl Window {
             buffer.set(
                 self.x + x,
                 self.y,
-                Cell::new_unchecked(' ', theme.window_border, title_bg),
+                Cell::new_unchecked(' ', border_fg, title_bg),
             );
         }
 
@@ -296,19 +303,19 @@ impl Window {
         buffer.set(
             self.x + self.width - 3,
             self.y,
-            Cell::new_unchecked(charset.border_vertical_right, theme.window_border, title_bg),
+            Cell::new_unchecked(charset.border_vertical_right, border_fg, title_bg),
         );
 
         // Top-right corner (2 chars wide)
         buffer.set(
             self.x + self.width - 2,
             self.y,
-            Cell::new_unchecked(charset.border_horizontal, theme.window_border, title_bg),
+            Cell::new_unchecked(charset.border_horizontal, border_fg, title_bg),
         );
         buffer.set(
             self.x + self.width - 1,
             self.y,
-            Cell::new_unchecked(charset.border_top_right, theme.window_border, title_bg),
+            Cell::new_unchecked(charset.border_top_right, border_fg, title_bg),
         );
 
         // Side borders - 2 characters wide
@@ -318,13 +325,13 @@ impl Window {
             buffer.set(
                 self.x,
                 self.y + y,
-                Cell::new_unchecked(charset.border_vertical, theme.window_border, border_bg),
+                Cell::new_unchecked(charset.border_vertical, border_fg, border_bg),
             );
             // Inner left border (resizable)
             buffer.set(
                 self.x + 1,
                 self.y + y,
-                Cell::new_unchecked(' ', theme.window_border, border_bg),
+                Cell::new_unchecked(' ', border_fg, border_bg),
             );
 
             // Right border (2 chars): inner space + outer vertical
@@ -338,7 +345,7 @@ impl Window {
             buffer.set(
                 self.x + self.width - 1,
                 self.y + y,
-                Cell::new_unchecked(charset.border_vertical, theme.window_border, border_bg),
+                Cell::new_unchecked(charset.border_vertical, border_fg, border_bg),
             );
         }
 
@@ -347,13 +354,13 @@ impl Window {
         buffer.set(
             self.x,
             self.y + self.height - 1,
-            Cell::new_unchecked(charset.border_bottom_left, theme.window_border, border_bg),
+            Cell::new_unchecked(charset.border_bottom_left, border_fg, border_bg),
         );
         // Extension of bottom-left corner
         buffer.set(
             self.x + 1,
             self.y + self.height - 1,
-            Cell::new_unchecked(charset.border_horizontal, theme.window_border, border_bg),
+            Cell::new_unchecked(charset.border_horizontal, border_fg, border_bg),
         );
 
         // Bottom border middle (resizable)
@@ -361,7 +368,7 @@ impl Window {
             buffer.set(
                 self.x + x,
                 self.y + self.height - 1,
-                Cell::new_unchecked(charset.border_horizontal, theme.window_border, border_bg),
+                Cell::new_unchecked(charset.border_horizontal, border_fg, border_bg),
             );
         }
 
@@ -369,13 +376,13 @@ impl Window {
         buffer.set(
             self.x + self.width - 2,
             self.y + self.height - 1,
-            Cell::new_unchecked(charset.border_horizontal, theme.window_border, border_bg),
+            Cell::new_unchecked(charset.border_horizontal, border_fg, border_bg),
         );
         // Bottom-right corner
         buffer.set(
             self.x + self.width - 1,
             self.y + self.height - 1,
-            Cell::new_unchecked(charset.border_bottom_right, theme.window_border, border_bg),
+            Cell::new_unchecked(charset.border_bottom_right, border_fg, border_bg),
         );
     }
 
@@ -387,10 +394,20 @@ impl Window {
     ) {
         // Use different backgrounds based on focus state
         let title_bg = if self.is_focused {
-            theme.window_content_bg
+            theme.window_title_bg_focused
         } else {
             theme.window_title_bg
         };
+
+        // Border foreground color based on focus state
+        let border_fg = if self.is_focused {
+            theme.window_border_focused
+        } else {
+            theme.window_border
+        };
+
+        // Title text color
+        let title_fg = theme.window_title_fg;
 
         // Buttons: [X] [+] [_] followed by title (with spacing for better visual parsing)
         let buttons = "[X] [+] [_] ";
@@ -403,8 +420,8 @@ impl Window {
                 'X' => (theme.button_close_color, theme.button_bg),
                 '+' => (theme.button_maximize_color, theme.button_bg),
                 '_' => (theme.button_minimize_color, theme.button_bg),
-                '[' | ']' => (theme.window_border, theme.button_bg),
-                _ => (theme.window_border, title_bg), // Space between buttons uses title background
+                '[' | ']' => (border_fg, theme.button_bg),
+                _ => (border_fg, title_bg), // Space between buttons uses title background
             };
             buffer.set(
                 self.x + x_offset,
@@ -423,7 +440,7 @@ impl Window {
         // Use dynamic title if provided, otherwise use stored title
         let title_to_render = dynamic_title.unwrap_or(&self.title);
 
-        // Render title text with border color
+        // Render title text with title foreground color
         let title_start = self.x + x_offset;
         let title_space = (self.width as i32 - x_offset as i32 - 2) as u16; // -2 for right border
 
@@ -435,7 +452,7 @@ impl Window {
             buffer.set(
                 title_start + i as u16,
                 self.y,
-                Cell::new_unchecked(ch, theme.window_border, title_bg),
+                Cell::new_unchecked(ch, title_fg, title_bg),
             );
         }
     }

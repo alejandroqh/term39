@@ -320,6 +320,13 @@ impl ConfigWindow {
             "dark" => "Dark",
             "green_phosphor" => "Green Phosphor",
             "amber" => "Amber",
+            "ndd" => "NDD",
+            "qbasic" => "QBasic",
+            "turbo" => "Turbo",
+            "norton_commander" => "Norton Commander",
+            "xtree" => "XTree Gold",
+            "wordperfect" => "WordPerfect",
+            "dbase" => "dBase IV",
             _ => "Classic",
         };
 

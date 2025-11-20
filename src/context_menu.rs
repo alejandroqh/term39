@@ -1,4 +1,5 @@
 use crate::charset::Charset;
+use crate::theme::Theme;
 use crate::video_buffer::{Cell, VideoBuffer};
 use crossterm::style::Color;
 
@@ -141,7 +142,7 @@ impl ContextMenu {
     }
 
     /// Render the menu to video buffer
-    pub fn render(&self, buffer: &mut VideoBuffer, charset: &Charset) {
+    pub fn render(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
         if !self.visible {
             return;
         }
@@ -149,29 +150,30 @@ impl ContextMenu {
         let width = self.calculate_width();
         let height = self.items.len() as u16 + 2; // +2 for borders
 
-        let fg_color = Color::White;
-        let bg_color = Color::Black;
-        let selected_fg = Color::Black;
-        let selected_bg = Color::White;
+        let fg_color = theme.menu_fg;
+        let bg_color = theme.menu_bg;
+        let border_color = theme.menu_border;
+        let selected_fg = theme.menu_selected_fg;
+        let selected_bg = theme.menu_selected_bg;
 
         // Render borders
         // Top border
         buffer.set(
             self.x,
             self.y,
-            Cell::new(charset.border_top_left(), fg_color, bg_color),
+            Cell::new(charset.border_top_left(), border_color, bg_color),
         );
         for dx in 1..width - 1 {
             buffer.set(
                 self.x + dx,
                 self.y,
-                Cell::new(charset.border_horizontal(), fg_color, bg_color),
+                Cell::new(charset.border_horizontal(), border_color, bg_color),
             );
         }
         buffer.set(
             self.x + width - 1,
             self.y,
-            Cell::new(charset.border_top_right(), fg_color, bg_color),
+            Cell::new(charset.border_top_right(), border_color, bg_color),
         );
 
         // Content rows
@@ -183,7 +185,7 @@ impl ContextMenu {
             buffer.set(
                 self.x,
                 row,
-                Cell::new(charset.border_vertical(), fg_color, bg_color),
+                Cell::new(charset.border_vertical(), border_color, bg_color),
             );
 
             if item.is_separator {
@@ -192,7 +194,7 @@ impl ContextMenu {
                     buffer.set(
                         self.x + dx,
                         row,
-                        Cell::new(charset.border_horizontal(), fg_color, bg_color),
+                        Cell::new(charset.border_horizontal(), border_color, bg_color),
                     );
                 }
             } else {
@@ -233,7 +235,7 @@ impl ContextMenu {
             buffer.set(
                 self.x + width - 1,
                 row,
-                Cell::new(charset.border_vertical(), fg_color, bg_color),
+                Cell::new(charset.border_vertical(), border_color, bg_color),
             );
         }
 
@@ -242,28 +244,35 @@ impl ContextMenu {
         buffer.set(
             self.x,
             bottom_y,
-            Cell::new(charset.border_bottom_left(), fg_color, bg_color),
+            Cell::new(charset.border_bottom_left(), border_color, bg_color),
         );
         for dx in 1..width - 1 {
             buffer.set(
                 self.x + dx,
                 bottom_y,
-                Cell::new(charset.border_horizontal(), fg_color, bg_color),
+                Cell::new(charset.border_horizontal(), border_color, bg_color),
             );
         }
         buffer.set(
             self.x + width - 1,
             bottom_y,
-            Cell::new(charset.border_bottom_right(), fg_color, bg_color),
+            Cell::new(charset.border_bottom_right(), border_color, bg_color),
         );
 
         // Render shadow
-        self.render_shadow(buffer, width, height, charset);
+        self.render_shadow(buffer, width, height, charset, theme);
     }
 
     /// Render drop shadow for menu
-    fn render_shadow(&self, buffer: &mut VideoBuffer, width: u16, height: u16, charset: &Charset) {
-        let shadow_fg = Color::DarkGrey;
+    fn render_shadow(
+        &self,
+        buffer: &mut VideoBuffer,
+        width: u16,
+        height: u16,
+        charset: &Charset,
+        theme: &Theme,
+    ) {
+        let shadow_fg = theme.menu_shadow_fg;
         let shadow_bg = Color::Black;
 
         // Right shadow

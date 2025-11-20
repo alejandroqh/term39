@@ -56,7 +56,7 @@ impl Default for Cell {
         Self {
             character: ' ',
             fg_color: Color::White,
-            bg_color: Color::Blue,
+            bg_color: Color::Black, // Neutral default that works across all themes
         }
     }
 }
@@ -230,9 +230,9 @@ pub fn render_shadow(
     width: u16,
     height: u16,
     _charset: &Charset,
-    _theme: &Theme,
+    theme: &Theme,
 ) {
-    let shadow_fg = Color::DarkGrey;
+    let shadow_fg = theme.window_shadow_color;
     let shadow_bg = Color::Black;
     let (buffer_width, buffer_height) = buffer.dimensions();
 
@@ -274,8 +274,8 @@ pub fn render_shadow(
 /// Render a full-screen shadow overlay (for modal dialogs)
 /// This shadows the entire screen to indicate that only the modal dialog is interactive
 /// Preserves existing characters and only modifies colors (black bg, dark grey fg)
-pub fn render_fullscreen_shadow(buffer: &mut VideoBuffer) {
-    let shadow_fg = Color::DarkGrey;
+pub fn render_fullscreen_shadow(buffer: &mut VideoBuffer, theme: &Theme) {
+    let shadow_fg = theme.window_shadow_color;
     let shadow_bg = Color::Black;
     let (width, height) = buffer.dimensions();
 
