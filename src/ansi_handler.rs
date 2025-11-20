@@ -385,7 +385,7 @@ impl Perform for AnsiHandler<'_> {
                         1015 => self.grid.mouse_urxvt_mode = true,     // URXVT mouse mode
                         1049 => self.grid.use_alt_screen(),            // Alt screen
                         2004 => self.grid.bracketed_paste_mode = true, // Bracketed paste
-                        2026 => self.grid.synchronized_output = true,
+                        2026 => self.grid.begin_synchronized_output(), // Begin sync update
                         _ => {}
                     }
                 }
@@ -414,7 +414,7 @@ impl Perform for AnsiHandler<'_> {
                         1015 => self.grid.mouse_urxvt_mode = false,     // URXVT mouse mode
                         1049 => self.grid.use_main_screen(),            // Main screen
                         2004 => self.grid.bracketed_paste_mode = false, // Bracketed paste
-                        2026 => self.grid.synchronized_output = false,
+                        2026 => self.grid.end_synchronized_output(),    // End sync update
                         _ => {}
                     }
                 }

@@ -138,26 +138,31 @@ impl TerminalEmulator {
 
     /// Read output from PTY and process it through the parser
     pub fn process_output(&mut self) -> std::io::Result<bool> {
-        // Try to receive data from PTY reader thread (non-blocking)
-        let result = match self.rx.try_recv() {
-            Ok(data) => {
-                // Process the bytes through VTE parser
-                let mut grid = self.grid.lock().unwrap();
-                let mut handler = AnsiHandler::new(&mut grid);
+        // Process ALL available data from PTY reader thread (non-blocking)
+        // This ensures complete escape sequences are processed before rendering,
+        // which is important for TUI applications that use cursor movement for redraws
+        let mut process_result = Ok(true);
 
-                self.parser.advance(&mut handler, &data);
+        loop {
+            match self.rx.try_recv() {
+                Ok(data) => {
+                    // Process the bytes through VTE parser
+                    let mut grid = self.grid.lock().unwrap();
+                    let mut handler = AnsiHandler::new(&mut grid);
 
-                Ok(true)
+                    self.parser.advance(&mut handler, &data);
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    // No more data available right now
+                    break;
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    // Reader thread died - child process exited
+                    process_result = Ok(false);
+                    break;
+                }
             }
-            Err(std::sync::mpsc::TryRecvError::Empty) => {
-                // No data available right now
-                Ok(true)
-            }
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                // Reader thread died - child process exited
-                Ok(false)
-            }
-        };
+        }
 
         // Process any queued responses (e.g., DSR cursor position reports)
         let responses = {
@@ -170,7 +175,7 @@ impl TerminalEmulator {
             let _ = self.write_input(response.as_bytes());
         }
 
-        result
+        process_result
     }
 
     /// Write input to the PTY (send to shell)

@@ -206,7 +206,8 @@ impl TerminalWindow {
                     }
                 } else {
                     // Not scrolled, show current visible rows
-                    grid.get_cell(grid_col, row_idx)
+                    // Use get_render_cell to respect synchronized output snapshot
+                    grid.get_render_cell(grid_col, row_idx)
                 };
 
                 // Render the cell
@@ -229,16 +230,18 @@ impl TerminalWindow {
 
         // Render cursor if visible and not scrolled
         // Applications like Claude hide the cursor to draw their own
-        if grid.cursor.visible && self.scroll_offset == 0 {
-            let cursor_x = content_x + grid.cursor.x as u16;
-            let cursor_y = content_y + grid.cursor.y as u16;
+        // Use get_render_cursor to respect synchronized output snapshot
+        let render_cursor = grid.get_render_cursor();
+        if render_cursor.visible && self.scroll_offset == 0 {
+            let cursor_x = content_x + render_cursor.x as u16;
+            let cursor_y = content_y + render_cursor.y as u16;
 
             // Check if cursor is within window bounds
             if cursor_x < content_x + content_width && cursor_y < content_y + content_height {
                 // Get the current cell at cursor position
                 if let Some(current_cell) = buffer.get(cursor_x, cursor_y) {
                     // Create cursor based on cursor shape
-                    let cursor_cell = match grid.cursor.shape {
+                    let cursor_cell = match render_cursor.shape {
                         crate::term_grid::CursorShape::Block => {
                             // For block cursor, show as inverted colors
                             if current_cell.character == ' ' || current_cell.character == '\0' {

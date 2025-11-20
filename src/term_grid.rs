@@ -71,6 +71,7 @@ impl Default for TerminalCell {
 }
 
 impl TerminalCell {
+    #[allow(dead_code)]
     pub fn reset(&mut self) {
         self.c = ' ';
         self.fg = Color::Named(NamedColor::White);
@@ -150,6 +151,10 @@ pub struct TerminalGrid {
     pub focus_event_mode: bool,
     /// Synchronized output mode (?2026)
     pub synchronized_output: bool,
+    /// Snapshot of rows when synchronized output began (for rendering during sync mode)
+    sync_snapshot: Option<Vec<Vec<TerminalCell>>>,
+    /// Snapshot of cursor when synchronized output began
+    sync_cursor_snapshot: Option<Cursor>,
     /// Mouse tracking modes
     pub mouse_button_tracking: bool, // ?1002 - Button event tracking
     pub mouse_sgr_mode: bool,   // ?1006 - SGR extended mouse mode
@@ -196,6 +201,8 @@ impl TerminalGrid {
             bracketed_paste_mode: false,
             focus_event_mode: false,
             synchronized_output: false,
+            sync_snapshot: None,
+            sync_cursor_snapshot: None,
             mouse_button_tracking: false,
             mouse_sgr_mode: false,
             mouse_urxvt_mode: false,
@@ -284,8 +291,28 @@ impl TerminalGrid {
     }
 
     /// Get a cell at the given position (returns None if out of bounds)
+    /// This returns the live cell, use get_render_cell for rendering during synchronized output
     pub fn get_cell(&self, x: usize, y: usize) -> Option<&TerminalCell> {
         self.rows.get(y)?.get(x)
+    }
+
+    /// Get a cell for rendering - respects synchronized output snapshot
+    /// During synchronized output mode, returns the snapshot cell to prevent visual tearing
+    pub fn get_render_cell(&self, x: usize, y: usize) -> Option<&TerminalCell> {
+        if let Some(snapshot) = &self.sync_snapshot {
+            snapshot.get(y)?.get(x)
+        } else {
+            self.rows.get(y)?.get(x)
+        }
+    }
+
+    /// Get cursor for rendering - respects synchronized output snapshot
+    pub fn get_render_cursor(&self) -> &Cursor {
+        if let Some(cursor) = &self.sync_cursor_snapshot {
+            cursor
+        } else {
+            &self.cursor
+        }
     }
 
     /// Get a mutable cell at the given position
@@ -297,6 +324,23 @@ impl TerminalGrid {
     #[allow(dead_code)]
     pub fn get_scrollback_line(&self, idx: usize) -> Option<&Vec<TerminalCell>> {
         self.scrollback.get(idx)
+    }
+
+    /// Begin synchronized output mode - takes a snapshot of current state for rendering
+    pub fn begin_synchronized_output(&mut self) {
+        if !self.synchronized_output {
+            self.synchronized_output = true;
+            // Take snapshot of current state for rendering during sync mode
+            self.sync_snapshot = Some(self.rows.clone());
+            self.sync_cursor_snapshot = Some(self.cursor);
+        }
+    }
+
+    /// End synchronized output mode - clears snapshot to allow live rendering
+    pub fn end_synchronized_output(&mut self) {
+        self.synchronized_output = false;
+        self.sync_snapshot = None;
+        self.sync_cursor_snapshot = None;
     }
 
     /// Write a character at the current cursor position
@@ -436,6 +480,8 @@ impl TerminalGrid {
         self.bracketed_paste_mode = false;
         self.focus_event_mode = false;
         self.synchronized_output = false;
+        self.sync_snapshot = None;
+        self.sync_cursor_snapshot = None;
         self.mouse_button_tracking = false;
         self.mouse_sgr_mode = false;
         self.mouse_urxvt_mode = false;
@@ -509,28 +555,40 @@ impl TerminalGrid {
 
     /// Clear the screen
     pub fn clear_screen(&mut self) {
+        let bg = self.current_bg;
         for row in &mut self.rows {
             for cell in row {
-                cell.reset();
+                cell.c = ' ';
+                cell.fg = Color::Named(NamedColor::White);
+                cell.bg = bg;
+                cell.attrs = CellAttributes::default();
             }
         }
     }
 
     /// Clear the current line
     pub fn clear_line(&mut self) {
+        let bg = self.current_bg;
         if let Some(row) = self.rows.get_mut(self.cursor.y) {
             for cell in row {
-                cell.reset();
+                cell.c = ' ';
+                cell.fg = Color::Named(NamedColor::White);
+                cell.bg = bg;
+                cell.attrs = CellAttributes::default();
             }
         }
     }
 
     /// Erase from cursor to end of line
     pub fn erase_to_eol(&mut self) {
+        let bg = self.current_bg;
         if let Some(row) = self.rows.get_mut(self.cursor.y) {
             for x in self.cursor.x..self.cols {
                 if let Some(cell) = row.get_mut(x) {
-                    cell.reset();
+                    cell.c = ' ';
+                    cell.fg = Color::Named(NamedColor::White);
+                    cell.bg = bg;
+                    cell.attrs = CellAttributes::default();
                 }
             }
         }
@@ -538,10 +596,14 @@ impl TerminalGrid {
 
     /// Erase from beginning of line to cursor (inclusive)
     pub fn erase_to_bol(&mut self) {
+        let bg = self.current_bg;
         if let Some(row) = self.rows.get_mut(self.cursor.y) {
             for x in 0..=self.cursor.x {
                 if let Some(cell) = row.get_mut(x) {
-                    cell.reset();
+                    cell.c = ' ';
+                    cell.fg = Color::Named(NamedColor::White);
+                    cell.bg = bg;
+                    cell.attrs = CellAttributes::default();
                 }
             }
         }
@@ -553,10 +615,14 @@ impl TerminalGrid {
         self.erase_to_eol();
 
         // Clear all lines below
+        let bg = self.current_bg;
         for y in (self.cursor.y + 1)..self.rows_count {
             if let Some(row) = self.rows.get_mut(y) {
                 for cell in row {
-                    cell.reset();
+                    cell.c = ' ';
+                    cell.fg = Color::Named(NamedColor::White);
+                    cell.bg = bg;
+                    cell.attrs = CellAttributes::default();
                 }
             }
         }
