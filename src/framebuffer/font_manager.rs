@@ -191,7 +191,36 @@ impl FontManager {
     }
 
     /// Load a font by name from console font directories
+    /// Validates font name to prevent directory traversal attacks
     pub fn load_console_font(name: &str) -> io::Result<Self> {
+        // Validate font name to prevent directory traversal
+        // Font names should only contain alphanumeric characters, hyphens, and underscores
+        if name.is_empty() || name.len() > 128 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid font name: must be 1-128 characters",
+            ));
+        }
+
+        // Check for path traversal attempts
+        if name.contains('/') || name.contains('\\') || name.contains("..") {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid font name: path separators not allowed",
+            ));
+        }
+
+        // Only allow safe characters in font names
+        if !name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid font name: only alphanumeric, hyphen, underscore, and dot allowed",
+            ));
+        }
+
         // Try multiple common locations for console fonts
         let base_paths = [
             "/usr/share/consolefonts",     // Debian/Ubuntu primary location
@@ -205,12 +234,18 @@ impl FontManager {
             let base = Path::new(base_path);
             for ext in &extensions {
                 let path = base.join(format!("{}{}", name, ext));
-                if path.exists() {
+
+                // Additional safety: verify the canonicalized path is within the base directory
+                if let Ok(canonical) = path.canonicalize() {
+                    if !canonical.starts_with(base_path) {
+                        continue; // Skip paths that escape the base directory
+                    }
+
                     // Handle gzip-compressed fonts
                     if ext.ends_with(".gz") {
-                        return Self::load_from_gzip_file(path);
+                        return Self::load_from_gzip_file(canonical);
                     } else {
-                        return Self::load_from_file(path);
+                        return Self::load_from_file(canonical);
                     }
                 }
             }

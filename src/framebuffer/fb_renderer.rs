@@ -9,6 +9,7 @@ use crate::video_buffer::{Cell, VideoBuffer};
 use crossterm::style::Color;
 use framebuffer::Framebuffer;
 use std::io;
+use std::os::unix::fs::FileTypeExt;
 
 /// DOS 16-color palette (VGA colors)
 /// Order: Black, Blue, Green, Cyan, Red, Magenta, Brown, LightGray,
@@ -78,6 +79,23 @@ impl FramebufferRenderer {
     /// If scale is None, automatically calculates the best integer scale that fits the screen
     /// If font_name is None, automatically selects a font matching the text mode dimensions
     pub fn new(mode: TextMode, scale: Option<usize>, font_name: Option<&str>) -> io::Result<Self> {
+        // Verify /dev/fb0 is a character device before opening
+        // This prevents potential security issues with symlink attacks
+        let fb_path = std::path::Path::new("/dev/fb0");
+        let metadata = std::fs::metadata(fb_path).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Failed to access /dev/fb0: {}", e),
+            )
+        })?;
+
+        if !metadata.file_type().is_char_device() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "/dev/fb0 is not a character device - possible security issue",
+            ));
+        }
+
         // Open framebuffer device
         let framebuffer = Framebuffer::new("/dev/fb0").map_err(|e| {
             io::Error::new(

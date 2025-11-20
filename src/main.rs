@@ -57,6 +57,7 @@ use prompt::PromptAction;
 use selection::SelectionType;
 use slight_input::SlightInput;
 use std::io;
+use std::panic;
 use std::time::{Duration, Instant};
 use theme::Theme;
 use ui_render::CalendarState;
@@ -65,6 +66,31 @@ use window_manager::{FocusState, WindowManager};
 fn main() -> io::Result<()> {
     // Parse command-line arguments
     let cli_args = cli::Cli::parse_args();
+
+    // Set up panic hook to restore terminal state on panic
+    // This prevents the terminal from being left in raw mode if the application crashes
+    let default_panic = panic::take_hook();
+    panic::set_hook(Box::new(move |panic_info| {
+        // Attempt to restore terminal state
+        let mut stdout = io::stdout();
+
+        // Best-effort cleanup - ignore errors since we're already panicking
+        let _ = crossterm::execute!(stdout, crossterm::event::DisableMouseCapture);
+        let _ = crossterm::execute!(
+            stdout,
+            crossterm::terminal::Clear(crossterm::terminal::ClearType::All)
+        );
+        let _ = crossterm::execute!(stdout, crossterm::style::ResetColor);
+        let _ = crossterm::execute!(
+            stdout,
+            crossterm::cursor::Show,
+            crossterm::terminal::LeaveAlternateScreen
+        );
+        let _ = crossterm::terminal::disable_raw_mode();
+
+        // Call the default panic handler to print the panic message
+        default_panic(panic_info);
+    }));
 
     // Handle --fb-list-fonts flag (exit after listing)
     #[cfg(feature = "framebuffer-backend")]

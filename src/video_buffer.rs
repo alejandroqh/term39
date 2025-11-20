@@ -71,7 +71,8 @@ pub struct VideoBuffer {
 
 impl VideoBuffer {
     pub fn new(width: u16, height: u16) -> Self {
-        let size = (width as usize) * (height as usize);
+        // Use checked arithmetic to prevent overflow, with a reasonable fallback
+        let size = (width as usize).checked_mul(height as usize).unwrap_or(0);
         let default_cell = Cell::default();
 
         Self {
@@ -83,9 +84,12 @@ impl VideoBuffer {
     }
 
     /// Get index for x, y coordinates
+    /// Uses checked arithmetic to prevent integer overflow
     fn index(&self, x: u16, y: u16) -> Option<usize> {
         if x < self.width && y < self.height {
-            Some((y as usize) * (self.width as usize) + (x as usize))
+            // Use checked arithmetic to prevent overflow
+            let row_offset = (y as usize).checked_mul(self.width as usize)?;
+            row_offset.checked_add(x as usize)
         } else {
             None
         }
@@ -129,7 +133,14 @@ impl VideoBuffer {
 
         for y in 0..self.height {
             for x in 0..self.width {
-                let idx = (y as usize) * (self.width as usize) + (x as usize);
+                // Use checked arithmetic for index calculation
+                let idx = match (y as usize)
+                    .checked_mul(self.width as usize)
+                    .and_then(|row| row.checked_add(x as usize))
+                {
+                    Some(i) if i < self.front_buffer.len() => i,
+                    _ => continue, // Skip invalid indices
+                };
                 let front_cell = &self.front_buffer[idx];
                 let back_cell = &self.back_buffer[idx];
 

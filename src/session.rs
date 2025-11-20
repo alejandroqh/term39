@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 /// Maximum number of lines to save per terminal (scrollback + visible)
 pub const MAX_LINES_PER_TERMINAL: usize = 2000;
 
+/// Maximum session file size (10 MB) to prevent memory exhaustion attacks
+const MAX_SESSION_FILE_SIZE: u64 = 10 * 1024 * 1024;
+
 /// Session file version for compatibility checking
 const SESSION_VERSION: u8 = 1;
 
@@ -340,6 +343,19 @@ pub fn load_session(path: &Path) -> io::Result<Option<SessionState>> {
     // If file doesn't exist, return None (not an error)
     if !path.exists() {
         return Ok(None);
+    }
+
+    // Check file size before loading to prevent memory exhaustion
+    let metadata = fs::metadata(path)?;
+    if metadata.len() > MAX_SESSION_FILE_SIZE {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "Session file too large: {} bytes (max {} bytes)",
+                metadata.len(),
+                MAX_SESSION_FILE_SIZE
+            ),
+        ));
     }
 
     // Read file

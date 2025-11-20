@@ -410,13 +410,21 @@ impl WindowManager {
     /// Handle mouse event
     /// Returns true if a window was closed (so caller can reposition)
     pub fn handle_mouse_event(&mut self, buffer: &mut VideoBuffer, event: MouseEvent) -> bool {
+        // Validate mouse coordinates are within buffer bounds
+        let (buffer_width, buffer_height) = buffer.dimensions();
+        let x = event.column;
+        let y = event.row;
+
+        // Bounds check: ignore events outside the valid screen area
+        if x >= buffer_width || y >= buffer_height {
+            return false;
+        }
+
         match event.kind {
-            MouseEventKind::Down(MouseButton::Left) => {
-                self.handle_mouse_down(buffer, event.column, event.row)
-            }
+            MouseEventKind::Down(MouseButton::Left) => self.handle_mouse_down(buffer, x, y),
             MouseEventKind::Drag(MouseButton::Left) => {
                 // Pass modifiers to check if Control is pressed (to disable snap)
-                self.handle_mouse_drag(buffer, event.column, event.row, event.modifiers);
+                self.handle_mouse_drag(buffer, x, y, event.modifiers);
                 false
             }
             MouseEventKind::Up(MouseButton::Left) => {
@@ -424,11 +432,11 @@ impl WindowManager {
                 false
             }
             MouseEventKind::ScrollUp => {
-                self.handle_scroll_up(event.column, event.row);
+                self.handle_scroll_up(x, y);
                 false
             }
             MouseEventKind::ScrollDown => {
-                self.handle_scroll_down(event.column, event.row);
+                self.handle_scroll_down(x, y);
                 false
             }
             _ => false,
