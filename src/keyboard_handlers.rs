@@ -104,6 +104,28 @@ pub fn handle_desktop_keyboard(
         return true;
     }
 
+    // Handle F10 to exit application (classic DOS pattern)
+    if key_event.code == KeyCode::F(10) {
+        if current_focus == FocusState::Desktop {
+            if window_manager.window_count() > 0 {
+                let (cols, rows) = backend.dimensions();
+                app_state.active_prompt = Some(Prompt::new(
+                    PromptType::Danger,
+                    "Exit with open windows?\nAll terminal sessions will be closed.".to_string(),
+                    vec![
+                        PromptButton::new("Exit".to_string(), PromptAction::Confirm, true),
+                        PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false),
+                    ],
+                    cols,
+                    rows,
+                ));
+            } else {
+                app_state.should_exit = true;
+            }
+        }
+        return true;
+    }
+
     // Platform-aware copy shortcut
     let is_copy_shortcut = if is_macos() {
         key_event.code == KeyCode::Char('c') && key_event.modifiers.contains(KeyModifiers::SUPER)
@@ -294,7 +316,7 @@ fn show_help_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
         \n\
         {{Y}}'t'{{W}}       - Create new terminal window\n\
         {{Y}}'T'{{W}}       - Create new maximized terminal window\n\
-        {{Y}}'q'/ESC{{W}}   - Exit application (from desktop)\n\
+        {{Y}}'q'/ESC/F10{{W}} - Exit application (from desktop)\n\
         {{Y}}F1{{W}} or {{Y}}'h'{{W}} - Show this help screen\n\
         {{Y}}'l'{{W}}       - Show license and about information\n\
         {{Y}}'s'{{W}}       - Show settings/configuration window\n\
@@ -325,7 +347,8 @@ fn show_help_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
         {{Y}}Click [X]{{W}}           - Close window\n\
         {{Y}}Drag border{{W}}         - Resize window\n\
         {{Y}}Click window{{W}}        - Focus window\n\
-        {{Y}}Click bottom bar{{W}}    - Switch windows",
+        {{Y}}Click bottom bar{{W}}    - Switch windows\n\
+        {{Y}}Click [Exit]{{W}}        - Exit application",
         copy_key, paste_key
     );
 

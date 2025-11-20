@@ -26,6 +26,7 @@ pub struct AppState {
     pub clear_clipboard_button: Button,
     pub copy_button: Button,
     pub clear_selection_button: Button,
+    pub exit_button: Button,
 
     // Bottom Bar Buttons
     pub auto_tiling_button: Button,
@@ -67,6 +68,9 @@ impl AppState {
         let clear_selection_label = "X".to_string();
         let clear_selection_button = Button::new(0, 0, clear_selection_label);
 
+        // Exit button (positioned in top bar, will be repositioned each frame)
+        let exit_button = Button::new(0, 0, "Exit".to_string());
+
         // Auto-tiling toggle button (bottom bar)
         let auto_tiling_text = if auto_tiling_on_startup {
             "█ on] Auto Tiling"
@@ -95,6 +99,7 @@ impl AppState {
             clear_clipboard_button,
             copy_button,
             clear_selection_button,
+            exit_button,
 
             // Bottom Bar Button
             auto_tiling_button,
@@ -125,6 +130,14 @@ impl AppState {
         self.clear_clipboard_button.enabled = has_clipboard_content;
         self.copy_button.enabled = has_selection;
         self.clear_selection_button.enabled = has_selection;
+
+        // Position exit button on the right side of top bar (before clock area)
+        // Clock with date format "| Thu Nov 20, 09:21 " is about 22 chars
+        // Clock without date "| 09:21:45 " is about 12 chars
+        // Use the larger value to ensure no overlap, plus padding
+        let exit_button_width = self.exit_button.width();
+        self.exit_button.x = cols.saturating_sub(exit_button_width + 24);
+        self.exit_button.y = 0;
 
         // Calculate button widths
         let paste_width = self.paste_button.width();

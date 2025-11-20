@@ -105,6 +105,7 @@ pub fn render_top_bar(
     clear_clipboard_button: &Button,
     copy_button: &Button,
     clear_selection_button: &Button,
+    exit_button: &Button,
     app_config: &AppConfig,
     theme: &Theme,
 ) {
@@ -132,6 +133,9 @@ pub fn render_top_bar(
     clear_selection_button.render(buffer, theme);
     paste_button.render(buffer, theme);
     clear_clipboard_button.render(buffer, theme);
+
+    // Right section - Exit button (before clock)
+    exit_button.render(buffer, theme);
 
     // Right section - Clock with dark background
     let now = Local::now();
@@ -242,7 +246,7 @@ pub fn render_button_bar(
     current_x += 2;
 
     // Render help text on the right side
-    let help_text = " > F1 Help | 's' Settings < ";
+    let help_text = " > F1 Help | 's' Settings | F10 Exit < ";
     let help_text_len = help_text.len() as u16;
     if cols > help_text_len {
         let help_x = cols - help_text_len - 1;

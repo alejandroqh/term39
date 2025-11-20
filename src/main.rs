@@ -53,7 +53,7 @@ use crossterm::{
     terminal::{self, ClearType},
 };
 use error_dialog::ErrorDialog;
-use prompt::PromptAction;
+use prompt::{Prompt, PromptAction, PromptButton, PromptType};
 use selection::SelectionType;
 use slight_input::SlightInput;
 use std::io;
@@ -642,6 +642,18 @@ fn main() -> io::Result<()> {
                                 .set_state(button::ButtonState::Normal);
                         }
 
+                        // Exit button hover state
+                        if app_state
+                            .exit_button
+                            .contains(mouse_event.column, mouse_event.row)
+                        {
+                            app_state
+                                .exit_button
+                                .set_state(button::ButtonState::Hovered);
+                        } else {
+                            app_state.exit_button.set_state(button::ButtonState::Normal);
+                        }
+
                         // Calculate position for toggle button hover detection (bottom bar, left side)
                         let (_, rows) = backend.dimensions();
                         let bar_y = rows - 1;
@@ -793,6 +805,48 @@ fn main() -> io::Result<()> {
 
                         // Clear the clipboard
                         clipboard_manager.clear();
+
+                        handled = true;
+                    }
+
+                    // Check if click is on the Exit button in the top bar (only if no prompt)
+                    if !handled
+                        && app_state.active_prompt.is_none()
+                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+                        && app_state
+                            .exit_button
+                            .contains(mouse_event.column, mouse_event.row)
+                    {
+                        app_state
+                            .exit_button
+                            .set_state(button::ButtonState::Pressed);
+
+                        // If windows are open, show confirmation prompt
+                        if window_manager.window_count() > 0 {
+                            let (cols, rows) = backend.dimensions();
+                            app_state.active_prompt = Some(Prompt::new(
+                                PromptType::Danger,
+                                "Exit with open windows?\nAll terminal sessions will be closed."
+                                    .to_string(),
+                                vec![
+                                    PromptButton::new(
+                                        "Exit".to_string(),
+                                        PromptAction::Confirm,
+                                        true,
+                                    ),
+                                    PromptButton::new(
+                                        "Cancel".to_string(),
+                                        PromptAction::Cancel,
+                                        false,
+                                    ),
+                                ],
+                                cols,
+                                rows,
+                            ));
+                        } else {
+                            // No windows open, exit immediately
+                            app_state.should_exit = true;
+                        }
 
                         handled = true;
                     }
@@ -1059,6 +1113,11 @@ fn main() -> io::Result<()> {
                             let (cols, rows) = backend.dimensions();
                             window_manager.auto_position_windows(cols, rows);
                         }
+                    }
+
+                    // Check if exit was requested (from Exit button)
+                    if app_state.should_exit {
+                        break;
                     }
                 }
                 _ => {}

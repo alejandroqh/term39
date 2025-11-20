@@ -36,6 +36,7 @@ pub fn render_frame(
         &app_state.clear_clipboard_button,
         &app_state.copy_button,
         &app_state.clear_selection_button,
+        &app_state.exit_button,
         app_config,
         theme,
     );

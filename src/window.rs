@@ -68,21 +68,24 @@ impl Window {
     /// Check if point is in close button [X]
     pub fn is_in_close_button(&self, x: u16, y: u16) -> bool {
         // [X] is at position x+2 (after 2-char left border)
+        // Button layout: "[X] [+] [_] " - Close is chars 0-2 (positions 2-4)
         y == self.y && x > self.x + 1 && x <= self.x + 4
     }
 
     /// Check if point is in maximize button [+]
     #[allow(dead_code)]
     pub fn is_in_maximize_button(&self, x: u16, y: u16) -> bool {
-        // [+] is at position x+5
-        y == self.y && x >= self.x + 5 && x <= self.x + 7
+        // [+] is at position x+6 (after "[X] ")
+        // Button layout: "[X] [+] [_] " - Maximize is chars 4-6 (positions 6-8)
+        y == self.y && x >= self.x + 6 && x <= self.x + 8
     }
 
     /// Check if point is in minimize button [_]
     #[allow(dead_code)]
     pub fn is_in_minimize_button(&self, x: u16, y: u16) -> bool {
-        // [_] is at position x+8
-        y == self.y && x >= self.x + 8 && x <= self.x + 10
+        // [_] is at position x+10 (after "[X] [+] ")
+        // Button layout: "[X] [+] [_] " - Minimize is chars 8-10 (positions 10-12)
+        y == self.y && x >= self.x + 10 && x <= self.x + 12
     }
 
     /// Check if point is on left border (excluding corners)
@@ -389,8 +392,8 @@ impl Window {
             theme.window_title_bg
         };
 
-        // Buttons: [X][+][_] followed by title
-        let buttons = "[X][+][_] ";
+        // Buttons: [X] [+] [_] followed by title (with spacing for better visual parsing)
+        let buttons = "[X] [+] [_] ";
         let mut x_offset = 2; // Start after 2-char left border
 
         // Render buttons with colored characters and consistent background
