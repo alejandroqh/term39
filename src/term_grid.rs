@@ -157,6 +157,9 @@ pub struct TerminalGrid {
     /// Line Feed/New Line Mode (LNM - mode 20)
     /// When set, LF also performs CR (linefeed acts as newline)
     pub lnm_mode: bool,
+    /// Auto-wrap mode (DECAWM - ?7)
+    /// When set, characters wrap to next line at end of line
+    pub auto_wrap_mode: bool,
     /// Response queue for DSR and other queries that need to send data back
     response_queue: Vec<String>,
 }
@@ -191,6 +194,7 @@ impl TerminalGrid {
             mouse_sgr_mode: false,
             mouse_urxvt_mode: false,
             lnm_mode: false,
+            auto_wrap_mode: true, // Default: enabled (xterm behavior)
             response_queue: Vec::new(),
         }
     }
@@ -317,15 +321,20 @@ impl TerminalGrid {
                     }
                     self.cursor.x += 1;
 
-                    // Auto-wrap at end of line
+                    // Auto-wrap at end of line (if DECAWM is enabled)
                     if self.cursor.x >= self.cols {
-                        // Don't auto-wrap at the very last row - just stay at the last column
-                        // This prevents unwanted scrolling when drawing the last row
-                        if self.cursor.y == self.rows_count - 1 {
-                            self.cursor.x = self.cols - 1;
+                        if self.auto_wrap_mode {
+                            // Don't auto-wrap at the very last row - just stay at the last column
+                            // This prevents unwanted scrolling when drawing the last row
+                            if self.cursor.y == self.rows_count - 1 {
+                                self.cursor.x = self.cols - 1;
+                            } else {
+                                self.cursor.x = 0;
+                                self.linefeed();
+                            }
                         } else {
-                            self.cursor.x = 0;
-                            self.linefeed();
+                            // No auto-wrap: stay at last column
+                            self.cursor.x = self.cols - 1;
                         }
                     }
                 }
@@ -423,6 +432,7 @@ impl TerminalGrid {
         self.mouse_sgr_mode = false;
         self.mouse_urxvt_mode = false;
         self.lnm_mode = false;
+        self.auto_wrap_mode = true;
 
         // Clear response queue
         self.response_queue.clear();

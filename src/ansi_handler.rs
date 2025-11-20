@@ -151,6 +151,7 @@ impl Perform for AnsiHandler<'_> {
             b'\t' => self.grid.put_char('\t'),
             b'\x08' => self.grid.put_char('\x08'), // Backspace
             b'\x07' => {}                          // Bell (ignore for now)
+            b'\x0b' => self.grid.put_char('\n'),   // Vertical Tab - treat as linefeed
             b'\x0c' => {
                 // Form feed (Ctrl+L) - clear screen and move cursor to home
                 self.grid.clear_screen();
@@ -224,6 +225,18 @@ impl Perform for AnsiHandler<'_> {
                     .copied()
                     .unwrap_or(1) as usize;
                 self.grid.move_cursor(-(n as isize), 0);
+            }
+            ('c', []) => {
+                // Primary Device Attributes (DA1)
+                // Respond as VT220 with no options
+                // Format: CSI ? 62 ; 0 c (VT220)
+                self.grid.queue_response("\x1b[?62;0c".to_string());
+            }
+            ('c', [b'>']) => {
+                // Secondary Device Attributes (DA2)
+                // Format: CSI > Pp ; Pv ; Pc c
+                // Pp=0 (VT100), Pv=0 (version), Pc=0 (ROM cartridge)
+                self.grid.queue_response("\x1b[>0;0;0c".to_string());
             }
             ('E', []) => {
                 // Cursor Next Line
@@ -362,6 +375,7 @@ impl Perform for AnsiHandler<'_> {
                 for param in params.iter() {
                     match param[0] {
                         1 => self.grid.application_cursor_keys = true, // DECCKM
+                        7 => self.grid.auto_wrap_mode = true,          // DECAWM
                         25 => self.grid.cursor.visible = true,         // Show cursor
                         1002 => self.grid.mouse_button_tracking = true, // Button event tracking
                         1004 => self.grid.focus_event_mode = true,     // Focus events
@@ -388,6 +402,7 @@ impl Perform for AnsiHandler<'_> {
                 for param in params.iter() {
                     match param[0] {
                         1 => self.grid.application_cursor_keys = false, // DECCKM
+                        7 => self.grid.auto_wrap_mode = false,          // DECAWM
                         25 => self.grid.cursor.visible = false,         // Hide cursor
                         1002 => self.grid.mouse_button_tracking = false, // Button event tracking
                         1004 => self.grid.focus_event_mode = false,     // Focus events
