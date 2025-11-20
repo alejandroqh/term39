@@ -365,8 +365,8 @@ impl Perform for AnsiHandler<'_> {
                 // Standard Mode Set (SM)
                 for param in params.iter() {
                     match param[0] {
-                        4 => self.grid.insert_mode = true,  // IRM - Insert/Replace Mode
-                        20 => self.grid.lnm_mode = true,    // LNM - Line Feed/New Line Mode
+                        4 => self.grid.insert_mode = true, // IRM - Insert/Replace Mode
+                        20 => self.grid.lnm_mode = true,   // LNM - Line Feed/New Line Mode
                         _ => {}
                     }
                 }

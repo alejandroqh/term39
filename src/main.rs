@@ -359,10 +359,15 @@ fn main() -> io::Result<()> {
                         continue;
                     }
 
-                    // Handle CTRL+Space to open Slight input popup (needs inline access to command_indexer/history)
-                    if key_event.code == KeyCode::Char(' ')
-                        && key_event.modifiers.contains(KeyModifiers::CONTROL)
-                    {
+                    // Handle CTRL+Space / Option+Space to open Slight input popup (needs inline access to command_indexer/history)
+                    // Note: Ctrl+Space produces NUL character ('\0') in most terminals
+                    // On macOS, Option+Space produces non-breaking space (U+00A0)
+                    let is_launcher_shortcut = (key_event.code == KeyCode::Char(' ')
+                        && (key_event.modifiers.contains(KeyModifiers::CONTROL)
+                            || key_event.modifiers.contains(KeyModifiers::ALT)))
+                        || key_event.code == KeyCode::Char('\0')
+                        || key_event.code == KeyCode::Char('\u{00a0}'); // Non-breaking space from Option+Space on macOS
+                    if is_launcher_shortcut {
                         let (cols, rows) = backend.dimensions();
                         let mut slight_input = SlightInput::new(cols, rows);
                         slight_input

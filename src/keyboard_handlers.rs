@@ -69,8 +69,15 @@ pub fn handle_desktop_keyboard(
         return true;
     }
 
-    // Handle CTRL+Space to open Slight input popup
-    if key_event.code == KeyCode::Char(' ') && key_event.modifiers.contains(KeyModifiers::CONTROL) {
+    // Handle CTRL+Space / Option+Space to open Slight input popup
+    // Note: Ctrl+Space produces NUL character ('\0') in most terminals
+    // On macOS, Option+Space produces non-breaking space (U+00A0)
+    let is_launcher_shortcut = (key_event.code == KeyCode::Char(' ')
+        && (key_event.modifiers.contains(KeyModifiers::CONTROL)
+            || key_event.modifiers.contains(KeyModifiers::ALT)))
+        || key_event.code == KeyCode::Char('\0')
+        || key_event.code == KeyCode::Char('\u{00a0}'); // Non-breaking space from Option+Space on macOS
+    if is_launcher_shortcut {
         return true; // Signal to open Slight input (handled in main)
     }
 
