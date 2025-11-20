@@ -268,15 +268,16 @@ impl Window {
 
         // Top border (title bar) with corner characters
         // Top-left corner (2 chars wide)
+        // Use new_unchecked for performance - theme colors are pre-validated
         buffer.set(
             self.x,
             self.y,
-            Cell::new(charset.border_top_left, theme.window_border, title_bg),
+            Cell::new_unchecked(charset.border_top_left, theme.window_border, title_bg),
         );
         buffer.set(
             self.x + 1,
             self.y,
-            Cell::new(charset.border_horizontal, theme.window_border, title_bg),
+            Cell::new_unchecked(charset.border_horizontal, theme.window_border, title_bg),
         );
 
         // Top border middle
@@ -284,7 +285,7 @@ impl Window {
             buffer.set(
                 self.x + x,
                 self.y,
-                Cell::new(' ', theme.window_border, title_bg),
+                Cell::new_unchecked(' ', theme.window_border, title_bg),
             );
         }
 
@@ -292,19 +293,19 @@ impl Window {
         buffer.set(
             self.x + self.width - 3,
             self.y,
-            Cell::new(charset.border_vertical_right, theme.window_border, title_bg),
+            Cell::new_unchecked(charset.border_vertical_right, theme.window_border, title_bg),
         );
 
         // Top-right corner (2 chars wide)
         buffer.set(
             self.x + self.width - 2,
             self.y,
-            Cell::new(charset.border_horizontal, theme.window_border, title_bg),
+            Cell::new_unchecked(charset.border_horizontal, theme.window_border, title_bg),
         );
         buffer.set(
             self.x + self.width - 1,
             self.y,
-            Cell::new(charset.border_top_right, theme.window_border, title_bg),
+            Cell::new_unchecked(charset.border_top_right, theme.window_border, title_bg),
         );
 
         // Side borders - 2 characters wide
@@ -314,13 +315,13 @@ impl Window {
             buffer.set(
                 self.x,
                 self.y + y,
-                Cell::new(charset.border_vertical, theme.window_border, border_bg),
+                Cell::new_unchecked(charset.border_vertical, theme.window_border, border_bg),
             );
             // Inner left border (resizable)
             buffer.set(
                 self.x + 1,
                 self.y + y,
-                Cell::new(' ', theme.window_border, border_bg),
+                Cell::new_unchecked(' ', theme.window_border, border_bg),
             );
 
             // Right border (2 chars): inner space + outer vertical
@@ -328,13 +329,13 @@ impl Window {
             buffer.set(
                 self.x + self.width - 2,
                 self.y + y,
-                Cell::new(' ', border_bg, border_bg),
+                Cell::new_unchecked(' ', border_bg, border_bg),
             );
             // Outer right border (resizable)
             buffer.set(
                 self.x + self.width - 1,
                 self.y + y,
-                Cell::new(charset.border_vertical, theme.window_border, border_bg),
+                Cell::new_unchecked(charset.border_vertical, theme.window_border, border_bg),
             );
         }
 
@@ -343,13 +344,13 @@ impl Window {
         buffer.set(
             self.x,
             self.y + self.height - 1,
-            Cell::new(charset.border_bottom_left, theme.window_border, border_bg),
+            Cell::new_unchecked(charset.border_bottom_left, theme.window_border, border_bg),
         );
         // Extension of bottom-left corner
         buffer.set(
             self.x + 1,
             self.y + self.height - 1,
-            Cell::new(charset.border_horizontal, theme.window_border, border_bg),
+            Cell::new_unchecked(charset.border_horizontal, theme.window_border, border_bg),
         );
 
         // Bottom border middle (resizable)
@@ -357,7 +358,7 @@ impl Window {
             buffer.set(
                 self.x + x,
                 self.y + self.height - 1,
-                Cell::new(charset.border_horizontal, theme.window_border, border_bg),
+                Cell::new_unchecked(charset.border_horizontal, theme.window_border, border_bg),
             );
         }
 
@@ -365,13 +366,13 @@ impl Window {
         buffer.set(
             self.x + self.width - 2,
             self.y + self.height - 1,
-            Cell::new(charset.border_horizontal, theme.window_border, border_bg),
+            Cell::new_unchecked(charset.border_horizontal, theme.window_border, border_bg),
         );
         // Bottom-right corner
         buffer.set(
             self.x + self.width - 1,
             self.y + self.height - 1,
-            Cell::new(charset.border_bottom_right, theme.window_border, border_bg),
+            Cell::new_unchecked(charset.border_bottom_right, theme.window_border, border_bg),
         );
     }
 
@@ -393,6 +394,7 @@ impl Window {
         let mut x_offset = 2; // Start after 2-char left border
 
         // Render buttons with colored characters and consistent background
+        // Use new_unchecked for performance - theme colors are pre-validated
         for (i, ch) in buttons.chars().enumerate() {
             let (fg_color, bg_color) = match ch {
                 'X' => (theme.button_close_color, theme.button_bg),
@@ -401,7 +403,11 @@ impl Window {
                 '[' | ']' => (theme.window_border, theme.button_bg),
                 _ => (theme.window_border, title_bg), // Space between buttons uses title background
             };
-            buffer.set(self.x + x_offset, self.y, Cell::new(ch, fg_color, bg_color));
+            buffer.set(
+                self.x + x_offset,
+                self.y,
+                Cell::new_unchecked(ch, fg_color, bg_color),
+            );
             x_offset += 1;
 
             // After each button group, there's a space
@@ -426,7 +432,7 @@ impl Window {
             buffer.set(
                 title_start + i as u16,
                 self.y,
-                Cell::new(ch, theme.window_border, title_bg),
+                Cell::new_unchecked(ch, theme.window_border, title_bg),
             );
         }
     }
@@ -434,19 +440,13 @@ impl Window {
     fn render_content(&self, buffer: &mut VideoBuffer, theme: &Theme) {
         // Fill content area with solid background color (no pattern)
         // Account for 2-char borders on left and right
-        let content_char = ' ';
+        // Use new_unchecked for performance - theme colors are pre-validated
+        let content_cell =
+            Cell::new_unchecked(' ', theme.window_content_fg, theme.window_content_bg);
 
         for y in 1..self.height - 1 {
             for x in 2..self.width - 2 {
-                buffer.set(
-                    self.x + x,
-                    self.y + y,
-                    Cell::new(
-                        content_char,
-                        theme.window_content_fg,
-                        theme.window_content_bg,
-                    ),
-                );
+                buffer.set(self.x + x, self.y + y, content_cell);
             }
         }
     }

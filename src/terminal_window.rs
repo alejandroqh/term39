@@ -6,6 +6,7 @@ use crate::theme::Theme;
 use crate::video_buffer::{Cell, VideoBuffer};
 use crate::window::Window;
 use crossterm::style::Color;
+use std::time::Instant;
 
 /// A window containing a terminal emulator
 pub struct TerminalWindow {
@@ -13,6 +14,9 @@ pub struct TerminalWindow {
     emulator: TerminalEmulator,
     scroll_offset: usize,         // For scrollback navigation
     selection: Option<Selection>, // Current text selection
+    // Cached foreground process name to avoid spawning ps every frame
+    cached_process_name: Option<String>,
+    process_name_last_update: Instant,
 }
 
 impl TerminalWindow {
@@ -47,6 +51,8 @@ impl TerminalWindow {
             emulator,
             scroll_offset: 0,
             selection: None,
+            cached_process_name: None,
+            process_name_last_update: Instant::now(),
         })
     }
 
@@ -140,14 +146,14 @@ impl TerminalWindow {
 
     /// Render the terminal window
     pub fn render(
-        &self,
+        &mut self,
         buffer: &mut VideoBuffer,
         charset: &Charset,
         theme: &Theme,
         tint_terminal: bool,
     ) {
-        // Get dynamic title with process name
-        let dynamic_title = self.get_dynamic_title();
+        // Get dynamic title with cached process name
+        let dynamic_title = self.get_dynamic_title_cached();
 
         // Render the window frame and title bar with dynamic title
         self.window
@@ -678,8 +684,35 @@ impl TerminalWindow {
         self.emulator.get_foreground_process_name()
     }
 
+    /// Get the cached foreground process name, updating cache every 500ms
+    /// This avoids spawning ps processes every frame (60fps = 60 times/second)
+    fn get_foreground_process_name_cached(&mut self) -> Option<String> {
+        use std::time::Duration;
+
+        // Update cache every 500ms (2 times per second instead of 60)
+        let elapsed = self.process_name_last_update.elapsed();
+        if elapsed >= Duration::from_millis(500) || self.cached_process_name.is_none() {
+            self.cached_process_name = self.emulator.get_foreground_process_name();
+            self.process_name_last_update = Instant::now();
+        }
+
+        self.cached_process_name.clone()
+    }
+
+    /// Get the dynamic title including the running process name (with caching)
+    /// Format: "Terminal N [ > process ]" where > is a running indicator
+    fn get_dynamic_title_cached(&mut self) -> String {
+        if let Some(process_name) = self.get_foreground_process_name_cached() {
+            // Use '>' as an ASCII-compatible "running" indicator with spacing
+            format!("{} [ > {} ]", self.window.title, process_name)
+        } else {
+            self.window.title.clone()
+        }
+    }
+
     /// Get the dynamic title including the running process name
     /// Format: "Terminal N [ > process ]" where > is a running indicator
+    #[allow(dead_code)]
     pub fn get_dynamic_title(&self) -> String {
         if let Some(process_name) = self.get_foreground_process_name() {
             // Use '>' as an ASCII-compatible "running" indicator with spacing

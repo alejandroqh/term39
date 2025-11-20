@@ -2,10 +2,10 @@ use crate::charset::Charset;
 use crate::color_utils;
 use crate::theme::Theme;
 use crossterm::{
-    cursor, execute,
-    style::{Color, Print, SetBackgroundColor, SetForegroundColor},
+    QueueableCommand, cursor,
+    style::{Color, SetBackgroundColor, SetForegroundColor},
 };
-use std::io;
+use std::io::{self, Write};
 
 /// Represents a single cell in the terminal buffer
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -122,6 +122,7 @@ impl VideoBuffer {
     }
 
     /// Present back buffer to screen, only updating changed cells
+    /// Uses queued commands for batched I/O - significantly reduces syscalls
     pub fn present(&mut self, stdout: &mut io::Stdout) -> io::Result<()> {
         let mut current_fg = Color::Reset;
         let mut current_bg = Color::Reset;
@@ -136,16 +137,20 @@ impl VideoBuffer {
                 if front_cell != back_cell {
                     // Update colors only if they changed
                     if back_cell.fg_color != current_fg {
-                        execute!(stdout, SetForegroundColor(back_cell.fg_color))?;
+                        stdout.queue(SetForegroundColor(back_cell.fg_color))?;
                         current_fg = back_cell.fg_color;
                     }
                     if back_cell.bg_color != current_bg {
-                        execute!(stdout, SetBackgroundColor(back_cell.bg_color))?;
+                        stdout.queue(SetBackgroundColor(back_cell.bg_color))?;
                         current_bg = back_cell.bg_color;
                     }
 
                     // Move cursor and print character
-                    execute!(stdout, cursor::MoveTo(x, y), Print(back_cell.character))?;
+                    stdout.queue(cursor::MoveTo(x, y))?;
+                    // Write character directly - more efficient than Print command
+                    let mut buf = [0u8; 4];
+                    let s = back_cell.character.encode_utf8(&mut buf);
+                    stdout.write_all(s.as_bytes())?;
                 }
             }
         }
@@ -155,7 +160,11 @@ impl VideoBuffer {
 
         // Hide cursor after rendering to prevent it from being visible or affecting PTY output
         // Even hidden cursors have a position, so we also move it to (0, 0)
-        execute!(stdout, cursor::MoveTo(0, 0), cursor::Hide)?;
+        stdout.queue(cursor::MoveTo(0, 0))?;
+        stdout.queue(cursor::Hide)?;
+
+        // Flush all queued commands at once - single syscall
+        stdout.flush()?;
 
         Ok(())
     }

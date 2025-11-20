@@ -84,7 +84,9 @@ pub fn render_background(buffer: &mut VideoBuffer, charset: &Charset, theme: &Th
     let (cols, rows) = buffer.dimensions();
 
     // Use the background character from charset configuration
-    let background_cell = Cell::new(charset.background, theme.desktop_fg, theme.desktop_bg);
+    // Use new_unchecked for performance - theme colors are pre-validated
+    let background_cell =
+        Cell::new_unchecked(charset.background, theme.desktop_fg, theme.desktop_bg);
 
     // Fill entire screen with the background character
     for y in 0..rows {
@@ -114,7 +116,8 @@ pub fn render_top_bar(
         FocusState::Window(_) => theme.topbar_bg_window,
     };
 
-    let bar_cell = Cell::new(' ', theme.topbar_fg, bg_color);
+    // Use new_unchecked for performance - theme colors are pre-validated
+    let bar_cell = Cell::new_unchecked(' ', theme.topbar_fg, bg_color);
 
     // Create a blank top bar
     for x in 0..cols {
@@ -148,11 +151,12 @@ pub fn render_top_bar(
     let time_pos = cols.saturating_sub(clock_width);
 
     // Render clock with dark background
+    // Use new_unchecked for performance - theme colors are pre-validated
     for (i, ch) in clock_with_separator.chars().enumerate() {
         buffer.set(
             time_pos + i as u16,
             0,
-            Cell::new(ch, theme.clock_fg, theme.clock_bg),
+            Cell::new_unchecked(ch, theme.clock_fg, theme.clock_bg),
         );
     }
 }
@@ -168,7 +172,8 @@ pub fn render_button_bar(
     let bar_y = rows - 1;
 
     // Fill button bar with black background
-    let bar_cell = Cell::new(' ', theme.bottombar_fg, theme.bottombar_bg);
+    // Use new_unchecked for performance - theme colors are pre-validated
+    let bar_cell = Cell::new_unchecked(' ', theme.bottombar_fg, theme.bottombar_bg);
     for x in 0..cols {
         buffer.set(x, bar_y, bar_cell);
     }
@@ -207,17 +212,30 @@ pub fn render_button_bar(
     let mut current_x = 1u16;
 
     // Render "[ "
-    buffer.set(current_x, bar_y, Cell::new('[', toggle_color, toggle_bg));
+    // Use new_unchecked for performance - theme colors are pre-validated
+    buffer.set(
+        current_x,
+        bar_y,
+        Cell::new_unchecked('[', toggle_color, toggle_bg),
+    );
     current_x += 1;
 
     // Render label
     for ch in auto_tiling_button.label.chars() {
-        buffer.set(current_x, bar_y, Cell::new(ch, toggle_color, toggle_bg));
+        buffer.set(
+            current_x,
+            bar_y,
+            Cell::new_unchecked(ch, toggle_color, toggle_bg),
+        );
         current_x += 1;
     }
 
     // Render " ]"
-    buffer.set(current_x, bar_y, Cell::new(' ', toggle_color, toggle_bg));
+    buffer.set(
+        current_x,
+        bar_y,
+        Cell::new_unchecked(' ', toggle_color, toggle_bg),
+    );
     current_x += 1;
 
     // Add spacing after toggle
@@ -232,7 +250,7 @@ pub fn render_button_bar(
             buffer.set(
                 help_x + i as u16,
                 bar_y,
-                Cell::new(ch, theme.bottombar_fg, theme.bottombar_bg),
+                Cell::new_unchecked(ch, theme.bottombar_fg, theme.bottombar_bg),
             );
         }
     }
@@ -281,13 +299,18 @@ pub fn render_button_bar(
         };
 
         // Render opening bracket and space
+        // Use new_unchecked for performance - theme colors are pre-validated
         buffer.set(
             current_x,
             bar_y,
-            Cell::new(open_bracket, button_fg, button_bg),
+            Cell::new_unchecked(open_bracket, button_fg, button_bg),
         );
         current_x += 1;
-        buffer.set(current_x, bar_y, Cell::new(' ', button_fg, button_bg));
+        buffer.set(
+            current_x,
+            bar_y,
+            Cell::new_unchecked(' ', button_fg, button_bg),
+        );
         current_x += 1;
 
         // Render title
@@ -295,20 +318,28 @@ pub fn render_button_bar(
             if current_x >= cols - 1 {
                 break;
             }
-            buffer.set(current_x, bar_y, Cell::new(ch, button_fg, button_bg));
+            buffer.set(
+                current_x,
+                bar_y,
+                Cell::new_unchecked(ch, button_fg, button_bg),
+            );
             current_x += 1;
         }
 
         // Render space and closing bracket
         if current_x < cols - 1 {
-            buffer.set(current_x, bar_y, Cell::new(' ', button_fg, button_bg));
+            buffer.set(
+                current_x,
+                bar_y,
+                Cell::new_unchecked(' ', button_fg, button_bg),
+            );
             current_x += 1;
         }
         if current_x < cols - 1 {
             buffer.set(
                 current_x,
                 bar_y,
-                Cell::new(close_bracket, button_fg, button_bg),
+                Cell::new_unchecked(close_bracket, button_fg, button_bg),
             );
             current_x += 1;
         }
@@ -367,9 +398,11 @@ pub fn render_calendar(
     let today_fg = theme.calendar_today_fg;
 
     // Fill calendar background
+    // Use new_unchecked for performance - theme colors are pre-validated
+    let bg_cell = Cell::new_unchecked(' ', fg_color, bg_color);
     for cy in 0..height {
         for cx in 0..width {
-            buffer.set(x + cx, y + cy, Cell::new(' ', fg_color, bg_color));
+            buffer.set(x + cx, y + cy, bg_cell);
         }
     }
 
@@ -384,7 +417,11 @@ pub fn render_calendar(
     for (i, ch) in title.chars().enumerate() {
         let char_x = title_x + i as u16;
         if char_x < x + width {
-            buffer.set(char_x, y + 1, Cell::new(ch, title_color, bg_color));
+            buffer.set(
+                char_x,
+                y + 1,
+                Cell::new_unchecked(ch, title_color, bg_color),
+            );
         }
     }
 
@@ -399,7 +436,7 @@ pub fn render_calendar(
     for (i, ch) in day_headers.chars().enumerate() {
         let char_x = header_x + i as u16;
         if char_x < x + width {
-            buffer.set(char_x, y + 3, Cell::new(ch, fg_color, bg_color));
+            buffer.set(char_x, y + 3, Cell::new_unchecked(ch, fg_color, bg_color));
         }
     }
 
@@ -430,7 +467,11 @@ pub fn render_calendar(
             // Render day number (right-aligned in 2-char space)
             let day_str = format!("{:>2}", day);
             for (i, ch) in day_str.chars().enumerate() {
-                buffer.set(day_x + i as u16, day_y, Cell::new(ch, day_fg, day_bg));
+                buffer.set(
+                    day_x + i as u16,
+                    day_y,
+                    Cell::new_unchecked(ch, day_fg, day_bg),
+                );
             }
 
             day += 1;
@@ -451,25 +492,26 @@ pub fn render_calendar(
             buffer.set(
                 char_x,
                 y + height - 1,
-                Cell::new(ch, theme.config_instructions_fg, bg_color),
+                Cell::new_unchecked(ch, theme.config_instructions_fg, bg_color),
             );
         }
     }
 
     // Add shadow effect
+    // Use new_unchecked for performance - shadow colors are intentionally low contrast
     let shadow_char = charset.shadow;
     for sy in 1..height {
         buffer.set(
             x + width,
             y + sy,
-            Cell::new(shadow_char, theme.window_shadow_color, Color::Black),
+            Cell::new_unchecked(shadow_char, theme.window_shadow_color, Color::Black),
         );
     }
     for sx in 1..=width {
         buffer.set(
             x + sx,
             y + height,
-            Cell::new(shadow_char, theme.window_shadow_color, Color::Black),
+            Cell::new_unchecked(shadow_char, theme.window_shadow_color, Color::Black),
         );
     }
 }
