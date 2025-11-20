@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2025-11-20
+
+### Added
+
+- Corner resize support for windows
+- Window titles now display running process name
+- Code modularization with dedicated splash and UI modules
+
+### Changed
+
+- Better terminal integration with improved PTY handling
+- UI optimizations for smoother rendering
+- ANSI escape sequence optimization
+- Rust code optimizations for better performance
+- Security optimizations
+
+### Fixed
+
+- Window resizing bug
+
 ## [0.9.0] - 2025-11-19
 
 ### Added
@@ -217,6 +237,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.10.0]: https://github.com/alejandroqh/term39/releases/tag/v0.10.0
 [0.9.0]: https://github.com/alejandroqh/term39/releases/tag/v0.9.0
 [0.8.5]: https://github.com/alejandroqh/term39/releases/tag/v0.8.5
 [0.8.1]: https://github.com/alejandroqh/term39/releases/tag/v0.8.1
