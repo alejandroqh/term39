@@ -213,7 +213,19 @@ impl Window {
     }
 
     /// Render the window to the video buffer
+    #[allow(dead_code)]
     pub fn render(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
+        self.render_with_title(buffer, charset, theme, None);
+    }
+
+    /// Render the window with an optional dynamic title override
+    pub fn render_with_title(
+        &self,
+        buffer: &mut VideoBuffer,
+        charset: &Charset,
+        theme: &Theme,
+        dynamic_title: Option<&str>,
+    ) {
         if self.is_minimized {
             return;
         }
@@ -222,7 +234,7 @@ impl Window {
         self.render_frame(buffer, charset, theme);
 
         // Draw the title bar with buttons
-        self.render_title_bar(buffer, theme);
+        self.render_title_bar(buffer, theme, dynamic_title);
 
         // Draw the content area
         self.render_content(buffer, theme);
@@ -363,7 +375,12 @@ impl Window {
         );
     }
 
-    fn render_title_bar(&self, buffer: &mut VideoBuffer, theme: &Theme) {
+    fn render_title_bar(
+        &self,
+        buffer: &mut VideoBuffer,
+        theme: &Theme,
+        dynamic_title: Option<&str>,
+    ) {
         // Use different backgrounds based on focus state
         let title_bg = if self.is_focused {
             theme.window_content_bg
@@ -394,11 +411,18 @@ impl Window {
             }
         }
 
+        // Use dynamic title if provided, otherwise use stored title
+        let title_to_render = dynamic_title.unwrap_or(&self.title);
+
         // Render title text with border color
         let title_start = self.x + x_offset;
         let title_space = (self.width as i32 - x_offset as i32 - 2) as u16; // -2 for right border
 
-        for (i, ch) in self.title.chars().take(title_space as usize).enumerate() {
+        for (i, ch) in title_to_render
+            .chars()
+            .take(title_space as usize)
+            .enumerate()
+        {
             buffer.set(
                 title_start + i as u16,
                 self.y,

@@ -10,6 +10,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use vte::Parser;
 
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+use std::process::Command;
+
 /// Terminal emulator that manages PTY, parser, and terminal grid
 pub struct TerminalEmulator {
     /// Terminal grid (screen buffer)
@@ -21,7 +24,7 @@ pub struct TerminalEmulator {
     /// PTY writer
     writer: Box<dyn Write + Send>,
     /// Child process handle
-    _child: Box<dyn Child + Send>,
+    child: Box<dyn Child + Send>,
     /// Channel to receive data from PTY reader thread
     rx: Receiver<Vec<u8>>,
 }
@@ -123,7 +126,7 @@ impl TerminalEmulator {
             parser,
             pty_master,
             writer,
-            _child: child,
+            child,
             rx,
         })
     }
@@ -274,5 +277,146 @@ impl TerminalEmulator {
         let mut grid = self.grid.lock().unwrap();
         grid.restore_content(terminal_lines);
         grid.set_cursor(cursor.x, cursor.y, cursor.visible);
+    }
+
+    /// Get the name of the foreground process running in the terminal (macOS)
+    /// Returns the process name (e.g., "zsh", "vim", "cargo")
+    #[cfg(target_os = "macos")]
+    pub fn get_foreground_process_name(&self) -> Option<String> {
+        // Get the child process PID
+        let child_pid = self.child.process_id()?;
+
+        // Use ps to find the foreground process in the process group
+        // First, get the process group ID of the child
+        let output = Command::new("ps")
+            .args(["-o", "tpgid=", "-p", &child_pid.to_string()])
+            .output()
+            .ok()?;
+
+        let tpgid = String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .parse::<u32>()
+            .ok()?;
+
+        // Now get the process name for the foreground process group
+        let output = Command::new("ps")
+            .args(["-o", "comm=", "-p", &tpgid.to_string()])
+            .output()
+            .ok()?;
+
+        let process_name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+        if process_name.is_empty() {
+            // Fall back to child process name
+            let output = Command::new("ps")
+                .args(["-o", "comm=", "-p", &child_pid.to_string()])
+                .output()
+                .ok()?;
+
+            let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+            if name.is_empty() {
+                None
+            } else {
+                // Extract just the binary name from path
+                Some(name.rsplit('/').next().unwrap_or(&name).to_string())
+            }
+        } else {
+            // Extract just the binary name from path
+            Some(
+                process_name
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(&process_name)
+                    .to_string(),
+            )
+        }
+    }
+
+    /// Get the name of the foreground process running in the terminal (Linux)
+    #[cfg(target_os = "linux")]
+    pub fn get_foreground_process_name(&self) -> Option<String> {
+        use std::fs;
+
+        let child_pid = self.child.process_id()?;
+
+        // Read the stat file to get the foreground process group
+        let stat_path = format!("/proc/{}/stat", child_pid);
+        let stat_content = fs::read_to_string(&stat_path).ok()?;
+
+        // Parse the stat file to get tpgid (field 8, 1-indexed)
+        // The stat format is: pid (comm) state ppid pgrp session tty_nr tpgid ...
+        // We need to handle comm containing spaces/parentheses
+        let comm_end = stat_content.rfind(')')?;
+        let after_comm = &stat_content[comm_end + 2..]; // Skip ") "
+        let parts: Vec<&str> = after_comm.split_whitespace().collect();
+
+        // After comm: state(0) ppid(1) pgrp(2) session(3) tty_nr(4) tpgid(5)
+        if parts.len() < 6 {
+            return None;
+        }
+
+        let tpgid: u32 = parts[5].parse().ok()?;
+
+        // Get the process name from /proc/[tpgid]/comm
+        let comm_path = format!("/proc/{}/comm", tpgid);
+        let name = fs::read_to_string(&comm_path)
+            .ok()
+            .or_else(|| {
+                // Fall back to child process
+                fs::read_to_string(format!("/proc/{}/comm", child_pid)).ok()
+            })?
+            .trim()
+            .to_string();
+
+        if name.is_empty() {
+            None
+        } else {
+            Some(name)
+        }
+    }
+
+    /// Get the name of the foreground process running in the terminal (Windows)
+    #[cfg(target_os = "windows")]
+    pub fn get_foreground_process_name(&self) -> Option<String> {
+        // Get the child process PID
+        let child_pid = self.child.process_id()?;
+
+        // Use wmic to get the process name
+        // Note: On Windows, we can't easily get the "foreground" process like on Unix
+        // So we just return the shell process name (usually cmd.exe or powershell.exe)
+        let output = Command::new("wmic")
+            .args([
+                "process",
+                "where",
+                &format!("ProcessId={}", child_pid),
+                "get",
+                "Name",
+                "/value",
+            ])
+            .output()
+            .ok()?;
+
+        let output_str = String::from_utf8_lossy(&output.stdout);
+
+        // Parse "Name=process.exe" format
+        for line in output_str.lines() {
+            if let Some(name) = line.strip_prefix("Name=") {
+                let name = name.trim();
+                if !name.is_empty() {
+                    // Remove .exe extension for cleaner display
+                    let name = name.strip_suffix(".exe").unwrap_or(name);
+                    return Some(name.to_string());
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Get the name of the foreground process (fallback for other platforms)
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    pub fn get_foreground_process_name(&self) -> Option<String> {
+        None
     }
 }

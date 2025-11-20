@@ -146,8 +146,12 @@ impl TerminalWindow {
         theme: &Theme,
         tint_terminal: bool,
     ) {
-        // Render the window frame and title bar
-        self.window.render(buffer, charset, theme);
+        // Get dynamic title with process name
+        let dynamic_title = self.get_dynamic_title();
+
+        // Render the window frame and title bar with dynamic title
+        self.window
+            .render_with_title(buffer, charset, theme, Some(&dynamic_title));
 
         // Render the terminal content
         self.render_terminal_content(buffer, theme, tint_terminal);
@@ -664,6 +668,42 @@ impl TerminalWindow {
         cursor: &crate::session::SerializableCursor,
     ) {
         self.emulator.restore_terminal_content(lines, cursor);
+    }
+
+    /// Get the name of the foreground process running in the terminal
+    pub fn get_foreground_process_name(&self) -> Option<String> {
+        self.emulator.get_foreground_process_name()
+    }
+
+    /// Get the dynamic title including the running process name
+    /// Format: "Terminal N [ > process ]" where > is a running indicator
+    pub fn get_dynamic_title(&self) -> String {
+        if let Some(process_name) = self.get_foreground_process_name() {
+            // Use '>' as an ASCII-compatible "running" indicator with spacing
+            format!("{} [ > {} ]", self.window.title, process_name)
+        } else {
+            self.window.title.clone()
+        }
+    }
+
+    /// Update the window's display title with process info
+    #[allow(dead_code)]
+    pub fn update_title_with_process(&mut self) {
+        // Store the base title if not already stored
+        if !self.window.title.contains(" [>") {
+            // Title is still the base title, keep it
+        }
+    }
+
+    /// Get the base title (without process info)
+    #[allow(dead_code)]
+    pub fn get_base_title(&self) -> &str {
+        // If the title contains process info, extract base title
+        if let Some(idx) = self.window.title.find(" [>") {
+            &self.window.title[..idx]
+        } else {
+            &self.window.title
+        }
     }
 }
 
