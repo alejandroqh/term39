@@ -117,7 +117,7 @@ fn main() -> io::Result<()> {
     let gpm_connection = initialization::initialize_gpm();
 
     // Initialize video buffer and window manager
-    let mut video_buffer = initialization::initialize_video_buffer(&backend);
+    let mut video_buffer = initialization::initialize_video_buffer(backend.as_ref());
     let mut window_manager = initialization::initialize_window_manager(&cli_args, &mut app_config)?;
 
     // Initialize application state
@@ -149,7 +149,7 @@ fn main() -> io::Result<()> {
             // Clear the terminal screen to remove artifacts
             use crossterm::execute;
             execute!(stdout, terminal::Clear(ClearType::All))?;
-            video_buffer = initialization::initialize_video_buffer(&backend);
+            video_buffer = initialization::initialize_video_buffer(backend.as_ref());
             app_state.update_auto_tiling_button_position(new_rows);
         }
 
@@ -334,7 +334,7 @@ fn main() -> io::Result<()> {
                         &command_indexer,
                         &mut command_history,
                         &mut window_manager,
-                        &backend,
+                        backend.as_ref(),
                     ) {
                         continue;
                     }
@@ -383,7 +383,7 @@ fn main() -> io::Result<()> {
                         current_focus,
                         &mut window_manager,
                         &mut clipboard_manager,
-                        &backend,
+                        backend.as_ref(),
                         &app_config,
                         &cli_args,
                     ) {

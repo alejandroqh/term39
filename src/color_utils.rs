@@ -179,8 +179,8 @@ mod tests {
         let white_lum = calculate_luminance(&Color::White);
 
         assert!(black_lum < white_lum);
-        assert!(black_lum >= 0.0 && black_lum <= 1.0);
-        assert!(white_lum >= 0.0 && white_lum <= 1.0);
+        assert!((0.0..=1.0).contains(&black_lum));
+        assert!((0.0..=1.0).contains(&white_lum));
     }
 
     #[test]

@@ -9,6 +9,7 @@ use crate::window_manager::WindowManager;
 use std::io::{self, Write};
 
 /// Renders a complete frame to the screen
+#[allow(clippy::too_many_arguments)]
 pub fn render_frame(
     video_buffer: &mut VideoBuffer,
     backend: &mut Box<dyn RenderBackend>,

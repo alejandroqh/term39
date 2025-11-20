@@ -89,7 +89,7 @@ pub fn handle_slight_input_keyboard(
     _command_indexer: &CommandIndexer,
     command_history: &mut CommandHistory,
     window_manager: &mut WindowManager,
-    backend: &Box<dyn RenderBackend>,
+    backend: &dyn RenderBackend,
 ) -> bool {
     if let Some(ref mut slight_input) = app_state.active_slight_input {
         match key_event.code {

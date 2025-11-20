@@ -26,7 +26,7 @@ pub fn handle_desktop_keyboard(
     current_focus: FocusState,
     window_manager: &mut WindowManager,
     clipboard_manager: &mut ClipboardManager,
-    backend: &Box<dyn RenderBackend>,
+    backend: &dyn RenderBackend,
     app_config: &AppConfig,
     cli_args: &Cli,
 ) -> bool {
@@ -248,7 +248,7 @@ pub fn forward_to_terminal(key_event: KeyEvent, window_manager: &mut WindowManag
 
 // Helper functions
 
-fn show_help_window(app_state: &mut AppState, backend: &Box<dyn RenderBackend>) {
+fn show_help_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
     let (cols, rows) = backend.dimensions();
 
     // Platform-specific modifier key text
@@ -306,7 +306,7 @@ fn show_help_window(app_state: &mut AppState, backend: &Box<dyn RenderBackend>) 
     ));
 }
 
-fn show_about_window(app_state: &mut AppState, backend: &Box<dyn RenderBackend>) {
+fn show_about_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
     let (cols, rows) = backend.dimensions();
     let license_message = format!(
         "TERM39 - Terminal UI Windows Manager\n\
@@ -349,7 +349,7 @@ fn handle_esc_key(
     app_state: &mut AppState,
     current_focus: FocusState,
     window_manager: &mut WindowManager,
-    backend: &Box<dyn RenderBackend>,
+    backend: &dyn RenderBackend,
 ) {
     if current_focus == FocusState::Desktop {
         // If windows are open, show confirmation
@@ -379,7 +379,7 @@ fn handle_q_key(
     app_state: &mut AppState,
     current_focus: FocusState,
     window_manager: &mut WindowManager,
-    backend: &Box<dyn RenderBackend>,
+    backend: &dyn RenderBackend,
 ) {
     if current_focus == FocusState::Desktop {
         // If windows are open, show confirmation
@@ -408,7 +408,7 @@ fn handle_q_key(
 fn create_terminal_window(
     app_state: &mut AppState,
     window_manager: &mut WindowManager,
-    backend: &Box<dyn RenderBackend>,
+    backend: &dyn RenderBackend,
     maximized: bool,
 ) {
     let (cols, rows) = backend.dimensions();
@@ -450,7 +450,7 @@ fn create_terminal_window(
 fn handle_save_session(
     app_state: &mut AppState,
     window_manager: &mut WindowManager,
-    backend: &Box<dyn RenderBackend>,
+    backend: &dyn RenderBackend,
     cli_args: &Cli,
     app_config: &AppConfig,
 ) {

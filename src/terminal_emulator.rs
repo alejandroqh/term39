@@ -369,11 +369,7 @@ impl TerminalEmulator {
             .trim()
             .to_string();
 
-        if name.is_empty() {
-            None
-        } else {
-            Some(name)
-        }
+        if name.is_empty() { None } else { Some(name) }
     }
 
     /// Get the name of the foreground process running in the terminal (Windows)

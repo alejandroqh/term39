@@ -150,7 +150,7 @@ pub fn initialize_window_manager(
 }
 
 /// Creates a new video buffer for the given backend dimensions
-pub fn initialize_video_buffer(backend: &Box<dyn RenderBackend>) -> VideoBuffer {
+pub fn initialize_video_buffer(backend: &dyn RenderBackend) -> VideoBuffer {
     let (cols, rows) = backend.dimensions();
     VideoBuffer::new(cols, rows)
 }
