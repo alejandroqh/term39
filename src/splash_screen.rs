@@ -17,7 +17,7 @@ pub fn show_splash_screen(
 ) -> io::Result<()> {
     let (cols, rows) = buffer.dimensions();
 
-    // Clear screen to black
+    // Clear screen to black (outside the splash box)
     let black_cell = Cell::new(' ', theme.splash_fg, Color::Black);
     for y in 0..rows {
         for x in 0..cols {

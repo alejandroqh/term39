@@ -318,6 +318,7 @@ impl ConfigWindow {
             "classic" => "Classic",
             "monochrome" => "Monochrome",
             "dark" => "Dark",
+            "dracu" => "Dracu",
             "green_phosphor" => "Green Phosphor",
             "amber" => "Amber",
             "ndd" => "NDD",

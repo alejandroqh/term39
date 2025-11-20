@@ -520,7 +520,8 @@ fn main() -> io::Result<()> {
                                         let next_theme = match app_config.theme.as_str() {
                                             "classic" => "monochrome",
                                             "monochrome" => "dark",
-                                            "dark" => "green_phosphor",
+                                            "dark" => "dracu",
+                                            "dracu" => "green_phosphor",
                                             "green_phosphor" => "amber",
                                             "amber" => "ndd",
                                             "ndd" => "qbasic",
