@@ -217,20 +217,24 @@ impl TerminalWindow {
                 };
 
                 // Render the cell
-                if let Some(term_cell) = term_cell {
-                    let mut cell = convert_terminal_cell(term_cell, theme, tint_terminal);
+                let mut cell = if let Some(term_cell) = term_cell {
+                    convert_terminal_cell(term_cell, theme, tint_terminal)
+                } else {
+                    // Grid doesn't have data for this cell (window is larger than grid)
+                    // Use default terminal background to maintain visual consistency
+                    Cell::new_unchecked(' ', theme.window_content_fg, theme.window_content_bg)
+                };
 
-                    // Apply selection highlighting if this cell is selected
-                    if let Some(selection) = &self.selection {
-                        let pos = Position::new(col, row);
-                        if selection.contains(pos) {
-                            // Invert colors for DOS-style selection
-                            cell = cell.inverted();
-                        }
+                // Apply selection highlighting if this cell is selected
+                if let Some(selection) = &self.selection {
+                    let pos = Position::new(col, row);
+                    if selection.contains(pos) {
+                        // Invert colors for DOS-style selection
+                        cell = cell.inverted();
                     }
-
-                    buffer.set(content_x + col, content_y + row, cell);
                 }
+
+                buffer.set(content_x + col, content_y + row, cell);
             }
         }
 
