@@ -304,7 +304,7 @@ impl Perform for AnsiHandler<'_> {
                     .unwrap_or(0);
                 match mode {
                     0 => self.grid.erase_to_eol(), // Erase to right
-                    1 => {}                        // Erase to left (TODO)
+                    1 => self.grid.erase_to_bol(), // Erase to left
                     2 => self.grid.clear_line(),   // Erase all
                     _ => {}
                 }
@@ -365,7 +365,8 @@ impl Perform for AnsiHandler<'_> {
                 // Standard Mode Set (SM)
                 for param in params.iter() {
                     match param[0] {
-                        20 => self.grid.lnm_mode = true, // LNM - Line Feed/New Line Mode
+                        4 => self.grid.insert_mode = true,  // IRM - Insert/Replace Mode
+                        20 => self.grid.lnm_mode = true,    // LNM - Line Feed/New Line Mode
                         _ => {}
                     }
                 }
@@ -375,6 +376,7 @@ impl Perform for AnsiHandler<'_> {
                 for param in params.iter() {
                     match param[0] {
                         1 => self.grid.application_cursor_keys = true, // DECCKM
+                        6 => self.grid.origin_mode = true,             // DECOM
                         7 => self.grid.auto_wrap_mode = true,          // DECAWM
                         25 => self.grid.cursor.visible = true,         // Show cursor
                         1002 => self.grid.mouse_button_tracking = true, // Button event tracking
@@ -392,7 +394,8 @@ impl Perform for AnsiHandler<'_> {
                 // Standard Mode Reset (RM)
                 for param in params.iter() {
                     match param[0] {
-                        20 => self.grid.lnm_mode = false, // LNM - Line Feed/New Line Mode
+                        4 => self.grid.insert_mode = false, // IRM - Insert/Replace Mode
+                        20 => self.grid.lnm_mode = false,   // LNM - Line Feed/New Line Mode
                         _ => {}
                     }
                 }
@@ -402,6 +405,7 @@ impl Perform for AnsiHandler<'_> {
                 for param in params.iter() {
                     match param[0] {
                         1 => self.grid.application_cursor_keys = false, // DECCKM
+                        6 => self.grid.origin_mode = false,             // DECOM
                         7 => self.grid.auto_wrap_mode = false,          // DECAWM
                         25 => self.grid.cursor.visible = false,         // Hide cursor
                         1002 => self.grid.mouse_button_tracking = false, // Button event tracking

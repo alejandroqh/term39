@@ -160,6 +160,12 @@ pub struct TerminalGrid {
     /// Auto-wrap mode (DECAWM - ?7)
     /// When set, characters wrap to next line at end of line
     pub auto_wrap_mode: bool,
+    /// Insert/Replace mode (IRM - mode 4)
+    /// When set, characters are inserted; when reset, characters replace
+    pub insert_mode: bool,
+    /// Origin mode (DECOM - ?6)
+    /// When set, cursor positioning is relative to scroll region
+    pub origin_mode: bool,
     /// Response queue for DSR and other queries that need to send data back
     response_queue: Vec<String>,
 }
@@ -195,6 +201,8 @@ impl TerminalGrid {
             mouse_urxvt_mode: false,
             lnm_mode: false,
             auto_wrap_mode: true, // Default: enabled (xterm behavior)
+            insert_mode: false,   // Default: replace mode
+            origin_mode: false,   // Default: absolute positioning
             response_queue: Vec::new(),
         }
     }
@@ -433,6 +441,8 @@ impl TerminalGrid {
         self.mouse_urxvt_mode = false;
         self.lnm_mode = false;
         self.auto_wrap_mode = true;
+        self.insert_mode = false;
+        self.origin_mode = false;
 
         // Clear response queue
         self.response_queue.clear();
@@ -519,6 +529,17 @@ impl TerminalGrid {
     pub fn erase_to_eol(&mut self) {
         if let Some(row) = self.rows.get_mut(self.cursor.y) {
             for x in self.cursor.x..self.cols {
+                if let Some(cell) = row.get_mut(x) {
+                    cell.reset();
+                }
+            }
+        }
+    }
+
+    /// Erase from beginning of line to cursor (inclusive)
+    pub fn erase_to_bol(&mut self) {
+        if let Some(row) = self.rows.get_mut(self.cursor.y) {
+            for x in 0..=self.cursor.x {
                 if let Some(cell) = row.get_mut(x) {
                     cell.reset();
                 }
