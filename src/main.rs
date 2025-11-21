@@ -318,27 +318,95 @@ fn main() -> io::Result<()> {
         }
         terminal::disable_raw_mode()?;
 
-        // If user chose to launch, show message about how to run
+        // If user chose to launch, actually launch the application
         if should_launch {
             let config = setup_window.get_config();
-            println!("Configuration saved!");
-            println!("\nTo launch with framebuffer mode, run:");
-            println!(
-                "  sudo ./term39 -f --fb-mode={} --fb-font={}",
-                config.display.mode, config.font.name
-            );
-            if config.display.scale != "auto" {
-                println!(
-                    "  Add --fb-scale={} for custom scaling",
-                    config.display.scale
+
+            // Check device permissions before launching
+            let mut permission_errors: Vec<String> = Vec::new();
+            let mut fix_hints: Vec<String> = Vec::new();
+
+            // Check framebuffer device access
+            let fb_device = "/dev/fb0";
+            if std::fs::metadata(fb_device).is_err() {
+                permission_errors.push(format!("Framebuffer device '{}' not found", fb_device));
+                fix_hints.push(
+                    "Ensure you're on a Linux console (TTY), not a terminal emulator".to_string(),
                 );
+            } else if std::fs::File::open(fb_device).is_err() {
+                permission_errors.push(format!("No permission to access '{}'", fb_device));
+                fix_hints.push("Add user to video group: sudo usermod -aG video $USER".to_string());
             }
+
+            // Check mouse device access
+            let mouse_device = config.get_mouse_device();
+            if !mouse_device.is_empty() {
+                if std::fs::metadata(&mouse_device).is_err() {
+                    permission_errors.push(format!("Mouse device '{}' not found", mouse_device));
+                    fix_hints.push("Check if the mouse device path is correct".to_string());
+                } else if std::fs::File::open(&mouse_device).is_err() {
+                    permission_errors.push(format!("No permission to access '{}'", mouse_device));
+                    fix_hints
+                        .push("Add user to input group: sudo usermod -aG input $USER".to_string());
+                }
+            }
+
+            // If there are permission errors, show them and exit
+            if !permission_errors.is_empty() {
+                println!("Configuration saved to ~/.config/term39/fb.toml\n");
+                println!("Cannot launch framebuffer mode due to permission issues:\n");
+                for error in &permission_errors {
+                    println!("  - {}", error);
+                }
+                println!("\nTo fix:");
+                for hint in &fix_hints {
+                    println!("  {}", hint);
+                }
+                println!("\nAfter adding groups, log out and back in for changes to take effect.");
+                println!("\nAlternatively, run with sudo:");
+                println!("  sudo term39 -f --fb-mode={}", config.display.mode);
+                return Ok(());
+            }
+
+            println!("Configuration saved! Launching framebuffer mode...\n");
+
+            // Get the current executable path
+            let exe_path =
+                std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("./term39"));
+
+            // Build command arguments
+            let mut args = vec![
+                "-f".to_string(),
+                format!("--fb-mode={}", config.display.mode),
+                format!("--fb-font={}", config.font.name),
+            ];
+
+            if config.display.scale != "auto" {
+                args.push(format!("--fb-scale={}", config.display.scale));
+            }
+
             if config.mouse.invert_x {
-                println!("  Add --invert-mouse-x for inverted X-axis");
+                args.push("--invert-mouse-x".to_string());
             }
+
             if config.mouse.invert_y {
-                println!("  Add --invert-mouse-y for inverted Y-axis");
+                args.push("--invert-mouse-y".to_string());
             }
+
+            if config.mouse.swap_buttons {
+                args.push("--swap-mouse-buttons".to_string());
+            }
+
+            // Launch directly (user has permissions)
+            use std::os::unix::process::CommandExt;
+            let mut cmd = std::process::Command::new(&exe_path);
+            cmd.args(&args);
+
+            // Use exec to replace current process
+            let err = cmd.exec();
+            // If we get here, exec failed
+            eprintln!("Failed to launch: {}", err);
+            return Err(err);
         } else {
             println!("Configuration saved to ~/.config/term39/fb.toml");
         }

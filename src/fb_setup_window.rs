@@ -824,11 +824,15 @@ impl FbSetupWindow {
         let button_bg = theme.window_title_bg_focused;
 
         // Save & Launch button (F1)
-        let save_launch = " F1 Save & Launch ";
-        let save_launch_x = self.x + 5;
         let sl_focused = is_focused && self.button_index == 0;
+        let save_launch = if sl_focused {
+            "[ F1 Save & Launch ]"
+        } else {
+            "  F1 Save & Launch  "
+        };
+        let save_launch_x = self.x + 4;
         let (sl_fg, sl_bg) = if sl_focused {
-            (theme.config_toggle_on_color, button_bg)
+            (button_bg, theme.config_toggle_on_color) // Inverted colors for selected
         } else {
             (button_fg, button_bg)
         };
@@ -841,11 +845,15 @@ impl FbSetupWindow {
         }
 
         // Save button (F2)
-        let save = " F2 Save ";
-        let save_x = save_launch_x + save_launch.len() as u16 + 2;
         let s_focused = is_focused && self.button_index == 1;
+        let save = if s_focused {
+            "[ F2 Save ]"
+        } else {
+            "  F2 Save  "
+        };
+        let save_x = save_launch_x + 20 + 2;
         let (s_fg, s_bg) = if s_focused {
-            (theme.config_toggle_on_color, button_bg)
+            (button_bg, theme.config_toggle_on_color) // Inverted colors for selected
         } else {
             (button_fg, button_bg)
         };
@@ -858,11 +866,15 @@ impl FbSetupWindow {
         }
 
         // Cancel button (F3/Esc)
-        let cancel = " F3 Cancel ";
-        let cancel_x = save_x + save.len() as u16 + 2;
         let c_focused = is_focused && self.button_index == 2;
+        let cancel = if c_focused {
+            "[ F3 Cancel ]"
+        } else {
+            "  F3 Cancel  "
+        };
+        let cancel_x = save_x + 11 + 2;
         let (c_fg, c_bg) = if c_focused {
-            (theme.config_toggle_on_color, button_bg)
+            (button_bg, theme.config_toggle_on_color) // Inverted colors for selected
         } else {
             (fg, bg)
         };

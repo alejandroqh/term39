@@ -307,6 +307,15 @@ impl FramebufferConfig {
             Some(dev) => dev,
         }
     }
+
+    /// Get the actual mouse device path to use
+    /// Returns the configured device, or the default "/dev/input/mice" for "auto"
+    pub fn get_mouse_device(&self) -> String {
+        match &self.mouse.device {
+            None => "/dev/input/mice".to_string(),
+            Some(dev) => dev.clone(),
+        }
+    }
 }
 
 #[cfg(test)]

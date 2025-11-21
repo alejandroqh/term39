@@ -232,11 +232,11 @@ impl GpmConnection {
             // Request ALL events from GPM to prevent its built-in selection behavior
             // When event_mask is ~0, GPM passes all events to the application.
             // default_mask controls what GPM handles itself:
-            // - GPM_MOVE: GPM draws cursor (for terminal mode)
+            // - GPM_MOVE | GPM_DRAG: GPM draws cursor during all movement (for terminal mode)
             // - 0: Application handles everything including cursor (for framebuffer mode)
             let event_mask: c_ushort = !0; // All possible events
             let default_mask = if draw_cursor {
-                GPM_MOVE as c_ushort // GPM draws cursor
+                (GPM_MOVE | GPM_DRAG) as c_ushort // GPM draws cursor during move and drag
             } else {
                 0 // Application draws cursor
             };
