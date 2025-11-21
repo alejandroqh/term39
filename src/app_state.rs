@@ -133,12 +133,13 @@ impl AppState {
         self.copy_button.enabled = has_selection;
         self.clear_selection_button.enabled = has_selection;
 
-        // Position exit button on the right side of top bar (before clock area)
+        // Position exit button on the right side of top bar (before battery and clock)
+        // Battery indicator "| [ 89%] " is 10 chars
         // Clock with date format "| Thu Nov 20, 09:21 " is about 22 chars
         // Clock without date "| 09:21:45 " is about 12 chars
-        // Use the larger value to ensure no overlap, plus padding
+        // Total max: 10 + 22 = 32 chars, use 34 for safe padding
         let exit_button_width = self.exit_button.width();
-        self.exit_button.x = cols.saturating_sub(exit_button_width + 24);
+        self.exit_button.x = cols.saturating_sub(exit_button_width + 34);
         self.exit_button.y = 0;
 
         // Calculate button widths

@@ -240,9 +240,16 @@ impl GpmConnection {
             // In framebuffer mode, we capture everything since we draw our own cursor.
             let (event_mask, default_mask) = if draw_cursor {
                 // Terminal mode: Let GPM draw cursor while we handle button events
-                // We request all button-related events but let GPM also handle MOVE/DRAG
-                // for cursor drawing. Setting both in default_mask allows GPM to draw cursor.
-                let events = (GPM_MOVE | GPM_DRAG | GPM_DOWN | GPM_UP) as c_ushort;
+                //
+                // IMPORTANT: For GPM to draw its cursor, it must HANDLE (not just receive)
+                // the MOVE events. Events in event_mask are sent to us; events in default_mask
+                // are handled by GPM (including cursor drawing).
+                //
+                // We only request button events (DOWN/UP/DRAG) and let GPM handle MOVE
+                // entirely so it draws the cursor during normal mouse movement.
+                // We include DRAG in our event_mask so we can track drag operations,
+                // but also keep it in default_mask so GPM continues drawing cursor during drags.
+                let events = (GPM_DRAG | GPM_DOWN | GPM_UP) as c_ushort;
                 let defaults = (GPM_MOVE | GPM_DRAG) as c_ushort;
                 (events, defaults)
             } else {

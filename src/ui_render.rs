@@ -4,8 +4,30 @@ use crate::config_manager::AppConfig;
 use crate::theme::Theme;
 use crate::video_buffer::{Cell, VideoBuffer};
 use crate::window_manager::{FocusState, WindowManager};
+use battery::Manager;
 use chrono::{Datelike, Local, NaiveDate};
 use crossterm::style::Color;
+
+/// Get the current battery percentage (0-100) or None if no battery is available
+fn get_battery_percentage() -> Option<u8> {
+    let manager = Manager::new().ok()?;
+    let mut batteries = manager.batteries().ok()?;
+    let battery = batteries.next()?.ok()?;
+
+    let percentage = battery.state_of_charge().value * 100.0;
+    Some(percentage.round() as u8)
+}
+
+/// Get the color for the battery indicator based on charge level
+fn get_battery_color(percentage: u8) -> Color {
+    if percentage > 40 {
+        Color::White
+    } else if percentage >= 20 {
+        Color::DarkGrey
+    } else {
+        Color::Red
+    }
+}
 
 // Calendar state structure
 pub struct CalendarState {
@@ -137,7 +159,7 @@ pub fn render_top_bar(
     // Right section - Exit button (before clock)
     exit_button.render(buffer, theme);
 
-    // Right section - Clock with dark background
+    // Right section - Battery indicator and Clock with dark background
     let now = Local::now();
 
     // Format clock based on configuration
@@ -152,13 +174,66 @@ pub fn render_top_bar(
     // Format: "| Tue Nov 11, 09:21 " or "| 09:21:45 " (with separator and trailing space)
     let clock_with_separator = format!("| {} ", time_str);
     let clock_width = clock_with_separator.len() as u16;
-    let time_pos = cols.saturating_sub(clock_width);
+
+    // Get battery percentage and create block bar indicator
+    let battery_percentage = get_battery_percentage();
+    let battery_width = if battery_percentage.is_some() { 10u16 } else { 0u16 }; // "| [█████] "
+
+    // Calculate positions (battery comes before clock)
+    let total_width = battery_width + clock_width;
+    let start_pos = cols.saturating_sub(total_width);
+
+    // Render battery indicator with block bar
+    if let Some(pct) = battery_percentage {
+        let battery_color = get_battery_color(pct);
+        let filled_blocks = ((pct as f32 / 20.0).round() as usize).min(5);
+
+        // Format: "| [█████] " (10 chars)
+        // Positions: 0='|', 1=' ', 2='[', 3-7=blocks, 8=']', 9=' '
+        let prefix = "| [";
+        let suffix = "] ";
+
+        // Render prefix with clock colors
+        for (i, ch) in prefix.chars().enumerate() {
+            buffer.set(
+                start_pos + i as u16,
+                0,
+                Cell::new_unchecked(ch, theme.clock_fg, theme.clock_bg),
+            );
+        }
+
+        // Render battery blocks
+        let block_start = start_pos + prefix.len() as u16;
+        for i in 0..5 {
+            let (ch, fg) = if i < filled_blocks {
+                ('█', battery_color) // Filled block with battery color
+            } else {
+                ('░', Color::DarkGrey) // Empty block
+            };
+            buffer.set(
+                block_start + i as u16,
+                0,
+                Cell::new_unchecked(ch, fg, theme.clock_bg),
+            );
+        }
+
+        // Render suffix with clock colors
+        let suffix_start = block_start + 5;
+        for (i, ch) in suffix.chars().enumerate() {
+            buffer.set(
+                suffix_start + i as u16,
+                0,
+                Cell::new_unchecked(ch, theme.clock_fg, theme.clock_bg),
+            );
+        }
+    }
 
     // Render clock with dark background
+    let clock_pos = start_pos + battery_width;
     // Use new_unchecked for performance - theme colors are pre-validated
     for (i, ch) in clock_with_separator.chars().enumerate() {
         buffer.set(
-            time_pos + i as u16,
+            clock_pos + i as u16,
             0,
             Cell::new_unchecked(ch, theme.clock_fg, theme.clock_bg),
         );
