@@ -318,14 +318,14 @@ impl Theme {
             button_pressed_bg: Color::DarkGrey,
 
             // Bottom bar
-            bottombar_bg: Color::Black,
+            bottombar_bg: Color::DarkGrey,
             bottombar_fg: Color::White,
             bottombar_button_normal_fg: Color::White,
-            bottombar_button_normal_bg: Color::Black,
+            bottombar_button_normal_bg: Color::DarkGrey,
             bottombar_button_focused_fg: Color::Black,
             bottombar_button_focused_bg: Color::Cyan,
-            bottombar_button_minimized_fg: Color::DarkGrey,
-            bottombar_button_minimized_bg: Color::Black,
+            bottombar_button_minimized_fg: Color::Black,
+            bottombar_button_minimized_bg: Color::DarkGrey,
 
             // Toggle button
             toggle_enabled_fg: Color::Green,

@@ -344,22 +344,28 @@ pub fn render_button_bar(
     // Render help text on the right side
     let help_text = " > F1 Help | 's' Settings | F10 Exit < ";
     let help_text_len = help_text.len() as u16;
-    if cols > help_text_len {
-        let help_x = cols - help_text_len - 1;
+    let help_x = if cols > help_text_len {
+        let hx = cols - help_text_len - 1;
         for (i, ch) in help_text.chars().enumerate() {
             buffer.set(
-                help_x + i as u16,
+                hx + i as u16,
                 bar_y,
                 Cell::new_unchecked(ch, theme.bottombar_fg, theme.bottombar_bg),
             );
         }
-    }
+        hx
+    } else {
+        cols // No room for help text
+    };
 
     // Get list of windows
     let windows = window_manager.get_window_list();
     if windows.is_empty() {
         return;
     }
+
+    // Calculate max position for window buttons (don't overlap help text)
+    let max_button_x = help_x.saturating_sub(2);
 
     for (_id, title, is_focused, is_minimized) in windows {
         // Max button width is 18 chars total
@@ -398,6 +404,11 @@ pub fn render_button_bar(
             )
         };
 
+        // Check if there's room for at least the brackets and minimal content
+        if current_x + 4 >= max_button_x {
+            break; // Not enough room for this button
+        }
+
         // Render opening bracket and space
         // Use new_unchecked for performance - theme colors are pre-validated
         buffer.set(
@@ -415,7 +426,7 @@ pub fn render_button_bar(
 
         // Render title
         for ch in button_title.chars() {
-            if current_x >= cols - 1 {
+            if current_x >= max_button_x {
                 break;
             }
             buffer.set(
@@ -427,7 +438,7 @@ pub fn render_button_bar(
         }
 
         // Render space and closing bracket
-        if current_x < cols - 1 {
+        if current_x < max_button_x {
             buffer.set(
                 current_x,
                 bar_y,
@@ -435,7 +446,7 @@ pub fn render_button_bar(
             );
             current_x += 1;
         }
-        if current_x < cols - 1 {
+        if current_x < max_button_x {
             buffer.set(
                 current_x,
                 bar_y,
@@ -447,8 +458,8 @@ pub fn render_button_bar(
         // Add space between buttons
         current_x += 1;
 
-        // Stop if we've run out of space
-        if current_x >= cols - 1 {
+        // Stop if we've run out of space (before help text)
+        if current_x >= max_button_x {
             break;
         }
     }
