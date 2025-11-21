@@ -155,6 +155,33 @@ impl FramebufferBackend {
         let cursor_tracker =
             crate::framebuffer::CursorTracker::new(pixel_width, pixel_height, invert_x, invert_y);
 
+        // Calculate initial cell position from cursor tracker's pixel position
+        // This fixes incorrect position_changed detection on first mouse movement
+        let (cols, rows) = renderer.dimensions();
+        let (base_width, base_height) = renderer.pixel_dimensions();
+        let scale = renderer.scale();
+        let (offset_x, offset_y) = renderer.offsets();
+
+        let char_width = if cols > 0 { base_width / cols } else { 1 };
+        let char_height = if rows > 0 { base_height / rows } else { 1 };
+
+        let x_in_content = cursor_tracker.x.saturating_sub(offset_x);
+        let y_in_content = cursor_tracker.y.saturating_sub(offset_y);
+
+        let x_base = x_in_content / scale;
+        let y_base = y_in_content / scale;
+
+        let initial_col = if char_width > 0 {
+            (x_base / char_width).min(cols.saturating_sub(1)) as u16
+        } else {
+            0
+        };
+        let initial_row = if char_height > 0 {
+            (y_base / char_height).min(rows.saturating_sub(1)) as u16
+        } else {
+            0
+        };
+
         Ok(Self {
             renderer,
             tty_cols,
@@ -164,8 +191,8 @@ impl FramebufferBackend {
             current_left: false,
             current_right: false,
             current_middle: false,
-            prev_col: 0,
-            prev_row: 0,
+            prev_col: initial_col,
+            prev_row: initial_row,
             button_event_queue: VecDeque::new(),
         })
     }
@@ -191,8 +218,9 @@ impl FramebufferBackend {
         let scale = self.renderer.scale();
         let (offset_x, offset_y) = self.renderer.offsets();
 
-        let char_width = base_width / cols;
-        let char_height = base_height / rows;
+        // Add division-by-zero protection
+        let char_width = if cols > 0 { base_width / cols } else { 1 };
+        let char_height = if rows > 0 { base_height / rows } else { 1 };
 
         let x_in_content = self.cursor_tracker.x.saturating_sub(offset_x);
         let y_in_content = self.cursor_tracker.y.saturating_sub(offset_y);
@@ -200,8 +228,16 @@ impl FramebufferBackend {
         let x_base = x_in_content / scale;
         let y_base = y_in_content / scale;
 
-        let col = (x_base / char_width).min(cols - 1) as u16;
-        let row = (y_base / char_height).min(rows - 1) as u16;
+        let col = if char_width > 0 {
+            (x_base / char_width).min(cols.saturating_sub(1)) as u16
+        } else {
+            0
+        };
+        let row = if char_height > 0 {
+            (y_base / char_height).min(rows.saturating_sub(1)) as u16
+        } else {
+            0
+        };
 
         self.button_event_queue
             .push_back((event_type, button_id, col, row));
@@ -252,10 +288,9 @@ impl RenderBackend for FramebufferBackend {
     fn update_cursor(&mut self) -> bool {
         if let Some(ref mut mouse_input) = self.mouse_input {
             let mut moved = false;
-            // Store mouse events with their coordinates (event_type, button_id, col, row)
-            let mut pending_events = Vec::new();
 
             // Helper function to calculate cell coordinates from pixel position
+            // with division-by-zero protection
             let calc_coords =
                 |tracker: &crate::framebuffer::CursorTracker,
                  renderer: &crate::framebuffer::FramebufferRenderer| {
@@ -264,8 +299,8 @@ impl RenderBackend for FramebufferBackend {
                     let scale = renderer.scale();
                     let (offset_x, offset_y) = renderer.offsets();
 
-                    let char_width = base_width / cols;
-                    let char_height = base_height / rows;
+                    let char_width = if cols > 0 { base_width / cols } else { 1 };
+                    let char_height = if rows > 0 { base_height / rows } else { 1 };
 
                     let x_in_content = tracker.x.saturating_sub(offset_x);
                     let y_in_content = tracker.y.saturating_sub(offset_y);
@@ -273,8 +308,16 @@ impl RenderBackend for FramebufferBackend {
                     let x_base = x_in_content / scale;
                     let y_base = y_in_content / scale;
 
-                    let col = (x_base / char_width).min(cols - 1) as u16;
-                    let row = (y_base / char_height).min(rows - 1) as u16;
+                    let col = if char_width > 0 {
+                        (x_base / char_width).min(cols.saturating_sub(1)) as u16
+                    } else {
+                        0
+                    };
+                    let row = if char_height > 0 {
+                        (y_base / char_height).min(rows.saturating_sub(1)) as u16
+                    } else {
+                        0
+                    };
 
                     (col, row)
                 };
@@ -289,41 +332,48 @@ impl RenderBackend for FramebufferBackend {
                 // Check if cursor moved to a different cell
                 let position_changed = col != self.prev_col || row != self.prev_row;
 
-                // Check for button state changes FIRST (higher priority)
-                if event.buttons.left != self.current_left {
-                    let event_type = if event.buttons.left { 0 } else { 1 }; // 0=Down, 1=Up
-                    pending_events.push((event_type, 0, col, row));
-                    self.current_left = event.buttons.left;
+                // Process events in correct order: DOWN -> DRAG -> UP
+                // This ensures proper event sequencing for clicks and drags
+
+                // 1. Check for button DOWN events (press)
+                if event.buttons.left && !self.current_left {
+                    self.button_event_queue.push_back((0, 0, col, row)); // Down left
+                    self.current_left = true;
                 }
-                if event.buttons.right != self.current_right {
-                    let event_type = if event.buttons.right { 0 } else { 1 };
-                    pending_events.push((event_type, 1, col, row));
-                    self.current_right = event.buttons.right;
+                if event.buttons.right && !self.current_right {
+                    self.button_event_queue.push_back((0, 1, col, row)); // Down right
+                    self.current_right = true;
                 }
-                if event.buttons.middle != self.current_middle {
-                    let event_type = if event.buttons.middle { 0 } else { 1 };
-                    pending_events.push((event_type, 2, col, row));
-                    self.current_middle = event.buttons.middle;
+                if event.buttons.middle && !self.current_middle {
+                    self.button_event_queue.push_back((0, 2, col, row)); // Down middle
+                    self.current_middle = true;
                 }
 
-                // If position changed and a button is held, record drag event
-                // We'll keep only the latest drag event per button
+                // 2. Check for DRAG events (position changed while button held)
                 if position_changed {
                     if self.current_left {
-                        // Remove any previous drag events for left button
-                        pending_events.retain(|(et, bid, _, _)| !(*et == 2 && *bid == 0));
-                        pending_events.push((2, 0, col, row)); // Drag left
+                        self.button_event_queue.push_back((2, 0, col, row)); // Drag left
                     }
                     if self.current_right {
-                        // Remove any previous drag events for right button
-                        pending_events.retain(|(et, bid, _, _)| !(*et == 2 && *bid == 1));
-                        pending_events.push((2, 1, col, row)); // Drag right
+                        self.button_event_queue.push_back((2, 1, col, row)); // Drag right
                     }
                     if self.current_middle {
-                        // Remove any previous drag events for middle button
-                        pending_events.retain(|(et, bid, _, _)| !(*et == 2 && *bid == 2));
-                        pending_events.push((2, 2, col, row)); // Drag middle
+                        self.button_event_queue.push_back((2, 2, col, row)); // Drag middle
                     }
+                }
+
+                // 3. Check for button UP events (release)
+                if !event.buttons.left && self.current_left {
+                    self.button_event_queue.push_back((1, 0, col, row)); // Up left
+                    self.current_left = false;
+                }
+                if !event.buttons.right && self.current_right {
+                    self.button_event_queue.push_back((1, 1, col, row)); // Up right
+                    self.current_right = false;
+                }
+                if !event.buttons.middle && self.current_middle {
+                    self.button_event_queue.push_back((1, 2, col, row)); // Up middle
+                    self.current_middle = false;
                 }
 
                 // Always update previous position to track cursor
@@ -331,11 +381,6 @@ impl RenderBackend for FramebufferBackend {
                 self.prev_row = row;
 
                 moved = true;
-            }
-
-            // Queue all collected events (latest drag + any button state changes)
-            for event in pending_events {
-                self.button_event_queue.push_back(event);
             }
 
             moved
