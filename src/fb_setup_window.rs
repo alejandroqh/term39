@@ -18,6 +18,7 @@ pub enum FbSetupAction {
     SelectFont(usize),
     ScrollFontListUp,
     ScrollFontListDown,
+    CycleDevice,
     ToggleInvertX,
     ToggleInvertY,
     ToggleSwapButtons,
@@ -45,6 +46,7 @@ pub struct FbSetupWindow {
     scale_row: u16,
     font_label_row: u16,
     font_list_start_row: u16,
+    device_row: u16,
     mouse_row: u16,
     buttons_row: u16,
 
@@ -66,8 +68,8 @@ impl FbSetupWindow {
     /// Create a new framebuffer setup window (centered on screen)
     pub fn new(buffer_width: u16, buffer_height: u16) -> Self {
         // Fixed dimensions for setup window
-        let width = 64;
-        let height = 28;
+        let width = 76; // Wide enough for two-column mode display
+        let height = 30; // Increased for device selector
 
         // Center on screen
         let x = (buffer_width.saturating_sub(width)) / 2;
@@ -81,8 +83,9 @@ impl FbSetupWindow {
         let scale_row = y + 12; // After 8 modes + spacing
         let font_label_row = y + 14; // Font section label
         let font_list_start_row = y + 15; // Font list starts
-        let mouse_row = y + 22; // Mouse options
-        let buttons_row = y + 25; // Action buttons
+        let device_row = y + 23; // Mouse device selector
+        let mouse_row = y + 24; // Mouse options (invert/swap)
+        let buttons_row = y + 27; // Action buttons
 
         let visible_fonts = 6;
 
@@ -95,6 +98,7 @@ impl FbSetupWindow {
             scale_row,
             font_label_row,
             font_list_start_row,
+            device_row,
             mouse_row,
             buttons_row,
             selected_mode_index: config.mode_index(),
@@ -172,7 +176,6 @@ impl FbSetupWindow {
         let title_bg = theme.config_title_bg;
         let title_fg = theme.config_title_fg;
         let border_color = theme.config_border;
-        let content_bg = theme.config_content_bg;
         let content_fg = theme.config_content_fg;
 
         // Get border characters
@@ -183,12 +186,8 @@ impl FbSetupWindow {
         let horizontal = charset.border_horizontal();
         let vertical = charset.border_vertical();
 
-        // Draw top border with title
-        buffer.set(
-            self.x,
-            self.y,
-            Cell::new(top_left, border_color, content_bg),
-        );
+        // Draw top border with title (use title_bg for top border consistency)
+        buffer.set(self.x, self.y, Cell::new(top_left, border_color, title_bg));
 
         let title = " Framebuffer Setup ";
         let title_start = self.x + (self.width - title.len() as u16) / 2;
@@ -198,7 +197,7 @@ impl FbSetupWindow {
             buffer.set(
                 self.x + dx,
                 self.y,
-                Cell::new(horizontal, border_color, content_bg),
+                Cell::new(horizontal, border_color, title_bg),
             );
         }
 
@@ -216,61 +215,61 @@ impl FbSetupWindow {
             buffer.set(
                 self.x + dx,
                 self.y,
-                Cell::new(horizontal, border_color, content_bg),
+                Cell::new(horizontal, border_color, title_bg),
             );
         }
 
         buffer.set(
             self.x + self.width - 1,
             self.y,
-            Cell::new(top_right, border_color, content_bg),
+            Cell::new(top_right, border_color, title_bg),
         );
 
         // Draw content area with side borders
         for dy in 1..(self.height - 1) {
-            // Left border
+            // Left border (use title_bg for consistent frame)
             buffer.set(
                 self.x,
                 self.y + dy,
-                Cell::new(vertical, border_color, content_bg),
+                Cell::new(vertical, border_color, title_bg),
             );
 
-            // Content area
+            // Content area (use title_bg for consistent DOS dialog look)
             for dx in 1..(self.width - 1) {
                 buffer.set(
                     self.x + dx,
                     self.y + dy,
-                    Cell::new(' ', content_fg, content_bg),
+                    Cell::new(' ', content_fg, title_bg),
                 );
             }
 
-            // Right border
+            // Right border (use title_bg for consistent frame)
             buffer.set(
                 self.x + self.width - 1,
                 self.y + dy,
-                Cell::new(vertical, border_color, content_bg),
+                Cell::new(vertical, border_color, title_bg),
             );
         }
 
-        // Draw bottom border
+        // Draw bottom border (use title_bg for consistent frame)
         buffer.set(
             self.x,
             self.y + self.height - 1,
-            Cell::new(bottom_left, border_color, content_bg),
+            Cell::new(bottom_left, border_color, title_bg),
         );
 
         for dx in 1..(self.width - 1) {
             buffer.set(
                 self.x + dx,
                 self.y + self.height - 1,
-                Cell::new(horizontal, border_color, content_bg),
+                Cell::new(horizontal, border_color, title_bg),
             );
         }
 
         buffer.set(
             self.x + self.width - 1,
             self.y + self.height - 1,
-            Cell::new(bottom_right, border_color, content_bg),
+            Cell::new(bottom_right, border_color, title_bg),
         );
 
         // Render sections
@@ -295,8 +294,21 @@ impl FbSetupWindow {
     /// Render mode selection section
     fn render_mode_section(&self, buffer: &mut VideoBuffer, theme: &Theme) {
         let fg = theme.config_content_fg;
-        let bg = theme.config_content_bg;
+        let bg = theme.config_title_bg; // Use title_bg for consistent DOS dialog look
         let option_x = self.x + 3;
+
+        // Clear mode section rows to ensure consistent background
+        for row_offset in 0..5 {
+            // -1 for label, 0-3 for the 4 rows of modes
+            let row = if row_offset == 0 {
+                self.mode_start_row - 1
+            } else {
+                self.mode_start_row + row_offset - 1
+            };
+            for dx in 1..(self.width - 1) {
+                buffer.set(self.x + dx, row, Cell::new(' ', fg, bg));
+            }
+        }
 
         // Section label
         let label = "Display Mode:";
@@ -311,7 +323,7 @@ impl FbSetupWindow {
         // Render mode options in two columns
         for (i, mode) in FramebufferConfig::TEXT_MODES.iter().enumerate() {
             let row = self.mode_start_row + (i as u16 / 2);
-            let col_offset = if i % 2 == 0 { 0 } else { 28 };
+            let col_offset = if i % 2 == 0 { 0 } else { 35 };
             let x = option_x + col_offset;
 
             let selected = i == self.selected_mode_index;
@@ -341,8 +353,13 @@ impl FbSetupWindow {
     /// Render scale selector section
     fn render_scale_section(&self, buffer: &mut VideoBuffer, theme: &Theme) {
         let fg = theme.config_content_fg;
-        let bg = theme.config_content_bg;
+        let bg = theme.config_title_bg; // Use title_bg for consistent DOS dialog look
         let option_x = self.x + 3;
+
+        // Clear scale row first (to handle variable-length values)
+        for dx in 1..(self.width - 1) {
+            buffer.set(self.x + dx, self.scale_row, Cell::new(' ', fg, bg));
+        }
 
         // Render label
         let label = "Pixel Scale:";
@@ -363,8 +380,13 @@ impl FbSetupWindow {
     /// Render font selection section
     fn render_font_section(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
         let fg = theme.config_content_fg;
-        let bg = theme.config_content_bg;
+        let bg = theme.config_title_bg; // Use title_bg for consistent DOS dialog look
         let option_x = self.x + 3;
+
+        // Clear font label row
+        for dx in 1..(self.width - 1) {
+            buffer.set(self.x + dx, self.font_label_row, Cell::new(' ', fg, bg));
+        }
 
         // Section label
         let label = "Console Font:";
@@ -503,17 +525,46 @@ impl FbSetupWindow {
     /// Render mouse configuration section
     fn render_mouse_section(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
         let fg = theme.config_content_fg;
-        let bg = theme.config_content_bg;
+        let bg = theme.config_title_bg; // Use title_bg for consistent DOS dialog look
         let option_x = self.x + 3;
 
-        // Label
-        let label = "Mouse:";
+        // Clear device row first (to handle variable-length device names)
+        for dx in 1..(self.width - 1) {
+            buffer.set(self.x + dx, self.device_row, Cell::new(' ', fg, bg));
+        }
+
+        // Clear mouse options row
+        for dx in 1..(self.width - 1) {
+            buffer.set(self.x + dx, self.mouse_row, Cell::new(' ', fg, bg));
+        }
+
+        // Device selector row
+        let device_label = "Device:";
+        for (i, ch) in device_label.chars().enumerate() {
+            buffer.set(option_x + i as u16, self.device_row, Cell::new(ch, fg, bg));
+        }
+
+        // Render device selector: < auto > or < /dev/input/mice >
+        let device_display = self.config.device_display_name();
+        let selector_x = option_x + device_label.len() as u16 + 2;
+        let selector_text = format!("< {} >", device_display);
+
+        for (i, ch) in selector_text.chars().enumerate() {
+            buffer.set(
+                selector_x + i as u16,
+                self.device_row,
+                Cell::new(ch, fg, bg),
+            );
+        }
+
+        // Mouse options row (checkboxes)
+        let label = "Options:";
         for (i, ch) in label.chars().enumerate() {
             buffer.set(option_x + i as u16, self.mouse_row, Cell::new(ch, fg, bg));
         }
 
         // Invert X checkbox
-        let invert_x_x = option_x + label.len() as u16 + 2;
+        let invert_x_x = option_x + label.len() as u16 + 1;
         let checkbox_x = if self.config.mouse.invert_x {
             format!("[{}]", charset.block())
         } else {
@@ -607,7 +658,12 @@ impl FbSetupWindow {
     /// Render action buttons
     fn render_buttons(&self, buffer: &mut VideoBuffer, theme: &Theme) {
         let fg = theme.config_content_fg;
-        let bg = theme.config_content_bg;
+        let bg = theme.config_title_bg; // Use title_bg for consistent DOS dialog look
+
+        // Clear buttons row
+        for dx in 1..(self.width - 1) {
+            buffer.set(self.x + dx, self.buttons_row, Cell::new(' ', fg, bg));
+        }
 
         // Button style
         let button_fg = theme.window_title_fg;
@@ -652,7 +708,7 @@ impl FbSetupWindow {
             let row_idx = (y - self.mode_start_row) as usize;
 
             // Check which column
-            if x >= option_x && x < option_x + 28 {
+            if x >= option_x && x < option_x + 35 {
                 // Left column
                 let mode_idx = row_idx * 2;
                 if mode_idx < FramebufferConfig::TEXT_MODES.len() {
@@ -661,7 +717,7 @@ impl FbSetupWindow {
                     self.filter_fonts(); // Re-filter fonts for new mode
                     return FbSetupAction::SelectMode(mode_idx);
                 }
-            } else if x >= option_x + 28 && x < self.x + self.width - 3 {
+            } else if x >= option_x + 35 && x < self.x + self.width - 3 {
                 // Right column
                 let mode_idx = row_idx * 2 + 1;
                 if mode_idx < FramebufferConfig::TEXT_MODES.len() {
@@ -712,11 +768,17 @@ impl FbSetupWindow {
             }
         }
 
+        // Check device selector
+        if y == self.device_row && x >= option_x && x < self.x + self.width - 3 {
+            self.config.cycle_device();
+            return FbSetupAction::CycleDevice;
+        }
+
         // Check mouse toggles
         if y == self.mouse_row {
-            let invert_x_x = option_x + 8; // "Mouse: " + 2
-            let invert_y_x = invert_x_x + 16;
-            let swap_x = invert_y_x + 14;
+            let invert_x_x = option_x + 9; // "Options:" + 1
+            let invert_y_x = invert_x_x + 13;
+            let swap_x = invert_y_x + 13;
 
             // Invert X checkbox (click on [X] or label)
             if x >= invert_x_x && x < invert_x_x + 12 {
@@ -835,6 +897,11 @@ impl FbSetupWindow {
             KeyCode::Char('s') | KeyCode::Char('S') => {
                 // Save shortcut
                 FbSetupAction::SaveOnly
+            }
+            KeyCode::Char('d') | KeyCode::Char('D') => {
+                // Cycle mouse device
+                self.config.cycle_device();
+                FbSetupAction::CycleDevice
             }
             KeyCode::Char('x') | KeyCode::Char('X') => {
                 // Toggle invert X

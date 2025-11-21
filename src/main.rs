@@ -197,23 +197,30 @@ fn main() -> io::Result<()> {
                         }
                     }
                     Event::Mouse(mouse_event) => {
-                        let action = setup_window.handle_click(mouse_event.column, mouse_event.row);
-                        match action {
-                            FbSetupAction::Close => break,
-                            FbSetupAction::SaveAndLaunch => {
-                                if let Err(e) = setup_window.save_config() {
-                                    eprintln!("Error saving config: {}", e);
+                        // Only handle actual left-button clicks, not moves
+                        if let crossterm::event::MouseEventKind::Down(
+                            crossterm::event::MouseButton::Left,
+                        ) = mouse_event.kind
+                        {
+                            let action =
+                                setup_window.handle_click(mouse_event.column, mouse_event.row);
+                            match action {
+                                FbSetupAction::Close => break,
+                                FbSetupAction::SaveAndLaunch => {
+                                    if let Err(e) = setup_window.save_config() {
+                                        eprintln!("Error saving config: {}", e);
+                                    }
+                                    should_launch = true;
+                                    break;
                                 }
-                                should_launch = true;
-                                break;
-                            }
-                            FbSetupAction::SaveOnly => {
-                                if let Err(e) = setup_window.save_config() {
-                                    eprintln!("Error saving config: {}", e);
+                                FbSetupAction::SaveOnly => {
+                                    if let Err(e) = setup_window.save_config() {
+                                        eprintln!("Error saving config: {}", e);
+                                    }
+                                    break;
                                 }
-                                break;
+                                _ => {}
                             }
-                            _ => {}
                         }
                     }
                     Event::Resize(new_cols, new_rows) => {

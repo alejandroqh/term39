@@ -233,9 +233,9 @@ impl GpmConnection {
             let event_mask = GPM_MOVE_MODE | GPM_DRAG_MODE | GPM_DOWN_MODE | GPM_UP_MODE;
             let mut conn = GpmConnect {
                 event_mask,
-                // Set default_mask to ~0 to force GPM to always draw cursor
-                // This ensures cursor visibility regardless of our event handling
-                default_mask: !0,
+                // Set default_mask to 0 to hide GPM cursor
+                // We draw our own cursor in framebuffer mode
+                default_mask: 0,
                 min_mod: 0,
                 max_mod: !0,
             };

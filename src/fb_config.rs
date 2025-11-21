@@ -165,6 +165,16 @@ impl FramebufferConfig {
     /// Available scale options
     pub const SCALE_OPTIONS: [&'static str; 5] = ["auto", "1", "2", "3", "4"];
 
+    /// Available mouse device options
+    pub const MOUSE_DEVICE_OPTIONS: [&'static str; 6] = [
+        "auto",
+        "/dev/input/mice",
+        "/dev/input/event0",
+        "/dev/input/event1",
+        "/dev/input/event2",
+        "/dev/input/event3",
+    ];
+
     /// Required font dimensions (width, height) for each text mode
     /// Index corresponds to TEXT_MODES array
     pub const TEXT_MODE_FONT_DIMS: [(usize, usize); 8] = [
@@ -236,6 +246,44 @@ impl FramebufferConfig {
     /// Toggle swap mouse buttons
     pub fn toggle_swap_buttons(&mut self) {
         self.mouse.swap_buttons = !self.mouse.swap_buttons;
+    }
+
+    /// Get the index of the current mouse device in MOUSE_DEVICE_OPTIONS
+    pub fn device_index(&self) -> usize {
+        match &self.mouse.device {
+            None => 0, // "auto"
+            Some(dev) => Self::MOUSE_DEVICE_OPTIONS
+                .iter()
+                .position(|&d| d == dev)
+                .unwrap_or(0),
+        }
+    }
+
+    /// Set mouse device by index
+    pub fn set_device_by_index(&mut self, index: usize) {
+        if index < Self::MOUSE_DEVICE_OPTIONS.len() {
+            let device = Self::MOUSE_DEVICE_OPTIONS[index];
+            if device == "auto" {
+                self.mouse.device = None;
+            } else {
+                self.mouse.device = Some(device.to_string());
+            }
+        }
+    }
+
+    /// Cycle to the next mouse device option
+    pub fn cycle_device(&mut self) {
+        let current = self.device_index();
+        let next = (current + 1) % Self::MOUSE_DEVICE_OPTIONS.len();
+        self.set_device_by_index(next);
+    }
+
+    /// Get display name for current mouse device
+    pub fn device_display_name(&self) -> &str {
+        match &self.mouse.device {
+            None => "auto",
+            Some(dev) => dev,
+        }
     }
 }
 
