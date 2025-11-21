@@ -667,6 +667,12 @@ fn main() -> io::Result<()> {
         let has_event = event::poll(Duration::from_millis(16))?;
 
         if has_event {
+            // Track whether this event is injected (GPM/FB) to avoid double-scaling
+            #[cfg(target_os = "linux")]
+            let is_injected = injected_event.is_some();
+            #[cfg(not(target_os = "linux"))]
+            let is_injected = false;
+
             #[cfg(target_os = "linux")]
             let current_event = if let Some(evt) = injected_event {
                 evt
@@ -769,10 +775,14 @@ fn main() -> io::Result<()> {
                 }
                 Event::Mouse(mut mouse_event) => {
                     // Scale mouse coordinates from TTY space to backend space
-                    let (scaled_col, scaled_row) =
-                        backend.scale_mouse_coords(mouse_event.column, mouse_event.row);
-                    mouse_event.column = scaled_col;
-                    mouse_event.row = scaled_row;
+                    // Only scale crossterm mouse events, not injected GPM/FB events
+                    // (injected events are already scaled at injection time)
+                    if !is_injected {
+                        let (scaled_col, scaled_row) =
+                            backend.scale_mouse_coords(mouse_event.column, mouse_event.row);
+                        mouse_event.column = scaled_col;
+                        mouse_event.row = scaled_row;
+                    }
 
                     let (_, rows) = backend.dimensions();
                     let bar_y = rows - 1;
@@ -1247,8 +1257,9 @@ fn main() -> io::Result<()> {
                                 .auto_tiling_button
                                 .set_state(button::ButtonState::Pressed);
 
-                            // Toggle the auto-tiling state
-                            app_state.auto_tiling_enabled = !app_state.auto_tiling_enabled;
+                            // Toggle the auto-tiling state and save to config
+                            app_config.toggle_auto_tiling_on_startup();
+                            app_state.auto_tiling_enabled = app_config.auto_tiling_on_startup;
 
                             // Update button label to reflect new state
                             let new_label = if app_state.auto_tiling_enabled {

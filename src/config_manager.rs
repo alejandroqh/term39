@@ -4,7 +4,9 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
+    #[serde(default = "default_auto_tiling_on_startup")]
     pub auto_tiling_on_startup: bool,
+    #[serde(default = "default_show_date_in_clock")]
     pub show_date_in_clock: bool,
     #[serde(default = "default_theme")]
     pub theme: String,
@@ -14,6 +16,14 @@ pub struct AppConfig {
     pub tint_terminal: bool,
     #[serde(default = "default_auto_save")]
     pub auto_save: bool,
+}
+
+fn default_auto_tiling_on_startup() -> bool {
+    false // Default to false (disabled at startup)
+}
+
+fn default_show_date_in_clock() -> bool {
+    true // Default to true (show date in clock)
 }
 
 fn default_theme() -> String {

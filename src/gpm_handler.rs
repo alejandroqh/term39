@@ -229,17 +229,27 @@ impl GpmConnection {
         let gpm_lib = get_gpm_lib()?;
 
         unsafe {
-            // Request ALL events from GPM to prevent its built-in selection behavior
-            // When event_mask is ~0, GPM passes all events to the application.
-            // default_mask controls what GPM handles itself:
-            // - GPM_MOVE | GPM_DRAG: GPM draws cursor during all movement (for terminal mode)
-            // - 0: Application handles everything including cursor (for framebuffer mode)
-            let event_mask: c_ushort = !0; // All possible events
-            let default_mask = if draw_cursor {
-                (GPM_MOVE | GPM_DRAG) as c_ushort // GPM draws cursor during move and drag
+            // GPM event handling:
+            // - event_mask: events we want to receive (button presses, etc.)
+            // - default_mask: events GPM handles itself (cursor drawing, selection)
+            //
+            // For GPM to draw its cursor, it needs to handle MOVE events internally.
+            // We request button events for ourselves, but let GPM handle move/drag
+            // for cursor drawing when in terminal mode.
+            //
+            // In framebuffer mode, we capture everything since we draw our own cursor.
+            let (event_mask, default_mask) = if draw_cursor {
+                // Terminal mode: Let GPM draw cursor while we handle button events
+                // We request all button-related events but let GPM also handle MOVE/DRAG
+                // for cursor drawing. Setting both in default_mask allows GPM to draw cursor.
+                let events = (GPM_MOVE | GPM_DRAG | GPM_DOWN | GPM_UP) as c_ushort;
+                let defaults = (GPM_MOVE | GPM_DRAG) as c_ushort;
+                (events, defaults)
             } else {
-                0 // Application draws cursor
+                // Framebuffer mode: Capture everything, we draw our own cursor
+                (!0 as c_ushort, 0 as c_ushort)
             };
+
             let mut conn = GpmConnect {
                 event_mask,
                 default_mask,
