@@ -329,10 +329,12 @@ impl FramebufferRenderer {
         }
 
         // Now render pixels (can mutably borrow self)
+        // Note: must check against 1024 (array size) not pixel_count for large fonts
+        let max_idx = pixel_count.min(1024);
         for py in 0..font_height {
             for px in 0..font_width {
                 let idx = py * font_width + px;
-                if idx < pixel_count {
+                if idx < max_idx {
                     let color = if pixel_data[idx] { fg_color } else { bg_color };
                     self.put_pixel(x_offset + px, y_offset + py, color.0, color.1, color.2);
                 }
