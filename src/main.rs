@@ -140,7 +140,7 @@ fn main() -> io::Result<()> {
 
     // Initialize GPM (General Purpose Mouse) for Linux console if available
     #[cfg(target_os = "linux")]
-    let gpm_connection = initialization::initialize_gpm();
+    let mut gpm_connection = initialization::initialize_gpm();
 
     // Initialize video buffer and window manager
     let mut video_buffer = initialization::initialize_video_buffer(backend.as_ref());

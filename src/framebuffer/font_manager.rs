@@ -414,7 +414,7 @@ impl FontManager {
             return false;
         }
 
-        let bytes_per_row = (self.width + 7) / 8;
+        let bytes_per_row = self.width.div_ceil(8);
         let row_start = y * bytes_per_row;
         let byte_index = row_start + (x / 8);
         let bit_index = 7 - (x % 8);
