@@ -222,6 +222,23 @@ pub struct Cli {
     #[arg(long, help = "Invert mouse Y-axis for framebuffer mode")]
     pub invert_mouse_y: bool,
 
+    /// Launch framebuffer setup wizard (Linux console only, requires --features framebuffer-backend)
+    ///
+    /// Opens an interactive configuration wizard to set up framebuffer mode settings.
+    /// The wizard allows you to:
+    ///   - Select text mode (40x25, 80x25, 80x50, etc.)
+    ///   - Choose pixel scale factor
+    ///   - Select console font
+    ///   - Configure mouse settings
+    ///
+    /// Settings are saved to ~/.config/term39/fb.toml
+    /// Use this flag to reconfigure settings even if fb.toml already exists.
+    ///
+    /// Note: Only available when compiled with framebuffer-backend feature.
+    #[cfg(feature = "framebuffer-backend")]
+    #[arg(long, help = "Launch framebuffer setup wizard")]
+    pub fb_setup: bool,
+
     /// Swap left and right mouse buttons for GPM (Linux console only)
     ///
     /// Some GPM configurations have left/right mouse buttons swapped.

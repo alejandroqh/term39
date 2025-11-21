@@ -2,6 +2,8 @@ use crate::charset::Charset;
 use crate::cli::Cli;
 use crate::config_manager::AppConfig;
 #[cfg(feature = "framebuffer-backend")]
+use crate::fb_config::FramebufferConfig;
+#[cfg(feature = "framebuffer-backend")]
 use crate::framebuffer::text_modes::{TextMode, TextModeKind};
 #[cfg(feature = "framebuffer-backend")]
 use crate::render_backend::FramebufferBackend;
@@ -18,38 +20,76 @@ pub fn initialize_backend(
 ) -> io::Result<Box<dyn RenderBackend>> {
     #[cfg(feature = "framebuffer-backend")]
     if cli_args.framebuffer {
-        // Parse the framebuffer mode from CLI args
-        let mode_kind = TextModeKind::from_str(&cli_args.fb_mode).unwrap_or_else(|| {
+        // Load framebuffer configuration from fb.toml
+        let fb_config = FramebufferConfig::load();
+
+        // Resolve mode: CLI arg takes precedence, then config file, then default
+        // Note: CLI arg has a default value of "80x25", so we check if it differs from default
+        // to determine if user explicitly set it
+        let mode_str = if cli_args.fb_mode != "80x25" {
+            // User explicitly set a mode via CLI
+            cli_args.fb_mode.clone()
+        } else if FramebufferConfig::exists() {
+            // Use config file value
+            fb_config.display.mode.clone()
+        } else {
+            // Use CLI default (80x25)
+            cli_args.fb_mode.clone()
+        };
+
+        let mode_kind = TextModeKind::from_str(&mode_str).unwrap_or_else(|| {
             eprintln!(
                 "Warning: Invalid framebuffer mode '{}', using default 80x25",
-                cli_args.fb_mode
+                mode_str
             );
             TextModeKind::Mode80x25
         });
 
         let mode = TextMode::new(mode_kind);
 
-        // Parse the scale factor from CLI args
-        let scale = cli_args.fb_scale.as_ref().and_then(|s| {
-            if s == "auto" {
-                None // Auto-calculate scale
+        // Resolve scale: CLI arg takes precedence, then config file
+        let scale_str = cli_args
+            .fb_scale
+            .clone()
+            .unwrap_or_else(|| fb_config.display.scale.clone());
+
+        let scale = if scale_str == "auto" {
+            None // Auto-calculate scale
+        } else {
+            scale_str
+                .parse::<usize>()
+                .ok()
+                .filter(|&n| (1..=8).contains(&n))
+        };
+
+        // Resolve font: CLI arg takes precedence, then config file
+        let font_name = cli_args.fb_font.clone().or_else(|| {
+            if FramebufferConfig::exists() {
+                Some(fb_config.font.name.clone())
             } else {
-                s.parse::<usize>().ok().filter(|&n| (1..=8).contains(&n))
+                None
             }
         });
 
-        // Get font name from CLI args
-        let font_name = cli_args.fb_font.as_deref();
+        // Resolve mouse device: CLI arg takes precedence, then config file
+        let mouse_device = cli_args
+            .mouse_device
+            .clone()
+            .or_else(|| fb_config.mouse.device.clone());
 
-        // Get mouse device from CLI args
-        let mouse_device = cli_args.mouse_device.as_deref();
-
-        // Get mouse axis inversion flags from CLI args
-        let invert_x = cli_args.invert_mouse_x;
-        let invert_y = cli_args.invert_mouse_y;
+        // Resolve mouse axis inversion: CLI arg takes precedence, then config file
+        let invert_x = cli_args.invert_mouse_x || fb_config.mouse.invert_x;
+        let invert_y = cli_args.invert_mouse_y || fb_config.mouse.invert_y;
 
         // Try to initialize framebuffer backend
-        match FramebufferBackend::new(mode, scale, font_name, mouse_device, invert_x, invert_y) {
+        match FramebufferBackend::new(
+            mode,
+            scale,
+            font_name.as_deref(),
+            mouse_device.as_deref(),
+            invert_x,
+            invert_y,
+        ) {
             Ok(fb_backend) => {
                 println!("Framebuffer backend initialized: {}", mode_kind);
                 return Ok(Box::new(fb_backend));

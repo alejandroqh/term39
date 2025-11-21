@@ -16,6 +16,10 @@ mod context_menu;
 mod dialog_handlers;
 mod error_dialog;
 #[cfg(feature = "framebuffer-backend")]
+mod fb_config;
+#[cfg(feature = "framebuffer-backend")]
+mod fb_setup_window;
+#[cfg(feature = "framebuffer-backend")]
 mod framebuffer;
 mod fuzzy_matcher;
 #[cfg(target_os = "linux")]
@@ -123,8 +127,149 @@ fn main() -> io::Result<()> {
         return Ok(());
     }
 
+    // Handle --fb-setup flag (run setup wizard)
+    #[cfg(feature = "framebuffer-backend")]
+    if cli_args.fb_setup {
+        use charset::Charset;
+        use crossterm::execute;
+        use fb_setup_window::{FbSetupAction, FbSetupWindow};
+        use framebuffer::font_manager::FontManager;
+        use render_backend::RenderBackend;
+        use video_buffer::VideoBuffer;
+
+        // Set up terminal for setup wizard
+        let mut stdout = io::stdout();
+        terminal::enable_raw_mode()?;
+        execute!(
+            stdout,
+            terminal::EnterAlternateScreen,
+            crossterm::event::EnableMouseCapture
+        )?;
+
+        // Get terminal size and create video buffer
+        let (cols, rows) = terminal::size()?;
+        let mut video_buffer = VideoBuffer::new(cols, rows);
+
+        // Create setup window
+        let mut setup_window = FbSetupWindow::new(cols, rows);
+
+        // Load available fonts
+        let fonts = FontManager::list_available_fonts();
+        setup_window.set_fonts(fonts);
+
+        // Create charset and theme for rendering
+        let charset = Charset::unicode();
+        let theme = Theme::from_name("classic");
+
+        // Create terminal backend for rendering
+        let mut term_backend = render_backend::TerminalBackend::new()?;
+
+        // Setup wizard event loop
+        let mut should_launch = false;
+        loop {
+            // Render setup window
+            setup_window.render(&mut video_buffer, &charset, &theme);
+
+            // Present to terminal
+            term_backend.present(&mut video_buffer)?;
+
+            // Poll for events
+            if event::poll(Duration::from_millis(50))? {
+                match event::read()? {
+                    Event::Key(key_event) => {
+                        let action = setup_window.handle_key(key_event);
+                        match action {
+                            FbSetupAction::Close => break,
+                            FbSetupAction::SaveAndLaunch => {
+                                if let Err(e) = setup_window.save_config() {
+                                    eprintln!("Error saving config: {}", e);
+                                }
+                                should_launch = true;
+                                break;
+                            }
+                            FbSetupAction::SaveOnly => {
+                                if let Err(e) = setup_window.save_config() {
+                                    eprintln!("Error saving config: {}", e);
+                                }
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                    Event::Mouse(mouse_event) => {
+                        let action = setup_window.handle_click(mouse_event.column, mouse_event.row);
+                        match action {
+                            FbSetupAction::Close => break,
+                            FbSetupAction::SaveAndLaunch => {
+                                if let Err(e) = setup_window.save_config() {
+                                    eprintln!("Error saving config: {}", e);
+                                }
+                                should_launch = true;
+                                break;
+                            }
+                            FbSetupAction::SaveOnly => {
+                                if let Err(e) = setup_window.save_config() {
+                                    eprintln!("Error saving config: {}", e);
+                                }
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                    Event::Resize(new_cols, new_rows) => {
+                        video_buffer = VideoBuffer::new(new_cols, new_rows);
+                        setup_window = FbSetupWindow::new(new_cols, new_rows);
+                        let fonts = FontManager::list_available_fonts();
+                        setup_window.set_fonts(fonts);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // Cleanup terminal
+        execute!(
+            stdout,
+            crossterm::event::DisableMouseCapture,
+            terminal::LeaveAlternateScreen
+        )?;
+        terminal::disable_raw_mode()?;
+
+        // If user chose to launch, show message about how to run
+        if should_launch {
+            let config = setup_window.get_config();
+            println!("Configuration saved!");
+            println!("\nTo launch with framebuffer mode, run:");
+            println!(
+                "  sudo ./term39 -f --fb-mode={} --fb-font={}",
+                config.display.mode, config.font.name
+            );
+            if config.display.scale != "auto" {
+                println!(
+                    "  Add --fb-scale={} for custom scaling",
+                    config.display.scale
+                );
+            }
+            if config.mouse.invert_x {
+                println!("  Add --invert-mouse-x for inverted X-axis");
+            }
+            if config.mouse.invert_y {
+                println!("  Add --invert-mouse-y for inverted Y-axis");
+            }
+        } else {
+            println!("Configuration saved to ~/.config/term39/fb.toml");
+        }
+
+        return Ok(());
+    }
+
     // Load application configuration
     let mut app_config = AppConfig::load();
+
+    // Load framebuffer configuration (for swap_buttons, etc.)
+    #[cfg(feature = "framebuffer-backend")]
+    #[allow(unused_variables)] // Only used on Linux with framebuffer
+    let fb_config = fb_config::FramebufferConfig::load();
 
     // Create charset and theme
     let mut charset = initialization::initialize_charset(&cli_args, &app_config);
@@ -320,10 +465,22 @@ fn main() -> io::Result<()> {
             if let Some((event_type, button_id, col, row)) = backend.get_mouse_button_event() {
                 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
-                // Map button ID to MouseButton
+                // Map button ID to MouseButton, applying swap if configured
                 let button = match button_id {
-                    0 => MouseButton::Left,
-                    1 => MouseButton::Right,
+                    0 => {
+                        if fb_config.mouse.swap_buttons {
+                            MouseButton::Right
+                        } else {
+                            MouseButton::Left
+                        }
+                    }
+                    1 => {
+                        if fb_config.mouse.swap_buttons {
+                            MouseButton::Left
+                        } else {
+                            MouseButton::Right
+                        }
+                    }
                     2 => MouseButton::Middle,
                     _ => MouseButton::Left, // Fallback
                 };
