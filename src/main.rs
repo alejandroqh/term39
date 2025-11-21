@@ -1014,6 +1014,21 @@ fn main() -> io::Result<()> {
                             app_state.exit_button.set_state(button::ButtonState::Normal);
                         }
 
+                        // Battery indicator hover state (top bar, right side before clock)
+                        let (cols, _) = backend.dimensions();
+                        let battery_width = 10u16; // "| [█████] "
+                        let clock_width = if app_config.show_date_in_clock {
+                            20u16
+                        } else {
+                            12u16
+                        };
+                        let battery_start = cols.saturating_sub(battery_width + clock_width);
+                        let battery_end = battery_start + battery_width;
+
+                        app_state.battery_hovered = mouse_event.row == 0
+                            && mouse_event.column >= battery_start
+                            && mouse_event.column < battery_end;
+
                         // Calculate position for toggle button hover detection (bottom bar, left side)
                         let (_, rows) = backend.dimensions();
                         let bar_y = rows - 1;

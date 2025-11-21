@@ -39,6 +39,7 @@ pub fn render_frame(
         &app_state.exit_button,
         app_config,
         theme,
+        app_state.battery_hovered,
     );
 
     // Render all windows (returns true if any were closed)

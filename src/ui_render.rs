@@ -130,6 +130,7 @@ pub fn render_top_bar(
     exit_button: &Button,
     app_config: &AppConfig,
     theme: &Theme,
+    battery_hovered: bool,
 ) {
     let (cols, _rows) = buffer.dimensions();
 
@@ -177,54 +178,74 @@ pub fn render_top_bar(
 
     // Get battery percentage and create block bar indicator
     let battery_percentage = get_battery_percentage();
-    let battery_width = if battery_percentage.is_some() { 10u16 } else { 0u16 }; // "| [█████] "
+    let battery_width = if battery_percentage.is_some() {
+        10u16
+    } else {
+        0u16
+    }; // "| [█████] "
 
     // Calculate positions (battery comes before clock)
     let total_width = battery_width + clock_width;
     let start_pos = cols.saturating_sub(total_width);
 
-    // Render battery indicator with block bar
+    // Render battery indicator (block bar or percentage text on hover)
     if let Some(pct) = battery_percentage {
         let battery_color = get_battery_color(pct);
-        let filled_blocks = ((pct as f32 / 20.0).round() as usize).min(5);
 
-        // Format: "| [█████] " (10 chars)
-        // Positions: 0='|', 1=' ', 2='[', 3-7=blocks, 8=']', 9=' '
-        let prefix = "| [";
-        let suffix = "] ";
+        if battery_hovered {
+            // Show percentage text on hover: "| [ 100%] " (10 chars)
+            let battery_text = format!("| [{:>5}] ", format!("{}%", pct));
+            for (i, ch) in battery_text.chars().enumerate() {
+                let fg = if (3..=7).contains(&i) {
+                    battery_color // Color the percentage
+                } else {
+                    theme.clock_fg
+                };
+                buffer.set(
+                    start_pos + i as u16,
+                    0,
+                    Cell::new_unchecked(ch, fg, theme.clock_bg),
+                );
+            }
+        } else {
+            // Show block bar: "| [█████] " (10 chars)
+            let filled_blocks = ((pct as f32 / 20.0).round() as usize).min(5);
+            let prefix = "| [";
+            let suffix = "] ";
 
-        // Render prefix with clock colors
-        for (i, ch) in prefix.chars().enumerate() {
-            buffer.set(
-                start_pos + i as u16,
-                0,
-                Cell::new_unchecked(ch, theme.clock_fg, theme.clock_bg),
-            );
-        }
+            // Render prefix with clock colors
+            for (i, ch) in prefix.chars().enumerate() {
+                buffer.set(
+                    start_pos + i as u16,
+                    0,
+                    Cell::new_unchecked(ch, theme.clock_fg, theme.clock_bg),
+                );
+            }
 
-        // Render battery blocks
-        let block_start = start_pos + prefix.len() as u16;
-        for i in 0..5 {
-            let (ch, fg) = if i < filled_blocks {
-                ('█', battery_color) // Filled block with battery color
-            } else {
-                ('░', Color::DarkGrey) // Empty block
-            };
-            buffer.set(
-                block_start + i as u16,
-                0,
-                Cell::new_unchecked(ch, fg, theme.clock_bg),
-            );
-        }
+            // Render battery blocks
+            let block_start = start_pos + prefix.len() as u16;
+            for i in 0..5 {
+                let (ch, fg) = if i < filled_blocks {
+                    ('█', battery_color) // Filled block with battery color
+                } else {
+                    ('░', Color::DarkGrey) // Empty block
+                };
+                buffer.set(
+                    block_start + i as u16,
+                    0,
+                    Cell::new_unchecked(ch, fg, theme.clock_bg),
+                );
+            }
 
-        // Render suffix with clock colors
-        let suffix_start = block_start + 5;
-        for (i, ch) in suffix.chars().enumerate() {
-            buffer.set(
-                suffix_start + i as u16,
-                0,
-                Cell::new_unchecked(ch, theme.clock_fg, theme.clock_bg),
-            );
+            // Render suffix with clock colors
+            let suffix_start = block_start + 5;
+            for (i, ch) in suffix.chars().enumerate() {
+                buffer.set(
+                    suffix_start + i as u16,
+                    0,
+                    Cell::new_unchecked(ch, theme.clock_fg, theme.clock_bg),
+                );
+            }
         }
     }
 

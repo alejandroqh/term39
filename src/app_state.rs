@@ -28,6 +28,9 @@ pub struct AppState {
     pub clear_selection_button: Button,
     pub exit_button: Button,
 
+    // Battery indicator hover state
+    pub battery_hovered: bool,
+
     // Bottom Bar Buttons
     pub auto_tiling_button: Button,
 
@@ -101,6 +104,9 @@ impl AppState {
             copy_button,
             clear_selection_button,
             exit_button,
+
+            // Battery indicator hover state
+            battery_hovered: false,
 
             // Bottom Bar Button
             auto_tiling_button,
