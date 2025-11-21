@@ -57,6 +57,10 @@ const GPM_B_LEFT: c_int = 1;
 const GPM_B_MIDDLE: c_int = 2;
 const GPM_B_RIGHT: c_int = 4;
 
+// GPM modifier masks (from gpm.h)
+const GPM_MOD_SHIFT: u8 = 1;
+const GPM_MOD_CTRL: u8 = 4;
+
 // Gpm_Event structure (from gpm.h)
 // IMPORTANT: This must match the C structure exactly to avoid memory corruption
 #[repr(C)]
@@ -75,6 +79,13 @@ pub struct GpmEvent {
     pub wdx: c_short,  // displacement since margin
     pub wdy: c_short,  // position on margin
 }
+
+// Compile-time assertion to verify GpmEvent struct matches C library layout
+// Expected size: 1+1+2+2+2+2+2+4+4+4+2+2 = 28 bytes
+const _: () = assert!(
+    std::mem::size_of::<GpmEvent>() == 28,
+    "GpmEvent struct size mismatch - must match C library's Gpm_Event"
+);
 
 use libc::c_uchar;
 
@@ -177,6 +188,8 @@ fn get_gpm_lib() -> Option<&'static GpmLibrary> {
 pub struct GpmConnection {
     fd: c_int,
     connected: bool,
+    /// Track last pressed button for UP events that don't report button state
+    last_button: Option<GpmButton>,
 }
 
 /// GPM mouse event types
@@ -205,6 +218,8 @@ pub struct GpmMouseEvent {
     pub y: u16,
     pub event_type: GpmEventType,
     pub button: Option<GpmButton>,
+    pub shift: bool,
+    pub ctrl: bool,
 }
 
 impl GpmConnection {
@@ -234,6 +249,7 @@ impl GpmConnection {
                 Some(GpmConnection {
                     fd,
                     connected: true,
+                    last_button: None,
                 })
             }
         }
@@ -277,7 +293,7 @@ impl GpmConnection {
 
     /// Read a GPM event (blocking)
     /// Returns None if no event is available or connection is closed
-    pub fn get_event(&self) -> Option<GpmMouseEvent> {
+    pub fn get_event(&mut self) -> Option<GpmMouseEvent> {
         if !self.connected {
             return None;
         }
@@ -291,6 +307,10 @@ impl GpmConnection {
             if result <= 0 {
                 return None;
             }
+
+            // Extract modifier keys
+            let shift = (event.modifiers & GPM_MOD_SHIFT) != 0;
+            let ctrl = (event.modifiers & GPM_MOD_CTRL) != 0;
 
             // Check for scroll wheel events first (wdy contains vertical scroll delta)
             // Positive wdy = scroll up, negative wdy = scroll down
@@ -310,6 +330,8 @@ impl GpmConnection {
                     y,
                     event_type,
                     button: None,
+                    shift,
+                    ctrl,
                 });
             }
 
@@ -328,7 +350,7 @@ impl GpmConnection {
 
             // Determine which button (if any)
             // Use ONLY the buttons field - event_type has overlapping bit values!
-            let button = if (event.buttons as c_int & GPM_B_LEFT) != 0 {
+            let reported_button = if (event.buttons as c_int & GPM_B_LEFT) != 0 {
                 Some(GpmButton::Left)
             } else if (event.buttons as c_int & GPM_B_MIDDLE) != 0 {
                 Some(GpmButton::Middle)
@@ -336,6 +358,24 @@ impl GpmConnection {
                 Some(GpmButton::Right)
             } else {
                 None
+            };
+
+            // Track button state for proper UP event handling
+            // On DOWN: record which button was pressed
+            // On UP: use tracked button if GPM didn't report one, then clear
+            // On DRAG: use tracked button if GPM didn't report one
+            let button = match event_type {
+                GpmEventType::Down => {
+                    self.last_button = reported_button;
+                    reported_button
+                }
+                GpmEventType::Up => {
+                    let btn = reported_button.or(self.last_button);
+                    self.last_button = None;
+                    btn
+                }
+                GpmEventType::Drag => reported_button.or(self.last_button),
+                _ => reported_button,
             };
 
             // Convert coordinates (GPM uses 1-based indexing)
@@ -347,6 +387,8 @@ impl GpmConnection {
                 y,
                 event_type,
                 button,
+                shift,
+                ctrl,
             })
         }
     }

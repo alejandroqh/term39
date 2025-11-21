@@ -209,7 +209,7 @@ fn main() -> io::Result<()> {
         // Skip GPM when backend has native mouse input to avoid duplicate events
         #[cfg(target_os = "linux")]
         let gpm_event = if !backend.has_native_mouse_input() {
-            if let Some(ref gpm) = gpm_connection {
+            if let Some(ref mut gpm) = gpm_connection {
                 if gpm.has_event() {
                     gpm.get_event()
                 } else {
@@ -252,6 +252,15 @@ fn main() -> io::Result<()> {
                 }
             };
 
+            // Convert GPM modifiers to crossterm KeyModifiers
+            let mut modifiers = KeyModifiers::empty();
+            if gpm_evt.shift {
+                modifiers |= KeyModifiers::SHIFT;
+            }
+            if gpm_evt.ctrl {
+                modifiers |= KeyModifiers::CONTROL;
+            }
+
             let mouse_event = match gpm_evt.event_type {
                 gpm_handler::GpmEventType::Down => {
                     let button = convert_button(gpm_evt.button);
@@ -259,7 +268,7 @@ fn main() -> io::Result<()> {
                         kind: MouseEventKind::Down(button),
                         column: scaled_col,
                         row: scaled_row,
-                        modifiers: KeyModifiers::empty(),
+                        modifiers,
                     }
                 }
                 gpm_handler::GpmEventType::Up => {
@@ -268,7 +277,7 @@ fn main() -> io::Result<()> {
                         kind: MouseEventKind::Up(button),
                         column: scaled_col,
                         row: scaled_row,
-                        modifiers: KeyModifiers::empty(),
+                        modifiers,
                     }
                 }
                 gpm_handler::GpmEventType::Drag => {
@@ -277,26 +286,26 @@ fn main() -> io::Result<()> {
                         kind: MouseEventKind::Drag(button),
                         column: scaled_col,
                         row: scaled_row,
-                        modifiers: KeyModifiers::empty(),
+                        modifiers,
                     }
                 }
                 gpm_handler::GpmEventType::Move => MouseEvent {
                     kind: MouseEventKind::Moved,
                     column: scaled_col,
                     row: scaled_row,
-                    modifiers: KeyModifiers::empty(),
+                    modifiers,
                 },
                 gpm_handler::GpmEventType::ScrollUp => MouseEvent {
                     kind: MouseEventKind::ScrollUp,
                     column: scaled_col,
                     row: scaled_row,
-                    modifiers: KeyModifiers::empty(),
+                    modifiers,
                 },
                 gpm_handler::GpmEventType::ScrollDown => MouseEvent {
                     kind: MouseEventKind::ScrollDown,
                     column: scaled_col,
                     row: scaled_row,
-                    modifiers: KeyModifiers::empty(),
+                    modifiers,
                 },
             };
 
@@ -1038,11 +1047,22 @@ fn main() -> io::Result<()> {
                             MouseEventKind::Down(MouseButton::Left) => {
                                 // Check if click is in a window content area
                                 if let FocusState::Window(window_id) = window_manager.get_focus() {
-                                    // Track click timing for double/triple-click detection
+                                    // Track click timing and position for double/triple-click detection
                                     let now = Instant::now();
+                                    let click_x = mouse_event.column;
+                                    let click_y = mouse_event.row;
+
+                                    // Check if this click is close enough in time and position
+                                    // to be considered a multi-click (within 500ms and 2 chars)
                                     let is_multi_click =
-                                        if let Some(last_time) = app_state.last_click_time {
-                                            now.duration_since(last_time).as_millis() < 500
+                                        if let (Some(last_time), Some((last_x, last_y))) =
+                                            (app_state.last_click_time, app_state.last_click_pos)
+                                        {
+                                            let time_ok =
+                                                now.duration_since(last_time).as_millis() < 500;
+                                            let pos_ok = click_x.abs_diff(last_x) <= 2
+                                                && click_y.abs_diff(last_y) <= 2;
+                                            time_ok && pos_ok
                                         } else {
                                             false
                                         };
@@ -1053,6 +1073,7 @@ fn main() -> io::Result<()> {
                                         app_state.click_count = 1;
                                     }
                                     app_state.last_click_time = Some(now);
+                                    app_state.last_click_pos = Some((click_x, click_y));
 
                                     // Start or expand selection based on click count
                                     let selection_type = match app_state.click_count {
