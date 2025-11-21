@@ -72,6 +72,12 @@ pub struct FramebufferRenderer {
     offset_y: usize, // Y offset to center content
     cursor_visible: bool,
     cursor_saved_pixels: Vec<(usize, usize, u8, u8, u8)>, // (x, y, r, g, b)
+    // Pixel format offsets (byte positions for RGB channels)
+    r_offset: usize,
+    g_offset: usize,
+    b_offset: usize,
+    // Previous frame buffer for dirty tracking (only render changed cells)
+    prev_buffer: Vec<Cell>,
 }
 
 impl FramebufferRenderer {
@@ -112,6 +118,11 @@ impl FramebufferRenderer {
         let width_pixels = var_screen_info.xres as usize;
         let height_pixels = var_screen_info.yres as usize;
         let bytes_per_pixel = (var_screen_info.bits_per_pixel / 8) as usize;
+
+        // Get pixel format offsets from VarScreenInfo (handles RGB vs BGR)
+        let r_offset = (var_screen_info.red.offset / 8) as usize;
+        let g_offset = (var_screen_info.green.offset / 8) as usize;
+        let b_offset = (var_screen_info.blue.offset / 8) as usize;
 
         let fix_screen_info = framebuffer.fix_screen_info.clone();
         let line_length = fix_screen_info.line_length as usize;
@@ -185,6 +196,10 @@ impl FramebufferRenderer {
         );
         println!("Content centered at offset ({}, {})", offset_x, offset_y);
 
+        // Initialize previous buffer for dirty tracking
+        let prev_buffer_size = mode.cols * mode.rows;
+        let prev_buffer = vec![Cell::default(); prev_buffer_size];
+
         Ok(FramebufferRenderer {
             framebuffer,
             font,
@@ -198,6 +213,10 @@ impl FramebufferRenderer {
             offset_y,
             cursor_visible: true,
             cursor_saved_pixels: Vec::new(),
+            r_offset,
+            g_offset,
+            b_offset,
+            prev_buffer,
         })
     }
 
@@ -212,7 +231,7 @@ impl FramebufferRenderer {
             Color::Red => DOS_PALETTE[12],
             Color::DarkGreen => DOS_PALETTE[2],
             Color::Green => DOS_PALETTE[10],
-            Color::DarkYellow => DOS_PALETTE[14],
+            Color::DarkYellow => DOS_PALETTE[6], // Brown (dark yellow)
             Color::Yellow => DOS_PALETTE[14],
             Color::DarkBlue => DOS_PALETTE[1],
             Color::Blue => DOS_PALETTE[9],
@@ -244,20 +263,20 @@ impl FramebufferRenderer {
                 // Handle different color depths
                 match self.bytes_per_pixel {
                     4 => {
-                        // RGBA or BGRA (32-bit)
+                        // RGBA or BGRA (32-bit) - use dynamic offsets
                         if offset + 3 < frame.len() {
-                            frame[offset] = b; // Blue
-                            frame[offset + 1] = g; // Green
-                            frame[offset + 2] = r; // Red
-                            frame[offset + 3] = 255; // Alpha
+                            frame[offset + self.r_offset] = r;
+                            frame[offset + self.g_offset] = g;
+                            frame[offset + self.b_offset] = b;
+                            frame[offset + 3] = 255; // Alpha (usually at offset 3)
                         }
                     }
                     3 => {
-                        // RGB or BGR (24-bit)
+                        // RGB or BGR (24-bit) - use dynamic offsets
                         if offset + 2 < frame.len() {
-                            frame[offset] = b; // Blue
-                            frame[offset + 1] = g; // Green
-                            frame[offset + 2] = r; // Red
+                            frame[offset + self.r_offset] = r;
+                            frame[offset + self.g_offset] = g;
+                            frame[offset + self.b_offset] = b;
                         }
                     }
                     2 => {
@@ -278,6 +297,7 @@ impl FramebufferRenderer {
     }
 
     /// Render a single character at text position (col, row)
+    /// Optimized to use stack-allocated array instead of heap Vec
     pub fn render_char(&mut self, col: usize, row: usize, cell: &Cell) {
         if !self.mode.is_valid_position(col, row) {
             return;
@@ -293,23 +313,29 @@ impl FramebufferRenderer {
 
         let glyph = self.font.get_glyph(cell.character);
 
+        // Use stack-allocated array for pixel states (max 32x32 font = 1024 pixels)
+        // This avoids heap allocation on every character render
+        let mut pixel_data = [false; 1024];
+        let pixel_count = font_height * font_width;
+
         // Collect pixel states first to avoid borrowing conflicts
-        let mut pixel_data = Vec::with_capacity(font_height * font_width);
         for py in 0..font_height {
             for px in 0..font_width {
-                let is_set = self.font.is_pixel_set(glyph, px, py);
-                pixel_data.push(is_set);
+                let idx = py * font_width + px;
+                if idx < 1024 {
+                    pixel_data[idx] = self.font.is_pixel_set(glyph, px, py);
+                }
             }
         }
 
         // Now render pixels (can mutably borrow self)
-        let mut idx = 0;
         for py in 0..font_height {
             for px in 0..font_width {
-                let color = if pixel_data[idx] { fg_color } else { bg_color };
-                idx += 1;
-
-                self.put_pixel(x_offset + px, y_offset + py, color.0, color.1, color.2);
+                let idx = py * font_width + px;
+                if idx < pixel_count {
+                    let color = if pixel_data[idx] { fg_color } else { bg_color };
+                    self.put_pixel(x_offset + px, y_offset + py, color.0, color.1, color.2);
+                }
             }
         }
     }
@@ -338,6 +364,7 @@ impl FramebufferRenderer {
     }
 
     /// Render entire video buffer to framebuffer
+    /// Uses dirty tracking to only render cells that have changed
     pub fn render_buffer(&mut self, buffer: &VideoBuffer) {
         let (cols, rows) = buffer.dimensions();
 
@@ -347,7 +374,21 @@ impl FramebufferRenderer {
         for row in 0..max_rows {
             for col in 0..max_cols {
                 if let Some(cell) = buffer.get(col as u16, row as u16) {
-                    self.render_char(col, row, cell);
+                    // Calculate index into prev_buffer
+                    let idx = row * self.mode.cols + col;
+
+                    // Only render if cell has changed from previous frame
+                    if idx < self.prev_buffer.len() {
+                        let prev_cell = &self.prev_buffer[idx];
+                        if prev_cell != cell {
+                            self.render_char(col, row, cell);
+                            // Update previous buffer
+                            self.prev_buffer[idx] = *cell;
+                        }
+                    } else {
+                        // Index out of bounds, render anyway
+                        self.render_char(col, row, cell);
+                    }
                 }
             }
         }
@@ -394,11 +435,15 @@ impl FramebufferRenderer {
         let offset = actual_y * self.line_length + actual_x * self.bytes_per_pixel;
         let frame = self.framebuffer.frame.as_ref();
 
-        // Handle different color depths
+        // Handle different color depths - use dynamic offsets
         match self.bytes_per_pixel {
             4 | 3 => {
                 if offset + 2 < frame.len() {
-                    (frame[offset + 2], frame[offset + 1], frame[offset])
+                    (
+                        frame[offset + self.r_offset],
+                        frame[offset + self.g_offset],
+                        frame[offset + self.b_offset],
+                    )
                 } else {
                     (0, 0, 0)
                 }
@@ -473,11 +518,10 @@ impl FramebufferRenderer {
 
     /// Restore pixels that were saved before drawing cursor
     pub fn restore_cursor_area(&mut self) {
-        // Clone the vector to avoid borrowing issues
-        let saved = self.cursor_saved_pixels.clone();
+        // Use std::mem::take to move ownership without cloning
+        let saved = std::mem::take(&mut self.cursor_saved_pixels);
         for (x, y, r, g, b) in saved {
             self.put_pixel(x, y, r, g, b);
         }
-        self.cursor_saved_pixels.clear();
     }
 }

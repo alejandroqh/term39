@@ -37,6 +37,14 @@ const BTN_LEFT: u16 = 0x110;
 const BTN_RIGHT: u16 = 0x111;
 const BTN_MIDDLE: u16 = 0x112;
 
+// Size of struct input_event varies by architecture
+// On 64-bit: 24 bytes (8 for timeval.tv_sec, 8 for tv_usec, 2 for type, 2 for code, 4 for value)
+// On 32-bit: 16 bytes (4 for timeval.tv_sec, 4 for tv_usec, 2 for type, 2 for code, 4 for value)
+#[cfg(target_pointer_width = "64")]
+const INPUT_EVENT_SIZE: usize = 24;
+#[cfg(target_pointer_width = "32")]
+const INPUT_EVENT_SIZE: usize = 16;
+
 /// Mouse input protocol type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Protocol {
@@ -193,15 +201,28 @@ impl MouseInput {
 
     /// Read Linux input event protocol from /dev/input/eventX
     fn read_input_event(&mut self) -> io::Result<Option<MouseEvent>> {
-        let mut buf = [0u8; 24]; // sizeof(struct input_event) on 64-bit
+        let mut buf = [0u8; INPUT_EVENT_SIZE];
+
+        // Byte offsets for type, code, value depend on architecture
+        // 64-bit: timeval is 16 bytes, so type starts at offset 16
+        // 32-bit: timeval is 8 bytes, so type starts at offset 8
+        #[cfg(target_pointer_width = "64")]
+        const TYPE_OFFSET: usize = 16;
+        #[cfg(target_pointer_width = "32")]
+        const TYPE_OFFSET: usize = 8;
 
         loop {
             match self.file.read(&mut buf) {
-                Ok(24) => {
+                Ok(n) if n == INPUT_EVENT_SIZE => {
                     // Parse input_event structure
-                    let type_ = u16::from_ne_bytes([buf[16], buf[17]]);
-                    let code = u16::from_ne_bytes([buf[18], buf[19]]);
-                    let value = i32::from_ne_bytes([buf[20], buf[21], buf[22], buf[23]]);
+                    let type_ = u16::from_ne_bytes([buf[TYPE_OFFSET], buf[TYPE_OFFSET + 1]]);
+                    let code = u16::from_ne_bytes([buf[TYPE_OFFSET + 2], buf[TYPE_OFFSET + 3]]);
+                    let value = i32::from_ne_bytes([
+                        buf[TYPE_OFFSET + 4],
+                        buf[TYPE_OFFSET + 5],
+                        buf[TYPE_OFFSET + 6],
+                        buf[TYPE_OFFSET + 7],
+                    ]);
 
                     match type_ {
                         EV_REL => {

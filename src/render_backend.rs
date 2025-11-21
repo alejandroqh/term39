@@ -5,6 +5,8 @@
 //! - Framebuffer backend: Uses direct Linux framebuffer for DOS-like modes
 
 use crate::video_buffer::VideoBuffer;
+#[cfg(feature = "framebuffer-backend")]
+use std::collections::VecDeque;
 use std::io;
 
 /// Render backend trait for abstracting terminal vs framebuffer rendering
@@ -116,7 +118,7 @@ pub struct FramebufferBackend {
     prev_row: u16,
     // Queue of pending mouse events (event_type, button_id, col, row)
     // event_type: 0=Down, 1=Up, 2=Drag
-    button_event_queue: Vec<(u8, u8, u16, u16)>,
+    button_event_queue: VecDeque<(u8, u8, u16, u16)>,
 }
 
 #[cfg(feature = "framebuffer-backend")]
@@ -164,7 +166,7 @@ impl FramebufferBackend {
             current_middle: false,
             prev_col: 0,
             prev_row: 0,
-            button_event_queue: Vec::new(),
+            button_event_queue: VecDeque::new(),
         })
     }
 
@@ -202,7 +204,7 @@ impl FramebufferBackend {
         let row = (y_base / char_height).min(rows - 1) as u16;
 
         self.button_event_queue
-            .push((event_type, button_id, col, row));
+            .push_back((event_type, button_id, col, row));
     }
 }
 
@@ -333,7 +335,7 @@ impl RenderBackend for FramebufferBackend {
 
             // Queue all collected events (latest drag + any button state changes)
             for event in pending_events {
-                self.button_event_queue.push(event);
+                self.button_event_queue.push_back(event);
             }
 
             moved
@@ -345,11 +347,8 @@ impl RenderBackend for FramebufferBackend {
     fn get_mouse_button_event(&mut self) -> Option<(u8, u8, u16, u16)> {
         // Return the next queued mouse event (event_type, button_id, col, row)
         // event_type: 0=Down, 1=Up, 2=Drag
-        if !self.button_event_queue.is_empty() {
-            Some(self.button_event_queue.remove(0))
-        } else {
-            None
-        }
+        // Using pop_front() for O(1) dequeue instead of remove(0) which is O(n)
+        self.button_event_queue.pop_front()
     }
 
     fn has_native_mouse_input(&self) -> bool {
