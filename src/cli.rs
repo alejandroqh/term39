@@ -221,6 +221,17 @@ pub struct Cli {
     #[cfg(feature = "framebuffer-backend")]
     #[arg(long, help = "Invert mouse Y-axis for framebuffer mode")]
     pub invert_mouse_y: bool,
+
+    /// Swap left and right mouse buttons for GPM (Linux console only)
+    ///
+    /// Some GPM configurations have left/right mouse buttons swapped.
+    /// Use this flag if left-click registers as right-click and vice versa
+    /// when running in Linux console with GPM mouse support.
+    ///
+    /// Note: Only affects GPM mouse input on Linux console.
+    #[cfg(target_os = "linux")]
+    #[arg(long, help = "Swap left/right mouse buttons for GPM")]
+    pub swap_mouse_buttons: bool,
 }
 
 impl Cli {

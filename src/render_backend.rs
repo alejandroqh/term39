@@ -47,6 +47,13 @@ pub trait RenderBackend {
     fn get_mouse_button_event(&mut self) -> Option<(u8, u8, u16, u16)> {
         None // Default: no mouse events (event_type, button_id, col, row)
     }
+
+    /// Check if the backend has native mouse input (e.g., framebuffer with /dev/input/mice)
+    /// When true, GPM should be skipped to avoid duplicate/conflicting events
+    #[allow(dead_code)] // Used on Linux for GPM conflict resolution
+    fn has_native_mouse_input(&self) -> bool {
+        false // Default: no native mouse input
+    }
 }
 
 /// Terminal-based rendering backend (using crossterm)
@@ -343,6 +350,12 @@ impl RenderBackend for FramebufferBackend {
         } else {
             None
         }
+    }
+
+    fn has_native_mouse_input(&self) -> bool {
+        // Framebuffer backend reads directly from /dev/input/mice
+        // GPM should be skipped to avoid duplicate/conflicting events
+        self.mouse_input.is_some()
     }
 
     fn draw_cursor(&mut self) {

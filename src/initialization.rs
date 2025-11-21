@@ -92,12 +92,24 @@ pub fn setup_terminal(stdout: &mut io::Stdout) -> io::Result<()> {
 
     // Enter alternate screen buffer to prevent scrolling the parent terminal
     // Hide cursor and enable mouse capture
-    execute!(
-        stdout,
-        terminal::EnterAlternateScreen,
-        cursor::Hide,
-        event::EnableMouseCapture
-    )?;
+    // Skip EnableMouseCapture on Linux console (TERM=linux) since GPM handles mouse there
+    #[cfg(target_os = "linux")]
+    let is_linux_console = std::env::var("TERM").map(|t| t == "linux").unwrap_or(false);
+    #[cfg(not(target_os = "linux"))]
+    let is_linux_console = false;
+
+    if is_linux_console {
+        // On Linux console, GPM provides mouse support - don't send ANSI mouse escape sequences
+        execute!(stdout, terminal::EnterAlternateScreen, cursor::Hide)?;
+    } else {
+        // On terminal emulators, enable mouse capture via ANSI escape sequences
+        execute!(
+            stdout,
+            terminal::EnterAlternateScreen,
+            cursor::Hide,
+            event::EnableMouseCapture
+        )?;
+    }
 
     // Clear the screen
     execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
@@ -163,8 +175,15 @@ pub fn initialize_gpm() -> Option<crate::gpm_handler::GpmConnection> {
 
 /// Cleanup function to restore terminal state
 pub fn cleanup(stdout: &mut io::Stdout) -> io::Result<()> {
-    // Disable mouse capture
-    execute!(stdout, event::DisableMouseCapture)?;
+    // Disable mouse capture (only if not on Linux console)
+    #[cfg(target_os = "linux")]
+    let is_linux_console = std::env::var("TERM").map(|t| t == "linux").unwrap_or(false);
+    #[cfg(not(target_os = "linux"))]
+    let is_linux_console = false;
+
+    if !is_linux_console {
+        execute!(stdout, event::DisableMouseCapture)?;
+    }
 
     // Clear screen
     execute!(stdout, terminal::Clear(terminal::ClearType::All))?;

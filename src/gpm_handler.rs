@@ -186,6 +186,8 @@ pub enum GpmEventType {
     Drag,
     Down,
     Up,
+    ScrollUp,
+    ScrollDown,
 }
 
 /// GPM mouse button
@@ -290,6 +292,27 @@ impl GpmConnection {
                 return None;
             }
 
+            // Check for scroll wheel events first (wdy contains vertical scroll delta)
+            // Positive wdy = scroll up, negative wdy = scroll down
+            if event.wdy != 0 {
+                // Convert coordinates (GPM uses 1-based indexing)
+                let x = (event.x - 1).max(0) as u16;
+                let y = (event.y - 1).max(0) as u16;
+
+                let event_type = if event.wdy > 0 {
+                    GpmEventType::ScrollUp
+                } else {
+                    GpmEventType::ScrollDown
+                };
+
+                return Some(GpmMouseEvent {
+                    x,
+                    y,
+                    event_type,
+                    button: None,
+                });
+            }
+
             // Convert GPM event to our simplified format
             let event_type = if (event.event_type & GPM_DOWN) != 0 {
                 GpmEventType::Down
@@ -305,13 +328,12 @@ impl GpmConnection {
 
             // Determine which button (if any)
             // Use ONLY the buttons field - event_type has overlapping bit values!
-            // Note: Some GPM configurations have left/right swapped, so we swap them here
             let button = if (event.buttons as c_int & GPM_B_LEFT) != 0 {
-                Some(GpmButton::Right) // Swapped!
+                Some(GpmButton::Left)
             } else if (event.buttons as c_int & GPM_B_MIDDLE) != 0 {
                 Some(GpmButton::Middle)
             } else if (event.buttons as c_int & GPM_B_RIGHT) != 0 {
-                Some(GpmButton::Left) // Swapped!
+                Some(GpmButton::Right)
             } else {
                 None
             };

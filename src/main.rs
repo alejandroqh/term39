@@ -206,10 +206,15 @@ fn main() -> io::Result<()> {
         }
 
         // Check for GPM events first (Linux console mouse support)
+        // Skip GPM when backend has native mouse input to avoid duplicate events
         #[cfg(target_os = "linux")]
-        let gpm_event = if let Some(ref gpm) = gpm_connection {
-            if gpm.has_event() {
-                gpm.get_event()
+        let gpm_event = if !backend.has_native_mouse_input() {
+            if let Some(ref gpm) = gpm_connection {
+                if gpm.has_event() {
+                    gpm.get_event()
+                } else {
+                    None
+                }
             } else {
                 None
             }
@@ -227,14 +232,29 @@ fn main() -> io::Result<()> {
             // Scale mouse coordinates from TTY space to backend space
             let (scaled_col, scaled_row) = backend.scale_mouse_coords(gpm_evt.x, gpm_evt.y);
 
+            // Convert GpmButton to crossterm MouseButton, with optional swap
+            let convert_button = |gpm_button: Option<gpm_handler::GpmButton>| -> MouseButton {
+                let button = match gpm_button {
+                    Some(gpm_handler::GpmButton::Left) => MouseButton::Left,
+                    Some(gpm_handler::GpmButton::Middle) => MouseButton::Middle,
+                    Some(gpm_handler::GpmButton::Right) => MouseButton::Right,
+                    None => MouseButton::Left,
+                };
+                // Swap left/right if --swap-mouse-buttons flag is set
+                if cli_args.swap_mouse_buttons {
+                    match button {
+                        MouseButton::Left => MouseButton::Right,
+                        MouseButton::Right => MouseButton::Left,
+                        other => other,
+                    }
+                } else {
+                    button
+                }
+            };
+
             let mouse_event = match gpm_evt.event_type {
                 gpm_handler::GpmEventType::Down => {
-                    let button = match gpm_evt.button {
-                        Some(gpm_handler::GpmButton::Left) => MouseButton::Left,
-                        Some(gpm_handler::GpmButton::Middle) => MouseButton::Middle,
-                        Some(gpm_handler::GpmButton::Right) => MouseButton::Right,
-                        None => MouseButton::Left,
-                    };
+                    let button = convert_button(gpm_evt.button);
                     MouseEvent {
                         kind: MouseEventKind::Down(button),
                         column: scaled_col,
@@ -243,12 +263,7 @@ fn main() -> io::Result<()> {
                     }
                 }
                 gpm_handler::GpmEventType::Up => {
-                    let button = match gpm_evt.button {
-                        Some(gpm_handler::GpmButton::Left) => MouseButton::Left,
-                        Some(gpm_handler::GpmButton::Middle) => MouseButton::Middle,
-                        Some(gpm_handler::GpmButton::Right) => MouseButton::Right,
-                        None => MouseButton::Left,
-                    };
+                    let button = convert_button(gpm_evt.button);
                     MouseEvent {
                         kind: MouseEventKind::Up(button),
                         column: scaled_col,
@@ -257,12 +272,7 @@ fn main() -> io::Result<()> {
                     }
                 }
                 gpm_handler::GpmEventType::Drag => {
-                    let button = match gpm_evt.button {
-                        Some(gpm_handler::GpmButton::Left) => MouseButton::Left,
-                        Some(gpm_handler::GpmButton::Middle) => MouseButton::Middle,
-                        Some(gpm_handler::GpmButton::Right) => MouseButton::Right,
-                        None => MouseButton::Left,
-                    };
+                    let button = convert_button(gpm_evt.button);
                     MouseEvent {
                         kind: MouseEventKind::Drag(button),
                         column: scaled_col,
@@ -272,6 +282,18 @@ fn main() -> io::Result<()> {
                 }
                 gpm_handler::GpmEventType::Move => MouseEvent {
                     kind: MouseEventKind::Moved,
+                    column: scaled_col,
+                    row: scaled_row,
+                    modifiers: KeyModifiers::empty(),
+                },
+                gpm_handler::GpmEventType::ScrollUp => MouseEvent {
+                    kind: MouseEventKind::ScrollUp,
+                    column: scaled_col,
+                    row: scaled_row,
+                    modifiers: KeyModifiers::empty(),
+                },
+                gpm_handler::GpmEventType::ScrollDown => MouseEvent {
+                    kind: MouseEventKind::ScrollDown,
                     column: scaled_col,
                     row: scaled_row,
                     modifiers: KeyModifiers::empty(),
