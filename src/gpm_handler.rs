@@ -99,12 +99,6 @@ struct GpmConnect {
     max_mod: c_ushort,
 }
 
-// GPM connection mode flags
-const GPM_MOVE_MODE: c_ushort = 1;
-const GPM_DRAG_MODE: c_ushort = 2;
-const GPM_DOWN_MODE: c_ushort = 4;
-const GPM_UP_MODE: c_ushort = 8;
-
 // Dynamic library handle and function pointers
 use std::sync::OnceLock;
 
@@ -230,11 +224,16 @@ impl GpmConnection {
         let gpm_lib = get_gpm_lib()?;
 
         unsafe {
-            let event_mask = GPM_MOVE_MODE | GPM_DRAG_MODE | GPM_DOWN_MODE | GPM_UP_MODE;
+            // Request ALL events from GPM to prevent its built-in selection behavior
+            // When event_mask is ~0 and default_mask is 0, GPM passes all events to the
+            // application and doesn't perform its default text selection/highlighting.
+            // This is critical during drag operations (window dragging/resizing) where
+            // GPM would otherwise select text on the console.
+            let event_mask: c_ushort = !0; // All possible events
             let mut conn = GpmConnect {
                 event_mask,
-                // Set default_mask to 0 to hide GPM cursor
-                // We draw our own cursor in framebuffer mode
+                // Set default_mask to 0 to disable GPM's built-in selection behavior
+                // This prevents GPM from highlighting text during drag operations
                 default_mask: 0,
                 min_mod: 0,
                 max_mod: !0,

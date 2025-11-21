@@ -43,19 +43,20 @@ memmap2 = { version = "0.9", optional = true }
 flate2 = { version = "1.0", optional = true }
 
 [package.metadata.deb]
-maintainer = "Alejandro Quintanar"
-copyright = "2025, Alejandro Quintanar <your-email@example.com>"
+maintainer = "Alejandro Quintanar <a@q39.dev>"
+copyright = "2025, Alejandro Quintanar <a@q39.dev>"
 license-file = ["LICENSE", "4"]
 extended-description = """\
 A modern, retro-styled terminal multiplexer with a classic MS-DOS aesthetic. \
 Features a full-screen text-based interface with authentic DOS-style rendering, \
-supporting both Unicode and ASCII rendering modes."""
-depends = "libc6"
+supporting both Unicode and ASCII rendering modes. Includes optional framebuffer \
+backend for direct Linux console rendering with pixel-perfect DOS text modes."""
+depends = "$auto"
 section = "utils"
 priority = "optional"
 assets = [
     ["target/release/term39", "usr/bin/", "755"],
-    ["README.md", "usr/share/doc/term39/", "644"],
+    ["README.md", "usr/share/doc/term39/README.md", "644"],
 ]
 
 [package.metadata.generate-rpm]
