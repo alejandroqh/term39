@@ -291,8 +291,11 @@ fn main() -> io::Result<()> {
     initialization::setup_terminal(&mut stdout)?;
 
     // Initialize GPM (General Purpose Mouse) for Linux console if available
-    #[cfg(target_os = "linux")]
-    let mut gpm_connection = initialization::initialize_gpm();
+    // In framebuffer mode, GPM shouldn't draw cursor (app draws it)
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
+    let mut gpm_connection = initialization::initialize_gpm(cli_args.framebuffer);
+    #[cfg(all(target_os = "linux", not(feature = "framebuffer-backend")))]
+    let mut gpm_connection = initialization::initialize_gpm(false);
 
     // Initialize video buffer and window manager
     let mut video_buffer = initialization::initialize_video_buffer(backend.as_ref());

@@ -218,23 +218,31 @@ pub struct GpmMouseEvent {
 
 impl GpmConnection {
     /// Open a connection to the GPM daemon
+    ///
+    /// # Arguments
+    /// * `draw_cursor` - If true, GPM draws its cursor (for terminal mode).
+    ///                   If false, application draws cursor (for framebuffer mode).
+    ///
     /// Returns None if GPM is not available or connection fails
-    pub fn open() -> Option<Self> {
+    pub fn open(draw_cursor: bool) -> Option<Self> {
         // Try to load GPM library first
         let gpm_lib = get_gpm_lib()?;
 
         unsafe {
             // Request ALL events from GPM to prevent its built-in selection behavior
-            // When event_mask is ~0 and default_mask is 0, GPM passes all events to the
-            // application and doesn't perform its default text selection/highlighting.
-            // This is critical during drag operations (window dragging/resizing) where
-            // GPM would otherwise select text on the console.
+            // When event_mask is ~0, GPM passes all events to the application.
+            // default_mask controls what GPM handles itself:
+            // - GPM_MOVE: GPM draws cursor (for terminal mode)
+            // - 0: Application handles everything including cursor (for framebuffer mode)
             let event_mask: c_ushort = !0; // All possible events
+            let default_mask = if draw_cursor {
+                GPM_MOVE as c_ushort // GPM draws cursor
+            } else {
+                0 // Application draws cursor
+            };
             let mut conn = GpmConnect {
                 event_mask,
-                // Set default_mask to 0 to disable GPM's built-in selection behavior
-                // This prevents GPM from highlighting text during drag operations
-                default_mask: 0,
+                default_mask,
                 min_mod: 0,
                 max_mod: !0,
             };
@@ -421,7 +429,7 @@ impl Drop for GpmConnection {
 /// This tries to open a connection and immediately closes it
 #[allow(dead_code)]
 pub fn is_gpm_available() -> bool {
-    if let Some(mut conn) = GpmConnection::open() {
+    if let Some(mut conn) = GpmConnection::open(true) {
         conn.close();
         true
     } else {
