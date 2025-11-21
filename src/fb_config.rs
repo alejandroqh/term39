@@ -233,6 +233,17 @@ impl FramebufferConfig {
         self.set_scale_by_index(next);
     }
 
+    /// Cycle to the previous scale option
+    pub fn cycle_scale_reverse(&mut self) {
+        let current = self.scale_index();
+        let prev = if current == 0 {
+            Self::SCALE_OPTIONS.len() - 1
+        } else {
+            current - 1
+        };
+        self.set_scale_by_index(prev);
+    }
+
     /// Toggle invert X
     pub fn toggle_invert_x(&mut self) {
         self.mouse.invert_x = !self.mouse.invert_x;
@@ -276,6 +287,17 @@ impl FramebufferConfig {
         let current = self.device_index();
         let next = (current + 1) % Self::MOUSE_DEVICE_OPTIONS.len();
         self.set_device_by_index(next);
+    }
+
+    /// Cycle to the previous mouse device option
+    pub fn cycle_device_reverse(&mut self) {
+        let current = self.device_index();
+        let prev = if current == 0 {
+            Self::MOUSE_DEVICE_OPTIONS.len() - 1
+        } else {
+            current - 1
+        };
+        self.set_device_by_index(prev);
     }
 
     /// Get display name for current mouse device

@@ -137,14 +137,34 @@ fn main() -> io::Result<()> {
         use render_backend::RenderBackend;
         use video_buffer::VideoBuffer;
 
+        // Detect if running on Linux console for GPM support
+        #[cfg(target_os = "linux")]
+        let is_linux_console = std::env::var("TERM").map(|t| t == "linux").unwrap_or(false);
+        #[cfg(not(target_os = "linux"))]
+        let is_linux_console = false;
+
         // Set up terminal for setup wizard
         let mut stdout = io::stdout();
         terminal::enable_raw_mode()?;
-        execute!(
-            stdout,
-            terminal::EnterAlternateScreen,
-            crossterm::event::EnableMouseCapture
-        )?;
+
+        // On Linux console, don't enable crossterm mouse capture (GPM handles it)
+        if is_linux_console {
+            execute!(stdout, terminal::EnterAlternateScreen)?;
+        } else {
+            execute!(
+                stdout,
+                terminal::EnterAlternateScreen,
+                crossterm::event::EnableMouseCapture
+            )?;
+        }
+
+        // Initialize GPM connection on Linux
+        #[cfg(target_os = "linux")]
+        let mut gpm_connection = if is_linux_console {
+            gpm_handler::GpmConnection::open(true) // Let GPM draw cursor in terminal mode
+        } else {
+            None
+        };
 
         // Get terminal size and create video buffer
         let (cols, rows) = terminal::size()?;
@@ -173,7 +193,59 @@ fn main() -> io::Result<()> {
             // Present to terminal
             term_backend.present(&mut video_buffer)?;
 
-            // Poll for events
+            // Check for GPM events first (Linux console only)
+            #[cfg(target_os = "linux")]
+            let gpm_event = if let Some(ref mut gpm) = gpm_connection {
+                if gpm.has_event() {
+                    gpm.get_event()
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            #[cfg(not(target_os = "linux"))]
+            let gpm_event: Option<()> = None;
+
+            // Handle GPM mouse event
+            #[cfg(target_os = "linux")]
+            if let Some(gpm_ev) = gpm_event {
+                use gpm_handler::{GpmButton, GpmEventType};
+
+                // Only handle button down events for clicks
+                if gpm_ev.event_type == GpmEventType::Down {
+                    if let Some(button) = gpm_ev.button {
+                        let is_left = matches!(button, GpmButton::Left);
+                        if is_left {
+                            let action = setup_window.handle_click(gpm_ev.x, gpm_ev.y);
+                            match action {
+                                FbSetupAction::Close => break,
+                                FbSetupAction::SaveAndLaunch => {
+                                    if let Err(e) = setup_window.save_config() {
+                                        eprintln!("Error saving config: {}", e);
+                                    }
+                                    should_launch = true;
+                                    break;
+                                }
+                                FbSetupAction::SaveOnly => {
+                                    if let Err(e) = setup_window.save_config() {
+                                        eprintln!("Error saving config: {}", e);
+                                    }
+                                    break;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+                continue; // Don't poll crossterm if we got a GPM event
+            }
+
+            // Suppress unused variable warning on non-Linux
+            let _ = gpm_event;
+
+            // Poll for crossterm events
             if event::poll(Duration::from_millis(50))? {
                 match event::read()? {
                     Event::Key(key_event) => {
@@ -235,11 +307,15 @@ fn main() -> io::Result<()> {
         }
 
         // Cleanup terminal
-        execute!(
-            stdout,
-            crossterm::event::DisableMouseCapture,
-            terminal::LeaveAlternateScreen
-        )?;
+        if is_linux_console {
+            execute!(stdout, terminal::LeaveAlternateScreen)?;
+        } else {
+            execute!(
+                stdout,
+                crossterm::event::DisableMouseCapture,
+                terminal::LeaveAlternateScreen
+            )?;
+        }
         terminal::disable_raw_mode()?;
 
         // If user chose to launch, show message about how to run

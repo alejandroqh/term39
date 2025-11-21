@@ -26,6 +26,41 @@ pub enum FbSetupAction {
     SaveOnly,
 }
 
+/// Focus areas for keyboard navigation
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum FocusArea {
+    Modes,
+    Scale,
+    Fonts,
+    Device,
+    Options,
+    Buttons,
+}
+
+impl FocusArea {
+    fn next(self) -> Self {
+        match self {
+            FocusArea::Modes => FocusArea::Scale,
+            FocusArea::Scale => FocusArea::Fonts,
+            FocusArea::Fonts => FocusArea::Device,
+            FocusArea::Device => FocusArea::Options,
+            FocusArea::Options => FocusArea::Buttons,
+            FocusArea::Buttons => FocusArea::Modes,
+        }
+    }
+
+    fn prev(self) -> Self {
+        match self {
+            FocusArea::Modes => FocusArea::Buttons,
+            FocusArea::Scale => FocusArea::Modes,
+            FocusArea::Fonts => FocusArea::Scale,
+            FocusArea::Device => FocusArea::Fonts,
+            FocusArea::Options => FocusArea::Device,
+            FocusArea::Buttons => FocusArea::Options,
+        }
+    }
+}
+
 /// Font information for display
 #[derive(Clone, Debug)]
 pub struct FontInfo {
@@ -62,6 +97,11 @@ pub struct FbSetupWindow {
 
     // Constants
     visible_fonts: usize,
+
+    // Focus system for keyboard navigation
+    pub focus: FocusArea,
+    pub option_index: usize, // 0=InvertX, 1=InvertY, 2=Swap
+    pub button_index: usize, // 0=Save&Launch, 1=Save, 2=Cancel
 }
 
 impl FbSetupWindow {
@@ -108,6 +148,9 @@ impl FbSetupWindow {
             all_fonts: Vec::new(),
             available_fonts: Vec::new(),
             visible_fonts,
+            focus: FocusArea::Modes,
+            option_index: 0,
+            button_index: 0,
         }
     }
 
@@ -272,12 +315,13 @@ impl FbSetupWindow {
             Cell::new(bottom_right, border_color, title_bg),
         );
 
-        // Render sections
+        // Render sections with focus indicators
         self.render_mode_section(buffer, theme);
         self.render_scale_section(buffer, theme);
         self.render_font_section(buffer, charset, theme);
         self.render_mouse_section(buffer, charset, theme);
         self.render_buttons(buffer, theme);
+        self.render_help_bar(buffer, theme);
 
         // Render shadow
         video_buffer::render_shadow(
@@ -296,6 +340,7 @@ impl FbSetupWindow {
         let fg = theme.config_content_fg;
         let bg = theme.config_title_bg; // Use title_bg for consistent DOS dialog look
         let option_x = self.x + 3;
+        let is_focused = self.focus == FocusArea::Modes;
 
         // Clear mode section rows to ensure consistent background
         for row_offset in 0..5 {
@@ -310,13 +355,22 @@ impl FbSetupWindow {
             }
         }
 
-        // Section label
-        let label = "Display Mode:";
+        // Section label with focus indicator
+        let label = if is_focused {
+            "Display Mode: [1-8]"
+        } else {
+            "Display Mode:"
+        };
+        let label_fg = if is_focused {
+            theme.config_toggle_on_color
+        } else {
+            fg
+        };
         for (i, ch) in label.chars().enumerate() {
             buffer.set(
                 option_x + i as u16,
                 self.mode_start_row - 1,
-                Cell::new(ch, fg, bg),
+                Cell::new(ch, label_fg, bg),
             );
         }
 
@@ -355,16 +409,26 @@ impl FbSetupWindow {
         let fg = theme.config_content_fg;
         let bg = theme.config_title_bg; // Use title_bg for consistent DOS dialog look
         let option_x = self.x + 3;
+        let is_focused = self.focus == FocusArea::Scale;
 
         // Clear scale row first (to handle variable-length values)
         for dx in 1..(self.width - 1) {
             buffer.set(self.x + dx, self.scale_row, Cell::new(' ', fg, bg));
         }
 
-        // Render label
+        // Render label with focus indicator
         let label = "Pixel Scale:";
+        let label_fg = if is_focused {
+            theme.config_toggle_on_color
+        } else {
+            fg
+        };
         for (i, ch) in label.chars().enumerate() {
-            buffer.set(option_x + i as u16, self.scale_row, Cell::new(ch, fg, bg));
+            buffer.set(
+                option_x + i as u16,
+                self.scale_row,
+                Cell::new(ch, label_fg, bg),
+            );
         }
 
         // Render scale selector: < auto >
@@ -372,8 +436,22 @@ impl FbSetupWindow {
         let selector_x = option_x + label.len() as u16 + 2;
         let selector_text = format!("< {} >", scale_display);
 
+        let selector_fg = if is_focused {
+            theme.window_title_fg
+        } else {
+            fg
+        };
+        let selector_bg = if is_focused {
+            theme.window_title_bg_focused
+        } else {
+            bg
+        };
         for (i, ch) in selector_text.chars().enumerate() {
-            buffer.set(selector_x + i as u16, self.scale_row, Cell::new(ch, fg, bg));
+            buffer.set(
+                selector_x + i as u16,
+                self.scale_row,
+                Cell::new(ch, selector_fg, selector_bg),
+            );
         }
     }
 
@@ -382,19 +460,25 @@ impl FbSetupWindow {
         let fg = theme.config_content_fg;
         let bg = theme.config_title_bg; // Use title_bg for consistent DOS dialog look
         let option_x = self.x + 3;
+        let is_focused = self.focus == FocusArea::Fonts;
 
         // Clear font label row
         for dx in 1..(self.width - 1) {
             buffer.set(self.x + dx, self.font_label_row, Cell::new(' ', fg, bg));
         }
 
-        // Section label
+        // Section label with focus indicator
         let label = "Console Font:";
+        let label_fg = if is_focused {
+            theme.config_toggle_on_color
+        } else {
+            fg
+        };
         for (i, ch) in label.chars().enumerate() {
             buffer.set(
                 option_x + i as u16,
                 self.font_label_row,
-                Cell::new(ch, fg, bg),
+                Cell::new(ch, label_fg, bg),
             );
         }
 
@@ -527,6 +611,8 @@ impl FbSetupWindow {
         let fg = theme.config_content_fg;
         let bg = theme.config_title_bg; // Use title_bg for consistent DOS dialog look
         let option_x = self.x + 3;
+        let device_focused = self.focus == FocusArea::Device;
+        let options_focused = self.focus == FocusArea::Options;
 
         // Clear device row first (to handle variable-length device names)
         for dx in 1..(self.width - 1) {
@@ -538,10 +624,19 @@ impl FbSetupWindow {
             buffer.set(self.x + dx, self.mouse_row, Cell::new(' ', fg, bg));
         }
 
-        // Device selector row
+        // Device selector row with focus indicator
         let device_label = "Device:";
+        let device_label_fg = if device_focused {
+            theme.config_toggle_on_color
+        } else {
+            fg
+        };
         for (i, ch) in device_label.chars().enumerate() {
-            buffer.set(option_x + i as u16, self.device_row, Cell::new(ch, fg, bg));
+            buffer.set(
+                option_x + i as u16,
+                self.device_row,
+                Cell::new(ch, device_label_fg, bg),
+            );
         }
 
         // Render device selector: < auto > or < /dev/input/mice >
@@ -549,26 +644,51 @@ impl FbSetupWindow {
         let selector_x = option_x + device_label.len() as u16 + 2;
         let selector_text = format!("< {} >", device_display);
 
+        let selector_fg = if device_focused {
+            theme.window_title_fg
+        } else {
+            fg
+        };
+        let selector_bg = if device_focused {
+            theme.window_title_bg_focused
+        } else {
+            bg
+        };
         for (i, ch) in selector_text.chars().enumerate() {
             buffer.set(
                 selector_x + i as u16,
                 self.device_row,
-                Cell::new(ch, fg, bg),
+                Cell::new(ch, selector_fg, selector_bg),
             );
         }
 
-        // Mouse options row (checkboxes)
+        // Mouse options row (checkboxes) with focus indicator
         let label = "Options:";
+        let options_label_fg = if options_focused {
+            theme.config_toggle_on_color
+        } else {
+            fg
+        };
         for (i, ch) in label.chars().enumerate() {
-            buffer.set(option_x + i as u16, self.mouse_row, Cell::new(ch, fg, bg));
+            buffer.set(
+                option_x + i as u16,
+                self.mouse_row,
+                Cell::new(ch, options_label_fg, bg),
+            );
         }
 
         // Invert X checkbox
         let invert_x_x = option_x + label.len() as u16 + 1;
+        let x_focused = options_focused && self.option_index == 0;
         let checkbox_x = if self.config.mouse.invert_x {
             format!("[{}]", charset.block())
         } else {
             format!("[{}]", charset.shade())
+        };
+        let option_bg = if x_focused {
+            theme.window_title_bg_focused
+        } else {
+            bg
         };
         for (i, ch) in checkbox_x.chars().enumerate() {
             let color = if i == 1 {
@@ -577,31 +697,40 @@ impl FbSetupWindow {
                 } else {
                     theme.config_toggle_off_color
                 }
+            } else if x_focused {
+                theme.window_title_fg
             } else {
                 fg
             };
             buffer.set(
                 invert_x_x + i as u16,
                 self.mouse_row,
-                Cell::new(ch, color, bg),
+                Cell::new(ch, color, option_bg),
             );
         }
 
         let invert_x_label = " Invert X";
+        let label_fg = if x_focused { theme.window_title_fg } else { fg };
         for (i, ch) in invert_x_label.chars().enumerate() {
             buffer.set(
                 invert_x_x + 3 + i as u16,
                 self.mouse_row,
-                Cell::new(ch, fg, bg),
+                Cell::new(ch, label_fg, option_bg),
             );
         }
 
         // Invert Y checkbox
         let invert_y_x = invert_x_x + 16;
+        let y_focused = options_focused && self.option_index == 1;
         let checkbox_y = if self.config.mouse.invert_y {
             format!("[{}]", charset.block())
         } else {
             format!("[{}]", charset.shade())
+        };
+        let option_bg = if y_focused {
+            theme.window_title_bg_focused
+        } else {
+            bg
         };
         for (i, ch) in checkbox_y.chars().enumerate() {
             let color = if i == 1 {
@@ -610,31 +739,40 @@ impl FbSetupWindow {
                 } else {
                     theme.config_toggle_off_color
                 }
+            } else if y_focused {
+                theme.window_title_fg
             } else {
                 fg
             };
             buffer.set(
                 invert_y_x + i as u16,
                 self.mouse_row,
-                Cell::new(ch, color, bg),
+                Cell::new(ch, color, option_bg),
             );
         }
 
         let invert_y_label = " Invert Y";
+        let label_fg = if y_focused { theme.window_title_fg } else { fg };
         for (i, ch) in invert_y_label.chars().enumerate() {
             buffer.set(
                 invert_y_x + 3 + i as u16,
                 self.mouse_row,
-                Cell::new(ch, fg, bg),
+                Cell::new(ch, label_fg, option_bg),
             );
         }
 
         // Swap buttons checkbox
         let swap_x = invert_y_x + 14;
+        let swap_focused = options_focused && self.option_index == 2;
         let checkbox_swap = if self.config.mouse.swap_buttons {
             format!("[{}]", charset.block())
         } else {
             format!("[{}]", charset.shade())
+        };
+        let option_bg = if swap_focused {
+            theme.window_title_bg_focused
+        } else {
+            bg
         };
         for (i, ch) in checkbox_swap.chars().enumerate() {
             let color = if i == 1 {
@@ -643,15 +781,30 @@ impl FbSetupWindow {
                 } else {
                     theme.config_toggle_off_color
                 }
+            } else if swap_focused {
+                theme.window_title_fg
             } else {
                 fg
             };
-            buffer.set(swap_x + i as u16, self.mouse_row, Cell::new(ch, color, bg));
+            buffer.set(
+                swap_x + i as u16,
+                self.mouse_row,
+                Cell::new(ch, color, option_bg),
+            );
         }
 
         let swap_label = " Swap";
+        let label_fg = if swap_focused {
+            theme.window_title_fg
+        } else {
+            fg
+        };
         for (i, ch) in swap_label.chars().enumerate() {
-            buffer.set(swap_x + 3 + i as u16, self.mouse_row, Cell::new(ch, fg, bg));
+            buffer.set(
+                swap_x + 3 + i as u16,
+                self.mouse_row,
+                Cell::new(ch, label_fg, option_bg),
+            );
         }
     }
 
@@ -659,43 +812,95 @@ impl FbSetupWindow {
     fn render_buttons(&self, buffer: &mut VideoBuffer, theme: &Theme) {
         let fg = theme.config_content_fg;
         let bg = theme.config_title_bg; // Use title_bg for consistent DOS dialog look
+        let is_focused = self.focus == FocusArea::Buttons;
 
         // Clear buttons row
         for dx in 1..(self.width - 1) {
             buffer.set(self.x + dx, self.buttons_row, Cell::new(' ', fg, bg));
         }
 
-        // Button style
+        // Button styles
         let button_fg = theme.window_title_fg;
         let button_bg = theme.window_title_bg_focused;
 
-        // Save & Launch button
-        let save_launch = " Save & Launch ";
-        let save_launch_x = self.x + 8;
+        // Save & Launch button (F1)
+        let save_launch = " F1 Save & Launch ";
+        let save_launch_x = self.x + 5;
+        let sl_focused = is_focused && self.button_index == 0;
+        let (sl_fg, sl_bg) = if sl_focused {
+            (theme.config_toggle_on_color, button_bg)
+        } else {
+            (button_fg, button_bg)
+        };
         for (i, ch) in save_launch.chars().enumerate() {
             buffer.set(
                 save_launch_x + i as u16,
                 self.buttons_row,
-                Cell::new(ch, button_fg, button_bg),
+                Cell::new(ch, sl_fg, sl_bg),
             );
         }
 
-        // Save button
-        let save = " Save ";
-        let save_x = save_launch_x + save_launch.len() as u16 + 3;
+        // Save button (F2)
+        let save = " F2 Save ";
+        let save_x = save_launch_x + save_launch.len() as u16 + 2;
+        let s_focused = is_focused && self.button_index == 1;
+        let (s_fg, s_bg) = if s_focused {
+            (theme.config_toggle_on_color, button_bg)
+        } else {
+            (button_fg, button_bg)
+        };
         for (i, ch) in save.chars().enumerate() {
             buffer.set(
                 save_x + i as u16,
                 self.buttons_row,
-                Cell::new(ch, button_fg, button_bg),
+                Cell::new(ch, s_fg, s_bg),
             );
         }
 
-        // Cancel button
-        let cancel = " Cancel ";
-        let cancel_x = save_x + save.len() as u16 + 3;
+        // Cancel button (F3/Esc)
+        let cancel = " F3 Cancel ";
+        let cancel_x = save_x + save.len() as u16 + 2;
+        let c_focused = is_focused && self.button_index == 2;
+        let (c_fg, c_bg) = if c_focused {
+            (theme.config_toggle_on_color, button_bg)
+        } else {
+            (fg, bg)
+        };
         for (i, ch) in cancel.chars().enumerate() {
-            buffer.set(cancel_x + i as u16, self.buttons_row, Cell::new(ch, fg, bg));
+            buffer.set(
+                cancel_x + i as u16,
+                self.buttons_row,
+                Cell::new(ch, c_fg, c_bg),
+            );
+        }
+    }
+
+    /// Render help bar with keyboard shortcuts
+    fn render_help_bar(&self, buffer: &mut VideoBuffer, theme: &Theme) {
+        let fg = theme.config_content_fg;
+        let bg = theme.config_title_bg;
+        let help_row = self.y + self.height - 2;
+
+        // Clear help row
+        for dx in 1..(self.width - 1) {
+            buffer.set(self.x + dx, help_row, Cell::new(' ', fg, bg));
+        }
+
+        // Show context-sensitive help based on focus
+        let help_text = match self.focus {
+            FocusArea::Modes => "Tab:Next  Arrows:Navigate  1-8:Select  Enter:Confirm",
+            FocusArea::Scale => "Tab:Next  Left/Right:Change  Space/Enter:Cycle",
+            FocusArea::Fonts => "Tab:Next  Up/Down:Select  PgUp/PgDn:Scroll  Home/End",
+            FocusArea::Device => "Tab:Next  Left/Right:Change  D:Cycle  Space/Enter:Cycle",
+            FocusArea::Options => "Tab:Next  Left/Right:Select  Space/Enter:Toggle  X Y B",
+            FocusArea::Buttons => "Tab:Next  Left/Right:Select  Enter/Space:Activate",
+        };
+
+        let help_x = self.x + 3;
+        for (i, ch) in help_text.chars().enumerate() {
+            if help_x + (i as u16) < self.x + self.width - 1 {
+                buffer.set(help_x + i as u16, help_row, Cell::new(ch, fg, bg));
+            }
         }
     }
 
@@ -822,107 +1027,345 @@ impl FbSetupWindow {
         FbSetupAction::None
     }
 
-    /// Handle keyboard input
+    /// Handle keyboard input with focus-based navigation
     pub fn handle_key(&mut self, key: crossterm::event::KeyEvent) -> FbSetupAction {
-        use crossterm::event::KeyCode;
+        use crossterm::event::{KeyCode, KeyModifiers};
 
         match key.code {
+            // Global shortcuts
             KeyCode::Esc => FbSetupAction::Close,
-            KeyCode::Enter => FbSetupAction::SaveAndLaunch,
-            KeyCode::Up => {
-                // Move font selection up
-                if self.selected_font_index > 0 {
-                    self.selected_font_index -= 1;
-                    self.config.font.name =
-                        self.available_fonts[self.selected_font_index].name.clone();
+            KeyCode::F(10) => FbSetupAction::Close,
 
-                    // Adjust scroll if needed
-                    if self.selected_font_index < self.font_list_scroll {
-                        self.font_list_scroll = self.selected_font_index;
+            // Tab navigation between focus areas
+            KeyCode::Tab => {
+                if key.modifiers.contains(KeyModifiers::SHIFT) {
+                    self.focus = self.focus.prev();
+                } else {
+                    self.focus = self.focus.next();
+                }
+                FbSetupAction::None
+            }
+            KeyCode::BackTab => {
+                self.focus = self.focus.prev();
+                FbSetupAction::None
+            }
+
+            // Number keys for direct mode selection (1-8)
+            KeyCode::Char(c @ '1'..='8') => {
+                let mode_idx = (c as usize) - ('1' as usize);
+                if mode_idx < FramebufferConfig::TEXT_MODES.len() {
+                    self.selected_mode_index = mode_idx;
+                    self.config.set_mode_by_index(mode_idx);
+                    self.filter_fonts();
+                    self.focus = FocusArea::Modes;
+                    return FbSetupAction::SelectMode(mode_idx);
+                }
+                FbSetupAction::None
+            }
+
+            // Function keys for buttons
+            KeyCode::F(1) => {
+                self.focus = FocusArea::Buttons;
+                self.button_index = 0;
+                FbSetupAction::None
+            }
+            KeyCode::F(2) => {
+                self.focus = FocusArea::Buttons;
+                self.button_index = 1;
+                FbSetupAction::None
+            }
+            KeyCode::F(3) => {
+                self.focus = FocusArea::Buttons;
+                self.button_index = 2;
+                FbSetupAction::None
+            }
+
+            // Enter activates current focus
+            KeyCode::Enter => match self.focus {
+                FocusArea::Buttons => match self.button_index {
+                    0 => FbSetupAction::SaveAndLaunch,
+                    1 => FbSetupAction::SaveOnly,
+                    2 => FbSetupAction::Close,
+                    _ => FbSetupAction::SaveAndLaunch,
+                },
+                FocusArea::Options => {
+                    // Toggle current option
+                    match self.option_index {
+                        0 => {
+                            self.config.toggle_invert_x();
+                            FbSetupAction::ToggleInvertX
+                        }
+                        1 => {
+                            self.config.toggle_invert_y();
+                            FbSetupAction::ToggleInvertY
+                        }
+                        2 => {
+                            self.config.toggle_swap_buttons();
+                            FbSetupAction::ToggleSwapButtons
+                        }
+                        _ => FbSetupAction::None,
                     }
                 }
-                FbSetupAction::SelectFont(self.selected_font_index)
-            }
-            KeyCode::Down => {
-                // Move font selection down
-                if self.selected_font_index + 1 < self.available_fonts.len() {
-                    self.selected_font_index += 1;
-                    self.config.font.name =
-                        self.available_fonts[self.selected_font_index].name.clone();
-
-                    // Adjust scroll if needed
-                    if self.selected_font_index >= self.font_list_scroll + self.visible_fonts {
-                        self.font_list_scroll = self.selected_font_index - self.visible_fonts + 1;
-                    }
+                FocusArea::Scale => {
+                    self.config.cycle_scale();
+                    FbSetupAction::CycleScale
                 }
-                FbSetupAction::SelectFont(self.selected_font_index)
-            }
-            KeyCode::PageUp => {
-                // Scroll font list up
-                self.font_list_scroll = self.font_list_scroll.saturating_sub(self.visible_fonts);
-                if self.selected_font_index >= self.font_list_scroll + self.visible_fonts {
-                    self.selected_font_index = self.font_list_scroll + self.visible_fonts - 1;
-                    if !self.available_fonts.is_empty() {
+                FocusArea::Device => {
+                    self.config.cycle_device();
+                    FbSetupAction::CycleDevice
+                }
+                _ => FbSetupAction::None,
+            },
+
+            // Space activates/toggles in most focus areas
+            KeyCode::Char(' ') => match self.focus {
+                FocusArea::Scale => {
+                    self.config.cycle_scale();
+                    FbSetupAction::CycleScale
+                }
+                FocusArea::Device => {
+                    self.config.cycle_device();
+                    FbSetupAction::CycleDevice
+                }
+                FocusArea::Options => match self.option_index {
+                    0 => {
+                        self.config.toggle_invert_x();
+                        FbSetupAction::ToggleInvertX
+                    }
+                    1 => {
+                        self.config.toggle_invert_y();
+                        FbSetupAction::ToggleInvertY
+                    }
+                    2 => {
+                        self.config.toggle_swap_buttons();
+                        FbSetupAction::ToggleSwapButtons
+                    }
+                    _ => FbSetupAction::None,
+                },
+                FocusArea::Buttons => match self.button_index {
+                    0 => FbSetupAction::SaveAndLaunch,
+                    1 => FbSetupAction::SaveOnly,
+                    2 => FbSetupAction::Close,
+                    _ => FbSetupAction::None,
+                },
+                _ => FbSetupAction::None,
+            },
+
+            // Arrow key navigation within focus areas
+            KeyCode::Up => match self.focus {
+                FocusArea::Modes => {
+                    // Move up in two-column mode layout
+                    if self.selected_mode_index >= 2 {
+                        self.selected_mode_index -= 2;
+                        self.config.set_mode_by_index(self.selected_mode_index);
+                        self.filter_fonts();
+                        return FbSetupAction::SelectMode(self.selected_mode_index);
+                    }
+                    FbSetupAction::None
+                }
+                FocusArea::Fonts => {
+                    if self.selected_font_index > 0 {
+                        self.selected_font_index -= 1;
                         self.config.font.name =
                             self.available_fonts[self.selected_font_index].name.clone();
+                        if self.selected_font_index < self.font_list_scroll {
+                            self.font_list_scroll = self.selected_font_index;
+                        }
                     }
+                    FbSetupAction::SelectFont(self.selected_font_index)
                 }
-                FbSetupAction::ScrollFontListUp
+                _ => FbSetupAction::None,
+            },
+
+            KeyCode::Down => match self.focus {
+                FocusArea::Modes => {
+                    // Move down in two-column mode layout
+                    if self.selected_mode_index + 2 < FramebufferConfig::TEXT_MODES.len() {
+                        self.selected_mode_index += 2;
+                        self.config.set_mode_by_index(self.selected_mode_index);
+                        self.filter_fonts();
+                        return FbSetupAction::SelectMode(self.selected_mode_index);
+                    }
+                    FbSetupAction::None
+                }
+                FocusArea::Fonts => {
+                    if self.selected_font_index + 1 < self.available_fonts.len() {
+                        self.selected_font_index += 1;
+                        self.config.font.name =
+                            self.available_fonts[self.selected_font_index].name.clone();
+                        if self.selected_font_index >= self.font_list_scroll + self.visible_fonts {
+                            self.font_list_scroll =
+                                self.selected_font_index - self.visible_fonts + 1;
+                        }
+                    }
+                    FbSetupAction::SelectFont(self.selected_font_index)
+                }
+                _ => FbSetupAction::None,
+            },
+
+            KeyCode::Left => match self.focus {
+                FocusArea::Modes => {
+                    // Move to left column
+                    if self.selected_mode_index % 2 == 1 {
+                        self.selected_mode_index -= 1;
+                        self.config.set_mode_by_index(self.selected_mode_index);
+                        self.filter_fonts();
+                        return FbSetupAction::SelectMode(self.selected_mode_index);
+                    }
+                    FbSetupAction::None
+                }
+                FocusArea::Scale => {
+                    self.config.cycle_scale_reverse();
+                    FbSetupAction::CycleScale
+                }
+                FocusArea::Device => {
+                    self.config.cycle_device_reverse();
+                    FbSetupAction::CycleDevice
+                }
+                FocusArea::Options => {
+                    if self.option_index > 0 {
+                        self.option_index -= 1;
+                    }
+                    FbSetupAction::None
+                }
+                FocusArea::Buttons => {
+                    if self.button_index > 0 {
+                        self.button_index -= 1;
+                    }
+                    FbSetupAction::None
+                }
+                _ => FbSetupAction::None,
+            },
+
+            KeyCode::Right => match self.focus {
+                FocusArea::Modes => {
+                    // Move to right column
+                    if self.selected_mode_index.is_multiple_of(2)
+                        && self.selected_mode_index + 1 < FramebufferConfig::TEXT_MODES.len()
+                    {
+                        self.selected_mode_index += 1;
+                        self.config.set_mode_by_index(self.selected_mode_index);
+                        self.filter_fonts();
+                        return FbSetupAction::SelectMode(self.selected_mode_index);
+                    }
+                    FbSetupAction::None
+                }
+                FocusArea::Scale => {
+                    self.config.cycle_scale();
+                    FbSetupAction::CycleScale
+                }
+                FocusArea::Device => {
+                    self.config.cycle_device();
+                    FbSetupAction::CycleDevice
+                }
+                FocusArea::Options => {
+                    if self.option_index < 2 {
+                        self.option_index += 1;
+                    }
+                    FbSetupAction::None
+                }
+                FocusArea::Buttons => {
+                    if self.button_index < 2 {
+                        self.button_index += 1;
+                    }
+                    FbSetupAction::None
+                }
+                _ => FbSetupAction::None,
+            },
+
+            // Page Up/Down for font list
+            KeyCode::PageUp => {
+                if self.focus == FocusArea::Fonts {
+                    self.font_list_scroll =
+                        self.font_list_scroll.saturating_sub(self.visible_fonts);
+                    if self.selected_font_index >= self.font_list_scroll + self.visible_fonts {
+                        self.selected_font_index = self.font_list_scroll + self.visible_fonts - 1;
+                        if !self.available_fonts.is_empty() {
+                            self.config.font.name =
+                                self.available_fonts[self.selected_font_index].name.clone();
+                        }
+                    }
+                    return FbSetupAction::ScrollFontListUp;
+                }
+                FbSetupAction::None
             }
             KeyCode::PageDown => {
-                // Scroll font list down
-                let max_scroll = self
-                    .available_fonts
-                    .len()
-                    .saturating_sub(self.visible_fonts);
-                self.font_list_scroll =
-                    (self.font_list_scroll + self.visible_fonts).min(max_scroll);
-                if self.selected_font_index < self.font_list_scroll {
-                    self.selected_font_index = self.font_list_scroll;
-                    if !self.available_fonts.is_empty() {
-                        self.config.font.name =
-                            self.available_fonts[self.selected_font_index].name.clone();
+                if self.focus == FocusArea::Fonts {
+                    let max_scroll = self
+                        .available_fonts
+                        .len()
+                        .saturating_sub(self.visible_fonts);
+                    self.font_list_scroll =
+                        (self.font_list_scroll + self.visible_fonts).min(max_scroll);
+                    if self.selected_font_index < self.font_list_scroll {
+                        self.selected_font_index = self.font_list_scroll;
+                        if !self.available_fonts.is_empty() {
+                            self.config.font.name =
+                                self.available_fonts[self.selected_font_index].name.clone();
+                        }
                     }
+                    return FbSetupAction::ScrollFontListDown;
                 }
-                FbSetupAction::ScrollFontListDown
+                FbSetupAction::None
             }
-            KeyCode::Tab => {
-                // Cycle through modes
-                self.selected_mode_index =
-                    (self.selected_mode_index + 1) % FramebufferConfig::TEXT_MODES.len();
-                self.config.set_mode_by_index(self.selected_mode_index);
-                self.filter_fonts(); // Re-filter fonts for new mode
-                FbSetupAction::SelectMode(self.selected_mode_index)
+
+            // Home/End for font list
+            KeyCode::Home => {
+                if self.focus == FocusArea::Fonts && !self.available_fonts.is_empty() {
+                    self.selected_font_index = 0;
+                    self.font_list_scroll = 0;
+                    self.config.font.name = self.available_fonts[0].name.clone();
+                    return FbSetupAction::SelectFont(0);
+                }
+                FbSetupAction::None
             }
+            KeyCode::End => {
+                if self.focus == FocusArea::Fonts && !self.available_fonts.is_empty() {
+                    self.selected_font_index = self.available_fonts.len() - 1;
+                    self.font_list_scroll = self
+                        .available_fonts
+                        .len()
+                        .saturating_sub(self.visible_fonts);
+                    self.config.font.name =
+                        self.available_fonts[self.selected_font_index].name.clone();
+                    return FbSetupAction::SelectFont(self.selected_font_index);
+                }
+                FbSetupAction::None
+            }
+
+            // Letter shortcuts (work globally)
             KeyCode::Char('s') | KeyCode::Char('S') => {
-                // Save shortcut
-                FbSetupAction::SaveOnly
+                if key.modifiers.contains(KeyModifiers::CONTROL) {
+                    FbSetupAction::SaveOnly
+                } else {
+                    FbSetupAction::None
+                }
             }
             KeyCode::Char('d') | KeyCode::Char('D') => {
-                // Cycle mouse device
                 self.config.cycle_device();
+                self.focus = FocusArea::Device;
                 FbSetupAction::CycleDevice
             }
             KeyCode::Char('x') | KeyCode::Char('X') => {
-                // Toggle invert X
                 self.config.toggle_invert_x();
+                self.focus = FocusArea::Options;
+                self.option_index = 0;
                 FbSetupAction::ToggleInvertX
             }
             KeyCode::Char('y') | KeyCode::Char('Y') => {
-                // Toggle invert Y
                 self.config.toggle_invert_y();
+                self.focus = FocusArea::Options;
+                self.option_index = 1;
                 FbSetupAction::ToggleInvertY
             }
             KeyCode::Char('b') | KeyCode::Char('B') => {
-                // Toggle swap buttons
                 self.config.toggle_swap_buttons();
+                self.focus = FocusArea::Options;
+                self.option_index = 2;
                 FbSetupAction::ToggleSwapButtons
             }
-            KeyCode::Char(' ') => {
-                // Cycle scale with space
-                self.config.cycle_scale();
-                FbSetupAction::CycleScale
-            }
+            KeyCode::Char('q') | KeyCode::Char('Q') => FbSetupAction::Close,
+
             _ => FbSetupAction::None,
         }
     }
