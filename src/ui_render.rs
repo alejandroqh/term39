@@ -4,9 +4,9 @@ use crate::config_manager::AppConfig;
 use crate::theme::Theme;
 use crate::video_buffer::{Cell, VideoBuffer};
 use crate::window_manager::{FocusState, WindowManager};
-use battery::Manager;
 use chrono::{Datelike, Local, NaiveDate};
 use crossterm::style::Color;
+use starship_battery::Manager;
 
 /// Get the current battery percentage (0-100) or None if no battery is available
 fn get_battery_percentage() -> Option<u8> {
