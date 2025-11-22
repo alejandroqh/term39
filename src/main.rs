@@ -53,7 +53,7 @@ use config_manager::AppConfig;
 use config_window::ConfigAction;
 use context_menu::MenuAction;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyModifiers, MouseButton, MouseEventKind},
+    event::{self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind},
     terminal::{self, ClearType},
 };
 use error_dialog::ErrorDialog;
@@ -249,6 +249,10 @@ fn main() -> io::Result<()> {
             if event::poll(Duration::from_millis(50))? {
                 match event::read()? {
                     Event::Key(key_event) => {
+                        // Ignore key release events (Windows sends both press and release)
+                        if key_event.kind != KeyEventKind::Press {
+                            continue;
+                        }
                         let action = setup_window.handle_key(key_event);
                         match action {
                             FbSetupAction::Close => break,
@@ -684,6 +688,11 @@ fn main() -> io::Result<()> {
 
             match current_event {
                 Event::Key(key_event) => {
+                    // Ignore key release events (Windows sends both press and release)
+                    if key_event.kind != KeyEventKind::Press {
+                        continue;
+                    }
+
                     let current_focus = window_manager.get_focus();
 
                     // Handle prompt keyboard navigation
