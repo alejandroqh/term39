@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2025-11-22
+
+### Added
+
+- Battery indicator displaying real-time battery status in top bar
+- Dracula theme added to available color themes
+- GPM (General Purpose Mouse) support for Linux console
+
+### Changed
+
+- Framebuffer backend is now enabled by default for Linux builds
+- Framebuffer dependencies are now Linux-specific (automatically disabled on macOS/Windows)
+- Updated dependencies to latest versions
+
+### Fixed
+
+- Duplicate input issue on Windows
+- Framebuffer large font rendering
+- GPM mouse coordinate handling
+- Various framebuffer setup and initialization improvements
+
 ## [0.10.0] - 2025-11-20
 
 ### Added

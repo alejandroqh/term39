@@ -91,7 +91,7 @@ pub struct Cli {
     /// Requires /dev/fb0 access and running on physical console (not SSH or terminal emulators).
     ///
     /// Note: Only available when compiled with framebuffer-backend feature.
-    #[cfg(feature = "framebuffer-backend")]
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     #[arg(
         long = "framebuffer",
         short = 'f',
@@ -116,7 +116,7 @@ pub struct Cli {
     ///   - 320x200: 320 columns × 200 rows (8×8 character cells) - Maximum resolution
     ///
     /// Note: Only takes effect when --framebuffer/-f is specified.
-    #[cfg(feature = "framebuffer-backend")]
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     #[arg(
         long,
         value_name = "MODE",
@@ -137,7 +137,7 @@ pub struct Cli {
     /// to use the maximum scale that fits your screen.
     ///
     /// Note: Only takes effect when --framebuffer/-f is specified.
-    #[cfg(feature = "framebuffer-backend")]
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     #[arg(
         long,
         value_name = "SCALE",
@@ -159,7 +159,7 @@ pub struct Cli {
     /// Use --fb-list-fonts to see all available fonts on your system.
     ///
     /// Note: Only takes effect when --framebuffer/-f is specified.
-    #[cfg(feature = "framebuffer-backend")]
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     #[arg(
         long,
         value_name = "FONT",
@@ -175,7 +175,7 @@ pub struct Cli {
     /// Output format: FONT_NAME (WIDTHxHEIGHT)
     ///
     /// Note: Only available when compiled with framebuffer-backend feature.
-    #[cfg(feature = "framebuffer-backend")]
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     #[arg(long, help = "List available console fonts and exit")]
     pub fb_list_fonts: bool,
 
@@ -192,7 +192,7 @@ pub struct Cli {
     /// then scan for event devices (event0-event15).
     ///
     /// Note: Only takes effect when --framebuffer/-f is specified.
-    #[cfg(feature = "framebuffer-backend")]
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     #[arg(
         long,
         value_name = "DEVICE",
@@ -207,7 +207,7 @@ pub struct Cli {
     /// in framebuffer mode.
     ///
     /// Note: Only takes effect when --framebuffer/-f is specified.
-    #[cfg(feature = "framebuffer-backend")]
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     #[arg(long, help = "Invert mouse X-axis for framebuffer mode")]
     pub invert_mouse_x: bool,
 
@@ -218,7 +218,7 @@ pub struct Cli {
     /// in framebuffer mode.
     ///
     /// Note: Only takes effect when --framebuffer/-f is specified.
-    #[cfg(feature = "framebuffer-backend")]
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     #[arg(long, help = "Invert mouse Y-axis for framebuffer mode")]
     pub invert_mouse_y: bool,
 
@@ -235,7 +235,7 @@ pub struct Cli {
     /// Use this flag to reconfigure settings even if fb.toml already exists.
     ///
     /// Note: Only available when compiled with framebuffer-backend feature.
-    #[cfg(feature = "framebuffer-backend")]
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     #[arg(long, help = "Launch framebuffer setup wizard")]
     pub fb_setup: bool,
 

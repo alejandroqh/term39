@@ -1,11 +1,11 @@
 use crate::charset::Charset;
 use crate::cli::Cli;
 use crate::config_manager::AppConfig;
-#[cfg(feature = "framebuffer-backend")]
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 use crate::fb_config::FramebufferConfig;
-#[cfg(feature = "framebuffer-backend")]
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 use crate::framebuffer::text_modes::{TextMode, TextModeKind};
-#[cfg(feature = "framebuffer-backend")]
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 use crate::render_backend::FramebufferBackend;
 use crate::render_backend::{RenderBackend, TerminalBackend};
 use crate::theme::Theme;
@@ -16,9 +16,13 @@ use std::io::{self, Write};
 
 /// Initializes the rendering backend based on CLI arguments
 pub fn initialize_backend(
-    #[cfg_attr(not(feature = "framebuffer-backend"), allow(unused_variables))] cli_args: &Cli,
+    #[cfg_attr(
+        not(all(target_os = "linux", feature = "framebuffer-backend")),
+        allow(unused_variables)
+    )]
+    cli_args: &Cli,
 ) -> io::Result<Box<dyn RenderBackend>> {
-    #[cfg(feature = "framebuffer-backend")]
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     if cli_args.framebuffer {
         // Load framebuffer configuration from fb.toml
         let fb_config = FramebufferConfig::load();

@@ -1,6 +1,6 @@
 [package]
 name = "term39"
-version = "0.10.3"
+version = "0.11.0"
 edition = "2024"
 license = "MIT"
 authors = ["Alejandro Quintanar"]
@@ -17,7 +17,7 @@ exclude = [
 ]
 
 [features]
-default = ["clipboard"]
+default = ["clipboard", "framebuffer-backend"]
 clipboard = ["dep:arboard"]
 framebuffer-backend = ["dep:framebuffer", "dep:memmap2", "dep:flate2"]
 
@@ -43,6 +43,7 @@ arboard = { version = "3.4", optional = true }
 battery = "0.7"
 
 # Framebuffer backend dependencies (Linux only)
+[target.'cfg(target_os = "linux")'.dependencies]
 framebuffer = { version = "0.3", optional = true }
 memmap2 = { version = "0.9", optional = true }
 flate2 = { version = "1.0", optional = true }

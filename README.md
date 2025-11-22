@@ -56,9 +56,11 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
 - **Multiple Terminal Windows**: Create, drag, resize, minimize, and maximize windows with mouse or keyboard
 - **Window Management**: Automatic tiling, snap to corners, focus management with ALT+TAB
 - **Clipboard Support**: System clipboard integration with drag-to-select, Ctrl+Shift+C/V, right-click menu
-- **Customizable Themes**: Classic, Dark, Monochrome, Green Phosphor, Amber (via `--theme` flag)
+- **Customizable Themes**: Classic, Dark, Monochrome, Green Phosphor, Amber, Dracula (via `--theme` flag)
+- **Battery Indicator**: Real-time battery status display in the top bar
 - **Cross-Platform**: Linux, macOS, Windows with full VT100/ANSI support and true color
 - **Linux Framebuffer Mode**: Direct `/dev/fb0` rendering with DOS text modes (40x25, 80x25, ... , 320x200), requires `--features framebuffer-backend`
+- **GPM Mouse Support**: Native mouse support on Linux console via GPM (General Purpose Mouse)
 - **ASCII Compatibility**: `--ascii` flag for maximum terminal compatibility
 
 ## Installation
@@ -183,7 +185,7 @@ cargo build --release --no-default-features
 ./term39                 # Run with Unicode (recommended)
 ./term39 --ascii         # ASCII mode for compatibility
 ./term39 --theme dark    # Themes: classic, dark, monochrome,
-                         #         green_phosphor, amber
+                         #         green_phosphor, amber, dracula
 ```
 
 ### Keyboard Shortcuts
@@ -250,25 +252,24 @@ System clipboard integration with Ctrl+Shift+C/V.
 - **Enable**: Desktop usage, copy/paste between apps
 - **Disable**: Android/Termux, headless servers → `--no-default-features`
 
-### `framebuffer-backend` (Default: **OFF**)
+### `framebuffer-backend` (Default: **ON** for Linux)
 Direct Linux framebuffer rendering with DOS text modes (40x25, 80x25, ... , 320x200).
 - **Modes**: 40x25, 80x25, 80x43, 80x50, 160x50, 160x100, 320x100, 320x200
-- **Enable**: Linux console (TTY), pixel-perfect retro rendering → `--features framebuffer-backend`
-- **Disable**: Terminal emulators, SSH, macOS/Windows
+- **Platform**: Linux only (automatically disabled on macOS/Windows)
+- **Disable**: To opt-out on Linux → `--no-default-features --features clipboard`
 - **Requires**: `/dev/fb0` access (root or 'video' group), physical console only
 
 ```bash
 # Build/Install
-cargo build --release                            # Standard
-cargo build --release --no-default-features      # No clipboard
-cargo build --release --features framebuffer-backend  # + framebuffer
+cargo build --release                            # Standard (includes framebuffer on Linux)
+cargo build --release --no-default-features --features clipboard  # Without framebuffer
+cargo build --release --no-default-features      # Minimal (no clipboard, no framebuffer)
 
-cargo install term39                             # Standard
-cargo install term39 --no-default-features       # No clipboard
-cargo install term39 --features framebuffer-backend   # + framebuffer
+cargo install term39                             # Standard (includes framebuffer on Linux)
+cargo install term39 --no-default-features --features clipboard  # Without framebuffer
 
 # Run framebuffer
-sudo ./target/release/term39 --fb-mode=80x25
+sudo ./target/release/term39 -f --fb-mode=80x25
 ```
 
 ## License

@@ -15,11 +15,11 @@ mod config_window;
 mod context_menu;
 mod dialog_handlers;
 mod error_dialog;
-#[cfg(feature = "framebuffer-backend")]
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 mod fb_config;
-#[cfg(feature = "framebuffer-backend")]
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 mod fb_setup_window;
-#[cfg(feature = "framebuffer-backend")]
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 mod framebuffer;
 mod fuzzy_matcher;
 #[cfg(target_os = "linux")]
@@ -97,7 +97,7 @@ fn main() -> io::Result<()> {
     }));
 
     // Handle --fb-list-fonts flag (exit after listing)
-    #[cfg(feature = "framebuffer-backend")]
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     if cli_args.fb_list_fonts {
         use framebuffer::font_manager::FontManager;
 
@@ -128,7 +128,7 @@ fn main() -> io::Result<()> {
     }
 
     // Handle --fb-setup flag (run setup wizard)
-    #[cfg(feature = "framebuffer-backend")]
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     if cli_args.fb_setup {
         use charset::Charset;
         use crossterm::execute;
@@ -422,7 +422,7 @@ fn main() -> io::Result<()> {
     let mut app_config = AppConfig::load();
 
     // Load framebuffer configuration (for swap_buttons, etc.)
-    #[cfg(feature = "framebuffer-backend")]
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     #[allow(unused_variables)] // Only used on Linux with framebuffer
     let fb_config = fb_config::FramebufferConfig::load();
 

@@ -5,7 +5,7 @@
 //! - Framebuffer backend: Uses direct Linux framebuffer for DOS-like modes
 
 use crate::video_buffer::VideoBuffer;
-#[cfg(feature = "framebuffer-backend")]
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 use std::collections::VecDeque;
 use std::io;
 
@@ -102,7 +102,7 @@ impl RenderBackend for TerminalBackend {
 }
 
 /// Framebuffer-based rendering backend (Linux console only)
-#[cfg(feature = "framebuffer-backend")]
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 pub struct FramebufferBackend {
     renderer: crate::framebuffer::FramebufferRenderer,
     tty_cols: u16, // Actual TTY dimensions for mouse coordinate scaling
@@ -121,7 +121,7 @@ pub struct FramebufferBackend {
     button_event_queue: VecDeque<(u8, u8, u16, u16)>,
 }
 
-#[cfg(feature = "framebuffer-backend")]
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 impl FramebufferBackend {
     /// Create a new framebuffer backend with specified text mode, optional scale, optional font, optional mouse device, and axis inversions
     pub fn new(
@@ -244,7 +244,7 @@ impl FramebufferBackend {
     }
 }
 
-#[cfg(feature = "framebuffer-backend")]
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 impl RenderBackend for FramebufferBackend {
     fn present(&mut self, buffer: &mut VideoBuffer) -> io::Result<()> {
         self.renderer.render_buffer(buffer);
