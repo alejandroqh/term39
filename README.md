@@ -56,10 +56,10 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
 - **Multiple Terminal Windows**: Create, drag, resize, minimize, and maximize windows with mouse or keyboard
 - **Window Management**: Automatic tiling, snap to corners, focus management with ALT+TAB
 - **Clipboard Support**: System clipboard integration with drag-to-select, Ctrl+Shift+C/V, right-click menu
-- **Customizable Themes**: Classic, Dark, Monochrome, Green Phosphor, Amber, Dracula (via `--theme` flag)
+- **Customizable Themes**: Classic, Dark, Monochrome, Green Phosphor, Amber, Dracu, NDD, QBasic, TurboP, NCC, XT, WP, dB (via `--theme` flag)
 - **Battery Indicator**: Real-time battery status display in the top bar
 - **Cross-Platform**: Linux, macOS, Windows with full VT100/ANSI support and true color
-- **Linux Framebuffer Mode**: Direct `/dev/fb0` rendering with DOS text modes (40x25, 80x25, ... , 320x200), requires `--features framebuffer-backend`
+- **Linux Framebuffer Mode**: Direct `/dev/fb0` rendering with DOS text modes (40x25, 80x25, ... , 320x200),
 - **GPM Mouse Support**: Native mouse support on Linux console via GPM (General Purpose Mouse)
 - **ASCII Compatibility**: `--ascii` flag for maximum terminal compatibility
 
@@ -185,7 +185,9 @@ cargo build --release --no-default-features
 ./term39                 # Run with Unicode (recommended)
 ./term39 --ascii         # ASCII mode for compatibility
 ./term39 --theme dark    # Themes: classic, dark, monochrome,
-                         #         green_phosphor, amber, dracula
+                         #         green_phosphor, amber, dracu,
+                         #         ndd, qbasic, turbo, nc, xt,
+                         #         wp, db
 ```
 
 ### Keyboard Shortcuts
@@ -261,12 +263,20 @@ Direct Linux framebuffer rendering with DOS text modes (40x25, 80x25, ... , 320x
 
 ```bash
 # Build/Install
-cargo build --release                            # Standard (includes framebuffer on Linux)
-cargo build --release --no-default-features --features clipboard  # Without framebuffer
-cargo build --release --no-default-features      # Minimal (no clipboard, no framebuffer)
+# Standard (includes framebuffer on Linux)
+cargo build --release
 
-cargo install term39                             # Standard (includes framebuffer on Linux)
-cargo install term39 --no-default-features --features clipboard  # Without framebuffer
+# Without framebuffer
+cargo build --release --no-default-features --features clipboard
+
+## Minimal (no clipboard, no framebuffer)
+cargo build --release --no-default-features
+
+# Standard (includes framebuffer on Linux)
+cargo install term39
+
+# Without framebuffer
+cargo install term39 --no-default-features --features clipboard
 
 # Run framebuffer
 sudo ./target/release/term39 -f --fb-mode=80x25

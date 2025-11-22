@@ -323,11 +323,11 @@ impl ConfigWindow {
             "amber" => "Amber",
             "ndd" => "NDD",
             "qbasic" => "QBasic",
-            "turbo" => "Turbo",
-            "norton_commander" => "Norton Commander",
-            "xtree" => "XTree Gold",
-            "wordperfect" => "WordPerfect",
-            "dbase" => "dBase IV",
+            "turbo" => "TurboP",
+            "norton_commander" => "NCC",
+            "xtree" => "XT",
+            "wordperfect" => "WP",
+            "dbase" => "dB",
             _ => "Classic",
         };
 

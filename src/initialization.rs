@@ -215,7 +215,7 @@ pub fn initialize_video_buffer(backend: &dyn RenderBackend) -> VideoBuffer {
 ///
 /// # Arguments
 /// * `is_framebuffer_mode` - If true, GPM won't draw cursor (app draws it).
-///                          If false (terminal mode), GPM draws cursor.
+///   If false (terminal mode), GPM draws cursor.
 #[cfg(target_os = "linux")]
 pub fn initialize_gpm(is_framebuffer_mode: bool) -> Option<crate::gpm_handler::GpmConnection> {
     // In terminal mode, GPM draws cursor. In framebuffer mode, app draws cursor.

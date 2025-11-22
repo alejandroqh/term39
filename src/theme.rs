@@ -1383,7 +1383,7 @@ impl Theme {
         }
     }
 
-    /// Turbo theme - inspired by classic Pascal IDE interfaces
+    /// TurboP theme - inspired by classic Pascal IDE interfaces
     /// Yellow text on grey/blue backgrounds
     pub fn turbo() -> Self {
         Self {
@@ -1520,7 +1520,7 @@ impl Theme {
         }
     }
 
-    /// Norton Commander theme - the legendary file manager
+    /// NCC theme - inspired by classic file manager interfaces
     /// Cyan panels on blue background with yellow highlights
     pub fn norton_commander() -> Self {
         Self {
@@ -1657,7 +1657,7 @@ impl Theme {
         }
     }
 
-    /// XTree Gold theme - the golden file manager
+    /// XT theme - inspired by golden file manager interfaces
     /// Yellow on blue with white borders
     pub fn xtree() -> Self {
         Self {
@@ -1794,7 +1794,7 @@ impl Theme {
         }
     }
 
-    /// WordPerfect 5.1 theme - the classic word processor
+    /// WP theme - inspired by classic word processor interfaces
     /// White/cyan on blue background
     pub fn wordperfect() -> Self {
         Self {
@@ -1931,7 +1931,7 @@ impl Theme {
         }
     }
 
-    /// dBase IV theme - the database manager
+    /// dB theme - inspired by classic database manager interfaces
     /// Cyan on blue with white accents
     pub fn dbase() -> Self {
         Self {

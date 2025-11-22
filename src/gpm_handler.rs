@@ -221,7 +221,7 @@ impl GpmConnection {
     ///
     /// # Arguments
     /// * `draw_cursor` - If true, GPM draws its cursor (for terminal mode).
-    ///                   If false, application draws cursor (for framebuffer mode).
+    ///   If false, application draws cursor (for framebuffer mode).
     ///
     /// Returns None if GPM is not available or connection fails
     pub fn open(draw_cursor: bool) -> Option<Self> {
