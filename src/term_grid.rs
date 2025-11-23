@@ -417,8 +417,8 @@ impl TerminalGrid {
 
         if self.cursor.y == self.scroll_region_bottom {
             // At bottom of scroll region
-            // Don't scroll during synchronized output or in alternate screen (TUI apps manage their own layout)
-            if self.synchronized_output || self.alt_screen.is_some() {
+            // Don't scroll during synchronized output
+            if self.synchronized_output {
                 // Stay at last row without scrolling
             } else {
                 self.scroll_up(1);

@@ -413,7 +413,10 @@ impl Perform for AnsiHandler<'_> {
                         1004 => self.grid.focus_event_mode = true,     // Focus events
                         1006 => self.grid.mouse_sgr_mode = true,       // SGR mouse mode
                         1015 => self.grid.mouse_urxvt_mode = true,     // URXVT mouse mode
-                        1049 => self.grid.use_alt_screen(),            // Alt screen
+                        47 => self.grid.use_alt_screen(),              // Alt screen (xterm)
+                        1047 => self.grid.use_alt_screen(),            // Alt screen buffer
+                        1048 => self.grid.save_cursor(),               // Save cursor
+                        1049 => self.grid.use_alt_screen(),            // Alt screen + save cursor
                         2004 => self.grid.bracketed_paste_mode = true, // Bracketed paste
                         2026 => self.grid.begin_synchronized_output(), // Begin sync update
                         _ => {}
@@ -442,9 +445,12 @@ impl Perform for AnsiHandler<'_> {
                         1004 => self.grid.focus_event_mode = false,     // Focus events
                         1006 => self.grid.mouse_sgr_mode = false,       // SGR mouse mode
                         1015 => self.grid.mouse_urxvt_mode = false,     // URXVT mouse mode
-                        1049 => self.grid.use_main_screen(),            // Main screen
+                        47 => self.grid.use_main_screen(),              // Main screen (xterm)
+                        1047 => self.grid.use_main_screen(),            // Main screen buffer
+                        1048 => self.grid.restore_cursor(),             // Restore cursor
+                        1049 => self.grid.use_main_screen(), // Main screen + restore cursor
                         2004 => self.grid.bracketed_paste_mode = false, // Bracketed paste
-                        2026 => self.grid.end_synchronized_output(),    // End sync update
+                        2026 => self.grid.end_synchronized_output(), // End sync update
                         _ => {}
                     }
                 }
