@@ -122,9 +122,10 @@ fi
 # Wait for mount to complete
 sleep 2
 
-# Set Finder view options using AppleScript
-echo "Setting Finder view options..."
-osascript <<EOD || echo "Warning: Could not set all Finder options"
+# Set Finder view options using AppleScript (skip in CI environments)
+if [ -z "$CI" ]; then
+    echo "Setting Finder view options..."
+    osascript <<EOD || echo "Warning: Could not set all Finder options"
 tell application "Finder"
     tell disk "term39 v${VERSION}"
         set current view of container window to icon view
@@ -145,12 +146,19 @@ tell application "Finder"
     end tell
 end tell
 EOD
+else
+    echo "Skipping Finder customization in CI environment..."
+fi
 
 # Unmount the DMG
 echo "Unmounting DMG..."
 hdiutil detach "$MOUNT_DIR" -quiet || {
     echo "Warning: Could not unmount cleanly, forcing..."
-    hdiutil detach "$MOUNT_DIR" -force -quiet
+    hdiutil detach "$MOUNT_DIR" -force -quiet || {
+        echo "Warning: Force unmount failed, waiting and retrying..."
+        sleep 3
+        hdiutil detach "$MOUNT_DIR" -force -quiet || true
+    }
 }
 
 # Convert to compressed read-only DMG
