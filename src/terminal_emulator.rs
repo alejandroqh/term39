@@ -4,8 +4,8 @@ use crate::session::{
 };
 use crate::term_grid::TerminalGrid;
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
-use std::io::{Read, Write};
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::io::{BufWriter, Read, Write};
+use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use vte::Parser;
@@ -21,8 +21,8 @@ pub struct TerminalEmulator {
     parser: Parser,
     /// PTY master (for reading/writing)
     pty_master: Box<dyn MasterPty + Send>,
-    /// PTY writer
-    writer: Box<dyn Write + Send>,
+    /// PTY writer (buffered for efficiency)
+    writer: BufWriter<Box<dyn Write + Send>>,
     /// Child process handle
     child: Box<dyn Child + Send>,
     /// Channel to receive data from PTY reader thread
@@ -93,10 +93,11 @@ impl TerminalEmulator {
             .try_clone_reader()
             .map_err(std::io::Error::other)?;
 
-        let writer = pty_master.take_writer().map_err(std::io::Error::other)?;
+        let writer = BufWriter::new(pty_master.take_writer().map_err(std::io::Error::other)?);
 
-        // Create channel for reading from PTY in background thread
-        let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = channel();
+        // Create bounded channel for reading from PTY in background thread
+        // Capacity of 64 provides back-pressure while allowing efficient batching
+        let (tx, rx): (SyncSender<Vec<u8>>, Receiver<Vec<u8>>) = sync_channel(64);
 
         // Spawn reader thread
         thread::spawn(move || {
@@ -104,14 +105,18 @@ impl TerminalEmulator {
             loop {
                 match reader.read(&mut buffer) {
                     Ok(0) => {
+                        // EOF - child process exited normally
                         break;
                     }
                     Ok(n) => {
                         if tx.send(buffer[..n].to_vec()).is_err() {
+                            // Receiver dropped - main thread no longer listening
                             break;
                         }
                     }
-                    Err(_) => {
+                    Err(e) => {
+                        // Log the error for diagnostics
+                        eprintln!("PTY reader thread error: {}", e);
                         break;
                     }
                 }
@@ -138,19 +143,17 @@ impl TerminalEmulator {
 
     /// Read output from PTY and process it through the parser
     pub fn process_output(&mut self) -> std::io::Result<bool> {
-        // Process ALL available data from PTY reader thread (non-blocking)
+        // Collect ALL available data from PTY reader thread (non-blocking)
         // This ensures complete escape sequences are processed before rendering,
         // which is important for TUI applications that use cursor movement for redraws
+        let mut chunks = Vec::new();
         let mut process_result = Ok(true);
 
+        // First, drain all available chunks without holding the grid lock
         loop {
             match self.rx.try_recv() {
                 Ok(data) => {
-                    // Process the bytes through VTE parser
-                    let mut grid = self.grid.lock().unwrap();
-                    let mut handler = AnsiHandler::new(&mut grid);
-
-                    self.parser.advance(&mut handler, &data);
+                    chunks.push(data);
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
                     // No more data available right now
@@ -164,15 +167,27 @@ impl TerminalEmulator {
             }
         }
 
+        // Now process all chunks with a single grid lock acquisition
+        if !chunks.is_empty() {
+            let mut grid = self.grid.lock().expect("terminal grid mutex poisoned");
+            let mut handler = AnsiHandler::new(&mut grid);
+
+            for data in chunks {
+                self.parser.advance(&mut handler, &data);
+            }
+        }
+
         // Process any queued responses (e.g., DSR cursor position reports)
         let responses = {
-            let mut grid = self.grid.lock().unwrap();
+            let mut grid = self.grid.lock().expect("terminal grid mutex poisoned");
             grid.take_responses()
         };
 
         for response in responses {
-            // Send response back to PTY (ignore errors)
-            let _ = self.write_input(response.as_bytes());
+            // Send response back to PTY
+            if let Err(e) = self.write_input(response.as_bytes()) {
+                eprintln!("Failed to write terminal response: {}", e);
+            }
         }
 
         process_result
@@ -189,7 +204,7 @@ impl TerminalEmulator {
     pub fn resize(&mut self, cols: usize, rows: usize) -> std::io::Result<()> {
         // Resize the grid
         {
-            let mut grid = self.grid.lock().unwrap();
+            let mut grid = self.grid.lock().expect("terminal grid mutex poisoned");
             grid.resize(cols, rows);
         }
 
@@ -221,7 +236,7 @@ impl TerminalEmulator {
     /// Extract terminal content (scrollback + visible lines) for session persistence
     /// Returns at most MAX_LINES_PER_TERMINAL lines (most recent lines are kept)
     pub fn get_terminal_content(&self) -> (Vec<SerializableTerminalLine>, SerializableCursor) {
-        let grid = self.grid.lock().unwrap();
+        let grid = self.grid.lock().expect("terminal grid mutex poisoned");
 
         let mut all_lines = Vec::new();
 
@@ -279,7 +294,7 @@ impl TerminalEmulator {
             .collect();
 
         // Restore content to grid
-        let mut grid = self.grid.lock().unwrap();
+        let mut grid = self.grid.lock().expect("terminal grid mutex poisoned");
         grid.restore_content(terminal_lines);
         grid.set_cursor(cursor.x, cursor.y, cursor.visible);
     }
