@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.3] - 2025-11-23
+
+### Added
+
+- Extra ANSI escape sequences for better terminal compatibility
+
+### Changed
+
+- Improved PTY handling for better terminal integration
+
+### Fixed
+
+- Issue with 'less' command not rendering correctly
+
 ## [0.11.0] - 2025-11-22
 
 ### Added
@@ -258,6 +272,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.11.3]: https://github.com/alejandroqh/term39/releases/tag/v0.11.3
+[0.11.0]: https://github.com/alejandroqh/term39/releases/tag/v0.11.0
 [0.10.0]: https://github.com/alejandroqh/term39/releases/tag/v0.10.0
 [0.9.0]: https://github.com/alejandroqh/term39/releases/tag/v0.9.0
 [0.8.5]: https://github.com/alejandroqh/term39/releases/tag/v0.8.5
