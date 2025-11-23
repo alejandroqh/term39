@@ -156,9 +156,12 @@ pub struct TerminalGrid {
     /// Snapshot of cursor when synchronized output began
     sync_cursor_snapshot: Option<Cursor>,
     /// Mouse tracking modes
+    pub mouse_normal_tracking: bool, // ?1000 - Normal mouse tracking (clicks)
     pub mouse_button_tracking: bool, // ?1002 - Button event tracking
-    pub mouse_sgr_mode: bool,   // ?1006 - SGR extended mouse mode
-    pub mouse_urxvt_mode: bool, // ?1015 - URXVT mouse mode
+    pub mouse_any_event_tracking: bool, // ?1003 - Any event tracking (all motion)
+    pub mouse_utf8_mode: bool,       // ?1005 - UTF-8 mouse encoding
+    pub mouse_sgr_mode: bool,        // ?1006 - SGR extended mouse mode
+    pub mouse_urxvt_mode: bool,      // ?1015 - URXVT mouse mode
     /// Line Feed/New Line Mode (LNM - mode 20)
     /// When set, LF also performs CR (linefeed acts as newline)
     pub lnm_mode: bool,
@@ -203,7 +206,10 @@ impl TerminalGrid {
             synchronized_output: false,
             sync_snapshot: None,
             sync_cursor_snapshot: None,
+            mouse_normal_tracking: false,
             mouse_button_tracking: false,
+            mouse_any_event_tracking: false,
+            mouse_utf8_mode: false,
             mouse_sgr_mode: false,
             mouse_urxvt_mode: false,
             lnm_mode: false,
@@ -482,7 +488,10 @@ impl TerminalGrid {
         self.synchronized_output = false;
         self.sync_snapshot = None;
         self.sync_cursor_snapshot = None;
+        self.mouse_normal_tracking = false;
         self.mouse_button_tracking = false;
+        self.mouse_any_event_tracking = false;
+        self.mouse_utf8_mode = false;
         self.mouse_sgr_mode = false;
         self.mouse_urxvt_mode = false;
         self.lnm_mode = false;

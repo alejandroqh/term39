@@ -409,8 +409,11 @@ impl Perform for AnsiHandler<'_> {
                         6 => self.grid.origin_mode = true,             // DECOM
                         7 => self.grid.auto_wrap_mode = true,          // DECAWM
                         25 => self.grid.cursor.visible = true,         // Show cursor
+                        1000 => self.grid.mouse_normal_tracking = true, // Normal mouse tracking
                         1002 => self.grid.mouse_button_tracking = true, // Button event tracking
+                        1003 => self.grid.mouse_any_event_tracking = true, // Any event tracking
                         1004 => self.grid.focus_event_mode = true,     // Focus events
+                        1005 => self.grid.mouse_utf8_mode = true,      // UTF-8 mouse encoding
                         1006 => self.grid.mouse_sgr_mode = true,       // SGR mouse mode
                         1015 => self.grid.mouse_urxvt_mode = true,     // URXVT mouse mode
                         47 => self.grid.use_alt_screen(),              // Alt screen (xterm)
@@ -441,8 +444,11 @@ impl Perform for AnsiHandler<'_> {
                         6 => self.grid.origin_mode = false,             // DECOM
                         7 => self.grid.auto_wrap_mode = false,          // DECAWM
                         25 => self.grid.cursor.visible = false,         // Hide cursor
+                        1000 => self.grid.mouse_normal_tracking = false, // Normal mouse tracking
                         1002 => self.grid.mouse_button_tracking = false, // Button event tracking
+                        1003 => self.grid.mouse_any_event_tracking = false, // Any event tracking
                         1004 => self.grid.focus_event_mode = false,     // Focus events
+                        1005 => self.grid.mouse_utf8_mode = false,      // UTF-8 mouse encoding
                         1006 => self.grid.mouse_sgr_mode = false,       // SGR mouse mode
                         1015 => self.grid.mouse_urxvt_mode = false,     // URXVT mouse mode
                         47 => self.grid.use_main_screen(),              // Main screen (xterm)
