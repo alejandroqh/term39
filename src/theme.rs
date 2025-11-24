@@ -40,7 +40,8 @@ const DRACULA_BACKGROUND: Color = Color::Rgb {
     g: 42,
     b: 54,
 };
-const DRACULA_CURRENT_LINE: Color = Color::Rgb {
+// Selection color #44475A - used for highlighting
+const DRACULA_SELECTION: Color = Color::Rgb {
     r: 68,
     g: 71,
     b: 90,
@@ -576,52 +577,52 @@ impl Theme {
     }
 
     /// Dark theme inspired by Dracula (draculatheme.com)
-    /// Background: #282A36, Foreground: #F8F8F2
+    /// Background: #282A36, Foreground: #F8F8F2, Selection: #44475A
     /// Accent colors: Cyan #8BE9FD, Purple #BD93F9, Pink #FF79C6, Green #50FA7B, Red #FF5555, Yellow #F1FA8C
     pub fn dark() -> Self {
         Self {
-            // Desktop - Dracula background
+            // Desktop - Dracula background with purple accent
             desktop_bg: DRACULA_BACKGROUND,
-            desktop_fg: DRACULA_FOREGROUND,
+            desktop_fg: DRACULA_PURPLE,
 
-            // Top bar
-            topbar_bg_focused: DRACULA_CURRENT_LINE,
+            // Top bar - Purple accent when focused (signature Dracula color)
+            topbar_bg_focused: DRACULA_PURPLE,
             topbar_bg_unfocused: DRACULA_BACKGROUND,
-            topbar_fg_focused: DRACULA_FOREGROUND,
+            topbar_fg_focused: DRACULA_BACKGROUND,
             topbar_fg_unfocused: DRACULA_FOREGROUND,
-            clock_bg: DRACULA_BACKGROUND,
-            clock_fg: DRACULA_PURPLE, // Purple accent
+            clock_bg: DRACULA_SELECTION,
+            clock_fg: DRACULA_CYAN,
 
-            // Windows - Title bar (Dracula purple/cyan accents)
-            window_title_unfocused_fg: DRACULA_FOREGROUND,
+            // Windows - Title bar with vibrant Dracula accents
+            window_title_unfocused_fg: DRACULA_COMMENT,
             window_title_unfocused_bg: DRACULA_BACKGROUND,
-            window_title_focused_fg: DRACULA_FOREGROUND,
-            window_title_focused_bg: DRACULA_CURRENT_LINE, // Selection color for focus
+            window_title_focused_fg: DRACULA_BACKGROUND,
+            window_title_focused_bg: DRACULA_PURPLE, // Signature purple for focus
             // Windows - Border
-            window_border_unfocused_fg: DRACULA_COMMENT, // Dim purple/blue for unfocused
+            window_border_unfocused_fg: DRACULA_COMMENT,
             window_border_unfocused_bg: DRACULA_BACKGROUND,
-            window_border_focused_fg: DRACULA_CYAN, // Bright cyan for focused
-            window_border_focused_bg: DRACULA_CURRENT_LINE,
+            window_border_focused_fg: DRACULA_BACKGROUND,
+            window_border_focused_bg: DRACULA_PURPLE,
             // Windows - Content
-            window_content_bg: DRACULA_BACKGROUND, // True dark background
-            window_content_fg: DRACULA_FOREGROUND, // Good contrast on dark background
+            window_content_bg: DRACULA_BACKGROUND,
+            window_content_fg: DRACULA_FOREGROUND,
             window_shadow_color: PURE_BLACK,
 
             // Window controls - Dracula semantic colors
-            button_close_color: DRACULA_RED, // Dracula red #FF5555
-            button_maximize_color: DRACULA_GREEN, // Dracula green #50FA7B
-            button_minimize_color: DRACULA_YELLOW, // Dracula yellow #F1FA8C
-            button_bg: DRACULA_BACKGROUND,   // Consistent button background
+            button_close_color: DRACULA_RED,
+            button_maximize_color: DRACULA_GREEN,
+            button_minimize_color: DRACULA_YELLOW,
+            button_bg: DRACULA_BACKGROUND,
             resize_handle_normal_fg: DRACULA_COMMENT,
             resize_handle_normal_bg: DRACULA_BACKGROUND,
-            resize_handle_active_fg: DRACULA_PURPLE, // Purple accent
-            resize_handle_active_bg: DRACULA_CURRENT_LINE,
+            resize_handle_active_fg: DRACULA_CYAN,
+            resize_handle_active_bg: DRACULA_SELECTION,
 
             // UI Buttons
             button_normal_fg: DRACULA_FOREGROUND,
-            button_normal_bg: DRACULA_CURRENT_LINE,
-            button_hovered_fg: DRACULA_CYAN, // Dracula cyan #8BE9FD
-            button_hovered_bg: DRACULA_CURRENT_LINE,
+            button_normal_bg: DRACULA_SELECTION,
+            button_hovered_fg: DRACULA_BACKGROUND,
+            button_hovered_bg: DRACULA_CYAN,
             button_pressed_fg: DRACULA_FOREGROUND,
             button_pressed_bg: DRACULA_BACKGROUND,
 
@@ -631,23 +632,23 @@ impl Theme {
             bottombar_button_normal_fg: DRACULA_FOREGROUND,
             bottombar_button_normal_bg: DRACULA_BACKGROUND,
             bottombar_button_focused_fg: DRACULA_BACKGROUND,
-            bottombar_button_focused_bg: DRACULA_PURPLE, // Purple accent
+            bottombar_button_focused_bg: DRACULA_PURPLE,
             bottombar_button_minimized_fg: DRACULA_COMMENT,
             bottombar_button_minimized_bg: DRACULA_BACKGROUND,
 
             // Toggle button
-            toggle_enabled_fg: DRACULA_GREEN, // Dracula green
-            toggle_enabled_bg_normal: DRACULA_CURRENT_LINE,
-            toggle_enabled_bg_hovered: DRACULA_CURRENT_LINE,
+            toggle_enabled_fg: DRACULA_GREEN,
+            toggle_enabled_bg_normal: DRACULA_SELECTION,
+            toggle_enabled_bg_hovered: DRACULA_SELECTION,
             toggle_enabled_bg_pressed: DRACULA_BACKGROUND,
             toggle_disabled_fg: DRACULA_COMMENT,
             toggle_disabled_bg_normal: DRACULA_BACKGROUND,
-            toggle_disabled_bg_hovered: DRACULA_CURRENT_LINE,
+            toggle_disabled_bg_hovered: DRACULA_SELECTION,
             toggle_disabled_bg_pressed: DRACULA_BACKGROUND,
 
             // Prompts/Dialogs
-            prompt_info_bg: DRACULA_CURRENT_LINE,
-            prompt_info_fg: DRACULA_CYAN, // Dracula cyan
+            prompt_info_bg: DRACULA_SELECTION,
+            prompt_info_fg: DRACULA_CYAN,
             prompt_success_bg: DRACULA_GREEN,
             prompt_success_fg: DRACULA_BACKGROUND,
             prompt_warning_bg: DRACULA_ORANGE,
@@ -657,36 +658,36 @@ impl Theme {
 
             // Dialog buttons
             dialog_button_primary_info_fg: DRACULA_BACKGROUND,
-            dialog_button_primary_info_bg: DRACULA_CYAN, // Dracula cyan
+            dialog_button_primary_info_bg: DRACULA_CYAN,
             dialog_button_primary_success_fg: DRACULA_BACKGROUND,
-            dialog_button_primary_success_bg: DRACULA_GREEN, // Dracula green
+            dialog_button_primary_success_bg: DRACULA_GREEN,
             dialog_button_primary_warning_fg: DRACULA_BACKGROUND,
-            dialog_button_primary_warning_bg: DRACULA_YELLOW, // Dracula yellow
+            dialog_button_primary_warning_bg: DRACULA_YELLOW,
             dialog_button_primary_danger_fg: DRACULA_FOREGROUND,
-            dialog_button_primary_danger_bg: DRACULA_RED, // Dracula red
+            dialog_button_primary_danger_bg: DRACULA_RED,
             dialog_button_secondary_fg: DRACULA_FOREGROUND,
-            dialog_button_secondary_bg: DRACULA_CURRENT_LINE,
+            dialog_button_secondary_bg: DRACULA_SELECTION,
 
             // Config window
-            config_title_bg: DRACULA_CURRENT_LINE, // Selection color for title
-            config_title_fg: DRACULA_FOREGROUND,
-            config_border: DRACULA_PURPLE, // Purple borders
+            config_title_bg: DRACULA_PURPLE,
+            config_title_fg: DRACULA_BACKGROUND,
+            config_border: DRACULA_PURPLE,
             config_content_bg: DRACULA_BACKGROUND,
             config_content_fg: DRACULA_FOREGROUND,
             config_instructions_fg: DRACULA_COMMENT,
-            config_toggle_on_color: DRACULA_GREEN, // Dracula green
+            config_toggle_on_color: DRACULA_GREEN,
             config_toggle_off_color: DRACULA_COMMENT,
 
             // Calendar
             calendar_bg: DRACULA_BACKGROUND,
             calendar_fg: DRACULA_FOREGROUND,
-            calendar_title_color: DRACULA_PURPLE, // Purple accent
-            calendar_today_bg: DRACULA_PURPLE,    // Purple highlight
+            calendar_title_color: DRACULA_PINK,
+            calendar_today_bg: DRACULA_PURPLE,
             calendar_today_fg: DRACULA_FOREGROUND,
 
             // Scrollbar
             scrollbar_track_fg: DRACULA_COMMENT,
-            scrollbar_thumb_fg: DRACULA_PURPLE, // Purple accent
+            scrollbar_thumb_fg: DRACULA_PURPLE,
 
             // Context menu
             menu_bg: DRACULA_BACKGROUND,
@@ -697,24 +698,24 @@ impl Theme {
             menu_shadow_fg: PURE_BLACK,
 
             // Snap preview
-            snap_preview_border: DRACULA_CYAN, // Dracula cyan
+            snap_preview_border: DRACULA_CYAN,
             snap_preview_bg: DRACULA_BACKGROUND,
 
-            // Splash screen - theme background with primary accent
+            // Splash screen
             splash_border: DRACULA_PURPLE,
             splash_bg: DRACULA_BACKGROUND,
-            splash_fg: DRACULA_CYAN, // Primary cyan accent
+            splash_fg: DRACULA_PURPLE,
 
-            // Slight input popup - dark Spotlight-like style
+            // Slight input popup
             slight_bg: DRACULA_BACKGROUND,
             slight_fg: DRACULA_FOREGROUND,
-            slight_border: DRACULA_CURRENT_LINE, // Current line color
-            slight_input_bg: DRACULA_CURRENT_LINE,
-            slight_input_fg: DRACULA_CYAN,        // Dracula cyan
-            slight_suggestion_fg: DRACULA_YELLOW, // Yellow for clear distinction
+            slight_border: DRACULA_PURPLE,
+            slight_input_bg: DRACULA_SELECTION,
+            slight_input_fg: DRACULA_CYAN,
+            slight_suggestion_fg: DRACULA_YELLOW,
             slight_dropdown_bg: DRACULA_BACKGROUND,
-            slight_dropdown_fg: DRACULA_CYAN, // Dracula cyan
-            slight_dropdown_selected_bg: DRACULA_PURPLE, // Purple highlight
+            slight_dropdown_fg: DRACULA_FOREGROUND,
+            slight_dropdown_selected_bg: DRACULA_PURPLE,
             slight_dropdown_selected_fg: DRACULA_FOREGROUND,
         }
     }
@@ -1051,7 +1052,7 @@ impl Theme {
 
             // Window controls - vary brightness for semantic distinction
             button_close_color: Color::Yellow, // Bright amber for close (primary action)
-            button_maximize_color: MID_AMBER, // Mid amber for maximize
+            button_maximize_color: MID_AMBER,  // Mid amber for maximize
             button_minimize_color: LIGHT_AMBER, // Dimmest for minimize
             button_bg: Color::Black,
             resize_handle_normal_fg: Color::DarkYellow,
