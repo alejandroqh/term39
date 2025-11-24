@@ -10,6 +10,11 @@ const LIGHT_AMBER: Color = Color::Rgb {
     g: 176,
     b: 0,
 };
+const MID_AMBER: Color = Color::Rgb {
+    r: 255,
+    g: 213,
+    b: 128,
+};
 const BRIGHT_AMBER: Color = Color::Rgb {
     r: 255,
     g: 191,
@@ -1022,9 +1027,9 @@ impl Theme {
             desktop_fg: Color::Yellow,
 
             // Top bar
-            topbar_bg_focused: Color::DarkYellow,
+            topbar_bg_focused: MID_AMBER,
             topbar_bg_unfocused: Color::Black,
-            topbar_fg_focused: Color::Yellow,
+            topbar_fg_focused: Color::Black,
             topbar_fg_unfocused: Color::Yellow,
             clock_bg: Color::Black,
             clock_fg: Color::Yellow,
@@ -1032,8 +1037,8 @@ impl Theme {
             // Windows - Title bar
             window_title_unfocused_fg: Color::Yellow,
             window_title_unfocused_bg: Color::Black,
-            window_title_focused_fg: Color::Yellow,
-            window_title_focused_bg: Color::DarkYellow, // Dark amber for focus
+            window_title_focused_fg: Color::Black,
+            window_title_focused_bg: MID_AMBER, // Mid amber for focus
             // Windows - Border
             window_border_unfocused_fg: Color::DarkYellow,
             window_border_unfocused_bg: Color::Black,
@@ -1046,7 +1051,7 @@ impl Theme {
 
             // Window controls - vary brightness for semantic distinction
             button_close_color: Color::Yellow, // Bright amber for close (primary action)
-            button_maximize_color: Color::DarkYellow, // Dim amber for maximize
+            button_maximize_color: MID_AMBER, // Mid amber for maximize
             button_minimize_color: LIGHT_AMBER, // Dimmest for minimize
             button_bg: Color::Black,
             resize_handle_normal_fg: Color::DarkYellow,
