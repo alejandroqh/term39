@@ -427,6 +427,50 @@ impl Perform for AnsiHandler<'_> {
                     _ => {}
                 }
             }
+            ('n', [b'?']) => {
+                // DEC Private Device Status Report
+                let mode = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.first())
+                    .copied()
+                    .unwrap_or(0);
+                match mode {
+                    6 => {
+                        // DECXCPR - Extended Cursor Position Report
+                        // Response: CSI ? row ; col R (respects origin mode)
+                        let (row, col) = if self.grid.origin_mode {
+                            let row = (self
+                                .grid
+                                .cursor
+                                .y
+                                .saturating_sub(self.grid.scroll_region_top()))
+                                + 1;
+                            let col = self.grid.cursor.x + 1;
+                            (row, col)
+                        } else {
+                            let row = self.grid.cursor.y + 1;
+                            let col = self.grid.cursor.x + 1;
+                            (row, col)
+                        };
+                        let response = format!("\x1b[?{};{}R", row, col);
+                        self.grid.queue_response(response);
+                    }
+                    15 => {
+                        // Printer status - respond with "not ready"
+                        self.grid.queue_response("\x1b[?13n".to_string());
+                    }
+                    25 => {
+                        // UDK status - respond with "locked"
+                        self.grid.queue_response("\x1b[?21n".to_string());
+                    }
+                    26 => {
+                        // Keyboard status - respond with "North American"
+                        self.grid.queue_response("\x1b[?27;1n".to_string());
+                    }
+                    _ => {}
+                }
+            }
             ('m', []) => {
                 // SGR (Select Graphic Rendition)
                 self.handle_sgr(params);
@@ -463,6 +507,32 @@ impl Perform for AnsiHandler<'_> {
                     5 | 6 => CursorShape::Bar,
                     _ => CursorShape::Block,
                 };
+            }
+            ('t', []) => {
+                // Window manipulation (XTWINOPS)
+                let mode = params
+                    .iter()
+                    .next()
+                    .and_then(|p| p.first())
+                    .copied()
+                    .unwrap_or(0);
+                match mode {
+                    18 => {
+                        // Report text area size in characters
+                        // Response: CSI 8 ; height ; width t
+                        let response = format!("\x1b[8;{};{}t", self.grid.rows(), self.grid.cols());
+                        self.grid.queue_response(response);
+                    }
+                    19 => {
+                        // Report screen size in characters
+                        // Response: CSI 9 ; height ; width t
+                        let response = format!("\x1b[9;{};{}t", self.grid.rows(), self.grid.cols());
+                        self.grid.queue_response(response);
+                    }
+                    _ => {
+                        // Other window manipulation commands (ignore for now)
+                    }
+                }
             }
             _ => {
                 // Unknown or unimplemented sequence
