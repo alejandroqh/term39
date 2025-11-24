@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2025-11-24
+
+### Added
+
+- Unicode width support for proper wide character handling
+
+### Changed
+
+- Improved color themes: Dbase, Tpascal, Qbasic, NDD, Dracula, Amber
+- Enhanced window tinting for better visual appearance
+- Updated battery indicator
+- All CSI commands now handled properly
+- Updated dependencies
+
+### Fixed
+
+- Tab completion problem with folder paths
+- DMG build in CI by skipping Finder customization
+
 ## [0.11.3] - 2025-11-23
 
 ### Added
@@ -272,6 +291,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.12.0]: https://github.com/alejandroqh/term39/releases/tag/v0.12.0
 [0.11.3]: https://github.com/alejandroqh/term39/releases/tag/v0.11.3
 [0.11.0]: https://github.com/alejandroqh/term39/releases/tag/v0.11.0
 [0.10.0]: https://github.com/alejandroqh/term39/releases/tag/v0.10.0

@@ -1172,7 +1172,7 @@ dependencies = [
 
 [[package]]
 name = "term39"
-version = "0.11.3"
+version = "0.12.0"
 dependencies = [
  "arboard",
  "chrono",
