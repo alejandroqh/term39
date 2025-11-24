@@ -228,12 +228,10 @@ impl TerminalGrid {
         self.rows_count
     }
 
-    #[allow(dead_code)]
     pub fn scroll_region_top(&self) -> usize {
         self.scroll_region_top
     }
 
-    #[allow(dead_code)]
     pub fn scroll_region_bottom(&self) -> usize {
         self.scroll_region_bottom
     }
@@ -255,9 +253,19 @@ impl TerminalGrid {
 
     /// Queue cursor position report (DSR response to CSI 6 n)
     /// Format: CSI row ; col R (1-based coordinates)
+    /// When origin mode (DECOM) is set, reports position relative to scroll region
     pub fn queue_cursor_position_report(&mut self) {
-        let row = self.cursor.y + 1; // Convert to 1-based
-        let col = self.cursor.x + 1; // Convert to 1-based
+        let (row, col) = if self.origin_mode {
+            // In origin mode, report position relative to scroll region
+            let row = (self.cursor.y.saturating_sub(self.scroll_region_top)) + 1;
+            let col = self.cursor.x + 1;
+            (row, col)
+        } else {
+            // Normal mode, report absolute position
+            let row = self.cursor.y + 1;
+            let col = self.cursor.x + 1;
+            (row, col)
+        };
         let response = format!("\x1b[{};{}R", row, col);
         self.queue_response(response);
     }
@@ -734,6 +742,21 @@ impl TerminalGrid {
     pub fn goto(&mut self, x: usize, y: usize) {
         self.cursor.x = x.min(self.cols.saturating_sub(1));
         self.cursor.y = y.min(self.rows_count.saturating_sub(1));
+    }
+
+    /// Move cursor with origin mode awareness (for CSI H and similar)
+    /// When origin mode (DECOM) is set, positions are relative to scroll region
+    /// and cursor is constrained to scroll region
+    pub fn goto_origin_aware(&mut self, x: usize, y: usize) {
+        if self.origin_mode {
+            // In origin mode, positions are relative to scroll region
+            let actual_y = (self.scroll_region_top + y).min(self.scroll_region_bottom);
+            self.cursor.x = x.min(self.cols.saturating_sub(1));
+            self.cursor.y = actual_y;
+        } else {
+            // Normal mode, absolute positioning
+            self.goto(x, y);
+        }
     }
 
     /// Move cursor relatively

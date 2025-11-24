@@ -11,6 +11,16 @@ impl<'a> AnsiHandler<'a> {
         Self { grid }
     }
 
+    /// Parse a CSI parameter with default value
+    /// According to ECMA-48, if a parameter is 0 or omitted, use the default
+    fn parse_param_with_default(param: Option<&[u16]>, default: u16) -> u16 {
+        param
+            .and_then(|p| p.first())
+            .copied()
+            .map(|v| if v == 0 { default } else { v })
+            .unwrap_or(default)
+    }
+
     /// Parse SGR (Select Graphic Rendition) parameters
     fn handle_sgr(&mut self, params: &Params) {
         if params.is_empty() {
@@ -186,44 +196,25 @@ impl Perform for AnsiHandler<'_> {
         // CSI (Control Sequence Introducer) sequences
         match (c, intermediates) {
             // Cursor movement
+            // Per ECMA-48, parameter 0 is treated as 1 for movement commands
             ('A', []) => {
                 // Cursor Up
-                let n = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
+                let n = Self::parse_param_with_default(params.iter().next(), 1) as usize;
                 self.grid.move_cursor(0, -(n as isize));
             }
             ('B', []) => {
                 // Cursor Down
-                let n = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
+                let n = Self::parse_param_with_default(params.iter().next(), 1) as usize;
                 self.grid.move_cursor(0, n as isize);
             }
             ('C', []) => {
                 // Cursor Forward
-                let n = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
+                let n = Self::parse_param_with_default(params.iter().next(), 1) as usize;
                 self.grid.move_cursor(n as isize, 0);
             }
             ('D', []) => {
                 // Cursor Back
-                let n = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
+                let n = Self::parse_param_with_default(params.iter().next(), 1) as usize;
                 self.grid.move_cursor(-(n as isize), 0);
             }
             ('c', []) => {
@@ -240,44 +231,32 @@ impl Perform for AnsiHandler<'_> {
             }
             ('E', []) => {
                 // Cursor Next Line
-                let n = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
+                let n = Self::parse_param_with_default(params.iter().next(), 1) as usize;
                 self.grid.move_cursor(0, n as isize);
                 self.grid.cursor.x = 0;
             }
             ('F', []) => {
                 // Cursor Previous Line
-                let n = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
+                let n = Self::parse_param_with_default(params.iter().next(), 1) as usize;
                 self.grid.move_cursor(0, -(n as isize));
                 self.grid.cursor.x = 0;
             }
             ('G', []) => {
                 // Cursor Horizontal Absolute
-                let col = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
+                let col = Self::parse_param_with_default(params.iter().next(), 1) as usize;
                 self.grid.cursor.x = col
                     .saturating_sub(1)
                     .min(self.grid.cols().saturating_sub(1));
             }
             ('H', []) | ('f', []) => {
                 // Cursor Position
+                // When origin mode (DECOM) is set, position is relative to scroll region
+                // Per ECMA-48, parameter 0 is treated as 1
                 let mut iter = params.iter();
-                let row = iter.next().and_then(|p| p.first()).copied().unwrap_or(1) as usize;
-                let col = iter.next().and_then(|p| p.first()).copied().unwrap_or(1) as usize;
-                self.grid.goto(col.saturating_sub(1), row.saturating_sub(1));
+                let row = Self::parse_param_with_default(iter.next(), 1) as usize;
+                let col = Self::parse_param_with_default(iter.next(), 1) as usize;
+                self.grid
+                    .goto_origin_aware(col.saturating_sub(1), row.saturating_sub(1));
             }
             ('J', []) => {
                 // Erase in Display
@@ -311,85 +290,52 @@ impl Perform for AnsiHandler<'_> {
             }
             ('P', []) => {
                 // Delete Characters (DCH)
-                let n = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
+                let n = Self::parse_param_with_default(params.iter().next(), 1) as usize;
                 self.grid.delete_chars(n);
             }
             ('@', []) => {
                 // Insert Characters (ICH)
-                let n = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
+                let n = Self::parse_param_with_default(params.iter().next(), 1) as usize;
                 self.grid.insert_chars(n);
             }
             ('X', []) => {
                 // Erase Characters (ECH)
-                let n = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
+                let n = Self::parse_param_with_default(params.iter().next(), 1) as usize;
                 self.grid.erase_chars(n);
             }
             ('L', []) => {
                 // Insert Lines
-                let n = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
+                let n = Self::parse_param_with_default(params.iter().next(), 1) as usize;
                 self.grid.scroll_down(n);
             }
             ('M', []) => {
                 // Delete Lines
-                let n = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
+                let n = Self::parse_param_with_default(params.iter().next(), 1) as usize;
                 self.grid.scroll_up(n);
             }
             ('S', []) => {
                 // Scroll Up
-                let n = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
+                let n = Self::parse_param_with_default(params.iter().next(), 1) as usize;
                 self.grid.scroll_up(n);
             }
             ('T', []) => {
                 // Scroll Down
-                let n = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
+                let n = Self::parse_param_with_default(params.iter().next(), 1) as usize;
                 self.grid.scroll_down(n);
             }
             ('d', []) => {
-                // Vertical Position Absolute
-                let row = params
-                    .iter()
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(1) as usize;
-                self.grid.cursor.y = row
-                    .saturating_sub(1)
-                    .min(self.grid.rows().saturating_sub(1));
+                // Vertical Position Absolute (VPA)
+                // When origin mode (DECOM) is set, position is relative to scroll region
+                let row = Self::parse_param_with_default(params.iter().next(), 1) as usize;
+                let y = row.saturating_sub(1);
+                if self.grid.origin_mode {
+                    // In origin mode, position is relative to scroll region
+                    let scroll_top = self.grid.scroll_region_top();
+                    let scroll_bottom = self.grid.scroll_region_bottom();
+                    self.grid.cursor.y = (scroll_top + y).min(scroll_bottom);
+                } else {
+                    self.grid.cursor.y = y.min(self.grid.rows().saturating_sub(1));
+                }
             }
             ('h', []) => {
                 // Standard Mode Set (SM)
@@ -486,14 +432,12 @@ impl Perform for AnsiHandler<'_> {
                 self.handle_sgr(params);
             }
             ('r', []) => {
-                // Set Scroll Region
+                // Set Scroll Region (DECSTBM)
+                // Parameters: top ; bottom (1-based, 0 treated as default)
                 let mut iter = params.iter();
-                let top = iter.next().and_then(|p| p.first()).copied().unwrap_or(1) as usize;
-                let bottom = iter
-                    .next()
-                    .and_then(|p| p.first())
-                    .copied()
-                    .unwrap_or(self.grid.rows() as u16) as usize;
+                let top = Self::parse_param_with_default(iter.next(), 1) as usize;
+                let bottom_default = self.grid.rows() as u16;
+                let bottom = Self::parse_param_with_default(iter.next(), bottom_default) as usize;
                 self.grid
                     .set_scroll_region(top.saturating_sub(1), bottom.saturating_sub(1));
             }
