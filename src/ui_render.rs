@@ -186,14 +186,16 @@ pub fn render_top_bar(
 ) {
     let (cols, _rows) = buffer.dimensions();
 
-    // Change background color based on focus
-    let bg_color = match focus {
-        FocusState::Desktop => theme.topbar_bg_desktop,
-        FocusState::Window(_) => theme.topbar_bg_window,
+    // Change background and foreground colors based on focus
+    // When desktop has focus, topbar is "focused" (active/bright)
+    // When a window has focus, topbar is "unfocused" (inactive/dimmed)
+    let (bg_color, fg_color) = match focus {
+        FocusState::Desktop => (theme.topbar_bg_focused, theme.topbar_fg_focused),
+        FocusState::Window(_) => (theme.topbar_bg_unfocused, theme.topbar_fg_unfocused),
     };
 
     // Use new_unchecked for performance - theme colors are pre-validated
-    let bar_cell = Cell::new_unchecked(' ', theme.topbar_fg, bg_color);
+    let bar_cell = Cell::new_unchecked(' ', fg_color, bg_color);
 
     // Create a blank top bar
     for x in 0..cols {

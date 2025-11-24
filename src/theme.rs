@@ -18,6 +18,11 @@ const BRIGHT_AMBER: Color = Color::Rgb {
 
 // Green variants - authentic P39 phosphor colors (525nm wavelength)
 const DARK_GREEN_PHOSPHOR: Color = Color::Rgb { r: 0, g: 120, b: 0 };
+const MID_GREEN_PHOSPHOR: Color = Color::Rgb {
+    r: 158,
+    g: 211,
+    b: 177,
+};
 const LIGHT_GREEN_PHOSPHOR: Color = Color::Rgb {
     r: 51,
     g: 255,
@@ -143,18 +148,24 @@ pub struct Theme {
     pub desktop_fg: Color,
 
     // Top bar
-    pub topbar_bg_desktop: Color,
-    pub topbar_bg_window: Color,
-    pub topbar_fg: Color,
+    pub topbar_bg_unfocused: Color,
+    pub topbar_bg_focused: Color,
+    pub topbar_fg_unfocused: Color,
+    pub topbar_fg_focused: Color,
     pub clock_bg: Color,
     pub clock_fg: Color,
 
-    // Windows
-    pub window_title_bg: Color,
-    pub window_title_bg_focused: Color,
-    pub window_title_fg: Color,
-    pub window_border: Color,
-    pub window_border_focused: Color,
+    // Windows - Title bar colors
+    pub window_title_unfocused_fg: Color,
+    pub window_title_unfocused_bg: Color,
+    pub window_title_focused_fg: Color,
+    pub window_title_focused_bg: Color,
+    // Windows - Border colors
+    pub window_border_unfocused_fg: Color,
+    pub window_border_unfocused_bg: Color,
+    pub window_border_focused_fg: Color,
+    pub window_border_focused_bg: Color,
+    // Windows - Content area
     pub window_content_bg: Color,
     pub window_content_fg: Color,
     pub window_shadow_color: Color,
@@ -283,18 +294,24 @@ impl Theme {
             desktop_fg: Color::White,
 
             // Top bar
-            topbar_bg_desktop: Color::Cyan,
-            topbar_bg_window: Color::Black,
-            topbar_fg: Color::White,
+            topbar_bg_focused: Color::Cyan,
+            topbar_bg_unfocused: Color::Black,
+            topbar_fg_focused: Color::White,
+            topbar_fg_unfocused: Color::White,
             clock_bg: Color::DarkGrey,
             clock_fg: Color::White,
 
-            // Windows
-            window_title_bg: Color::DarkGrey,
-            window_title_bg_focused: Color::DarkCyan,
-            window_title_fg: Color::White,
-            window_border: Color::White,
-            window_border_focused: Color::Cyan,
+            // Windows - Title bar
+            window_title_unfocused_fg: Color::White,
+            window_title_unfocused_bg: Color::DarkGrey,
+            window_title_focused_fg: Color::White,
+            window_title_focused_bg: Color::DarkCyan,
+            // Windows - Border
+            window_border_unfocused_fg: Color::White,
+            window_border_unfocused_bg: Color::DarkGrey,
+            window_border_focused_fg: Color::Cyan,
+            window_border_focused_bg: Color::DarkCyan,
+            // Windows - Content
             window_content_bg: Color::DarkBlue,
             window_content_fg: Color::White,
             window_shadow_color: Color::DarkGrey,
@@ -400,7 +417,7 @@ impl Theme {
             // Slight input popup - dark Spotlight-like style
             slight_bg: Color::Black,
             slight_fg: Color::White,
-            slight_border: Color::Cyan, // Primary theme color (topbar_bg_desktop)
+            slight_border: Color::Cyan, // Primary theme color (topbar_bg_unfocused)
             slight_input_bg: Color::DarkGrey,
             slight_input_fg: Color::White,
             slight_suggestion_fg: Color::Yellow, // Yellow for clear distinction from input
@@ -419,18 +436,24 @@ impl Theme {
             desktop_fg: Color::White,
 
             // Top bar
-            topbar_bg_desktop: Color::Grey,
-            topbar_bg_window: Color::Black,
-            topbar_fg: Color::White,
+            topbar_bg_focused: Color::Grey,
+            topbar_bg_unfocused: Color::Black,
+            topbar_fg_focused: Color::White,
+            topbar_fg_unfocused: Color::White,
             clock_bg: Color::Black,
             clock_fg: Color::White,
 
-            // Windows
-            window_title_bg: Color::DarkGrey,
-            window_title_bg_focused: Color::Grey,
-            window_title_fg: Color::White,
-            window_border: Color::Grey,
-            window_border_focused: Color::White,
+            // Windows - Title bar
+            window_title_unfocused_fg: Color::White,
+            window_title_unfocused_bg: Color::DarkGrey,
+            window_title_focused_fg: Color::White,
+            window_title_focused_bg: Color::Grey,
+            // Windows - Border
+            window_border_unfocused_fg: Color::Grey,
+            window_border_unfocused_bg: Color::DarkGrey,
+            window_border_focused_fg: Color::White,
+            window_border_focused_bg: Color::Grey,
+            // Windows - Content
             window_content_bg: Color::Black,
             window_content_fg: Color::White,
             window_shadow_color: Color::DarkGrey,
@@ -536,7 +559,7 @@ impl Theme {
             // Slight input popup - dark Spotlight-like style
             slight_bg: Color::Black,
             slight_fg: Color::White,
-            slight_border: Color::Grey, // Primary theme color (topbar_bg_desktop)
+            slight_border: Color::Grey, // Primary theme color (topbar_bg_unfocused)
             slight_input_bg: Color::DarkGrey,
             slight_input_fg: Color::White,
             slight_suggestion_fg: Color::Grey, // Grey for distinction from white input
@@ -557,18 +580,24 @@ impl Theme {
             desktop_fg: DRACULA_FOREGROUND,
 
             // Top bar
-            topbar_bg_desktop: DRACULA_CURRENT_LINE,
-            topbar_bg_window: DRACULA_BACKGROUND,
-            topbar_fg: DRACULA_FOREGROUND,
+            topbar_bg_focused: DRACULA_CURRENT_LINE,
+            topbar_bg_unfocused: DRACULA_BACKGROUND,
+            topbar_fg_focused: DRACULA_FOREGROUND,
+            topbar_fg_unfocused: DRACULA_FOREGROUND,
             clock_bg: DRACULA_BACKGROUND,
             clock_fg: DRACULA_PURPLE, // Purple accent
 
-            // Windows - Dracula purple/cyan accents
-            window_title_bg: DRACULA_BACKGROUND,
-            window_title_bg_focused: DRACULA_CURRENT_LINE, // Selection color for focus
-            window_title_fg: DRACULA_FOREGROUND,
-            window_border: DRACULA_COMMENT, // Dim purple/blue for unfocused
-            window_border_focused: DRACULA_CYAN, // Bright cyan for focused
+            // Windows - Title bar (Dracula purple/cyan accents)
+            window_title_unfocused_fg: DRACULA_FOREGROUND,
+            window_title_unfocused_bg: DRACULA_BACKGROUND,
+            window_title_focused_fg: DRACULA_FOREGROUND,
+            window_title_focused_bg: DRACULA_CURRENT_LINE, // Selection color for focus
+            // Windows - Border
+            window_border_unfocused_fg: DRACULA_COMMENT, // Dim purple/blue for unfocused
+            window_border_unfocused_bg: DRACULA_BACKGROUND,
+            window_border_focused_fg: DRACULA_CYAN, // Bright cyan for focused
+            window_border_focused_bg: DRACULA_CURRENT_LINE,
+            // Windows - Content
             window_content_bg: DRACULA_BACKGROUND, // True dark background
             window_content_fg: DRACULA_FOREGROUND, // Good contrast on dark background
             window_shadow_color: PURE_BLACK,
@@ -695,18 +724,24 @@ impl Theme {
             desktop_fg: DARCULA_FOREGROUND,
 
             // Top bar
-            topbar_bg_desktop: DARCULA_UI_BACKGROUND,
-            topbar_bg_window: DARCULA_BACKGROUND,
-            topbar_fg: DARCULA_FOREGROUND,
+            topbar_bg_focused: DARCULA_UI_BACKGROUND,
+            topbar_bg_unfocused: DARCULA_BACKGROUND,
+            topbar_fg_focused: DARCULA_FOREGROUND,
+            topbar_fg_unfocused: DARCULA_FOREGROUND,
             clock_bg: DARCULA_BACKGROUND,
             clock_fg: DARCULA_NUMBER_BLUE, // Blue accent
 
-            // Windows - Darcula orange/blue accents
-            window_title_bg: DARCULA_BACKGROUND,
-            window_title_bg_focused: DARCULA_UI_BACKGROUND, // UI background for focus
-            window_title_fg: DARCULA_FOREGROUND,
-            window_border: DARCULA_COMMENT, // Grey for unfocused
-            window_border_focused: DARCULA_ORANGE, // Orange for focused
+            // Windows - Title bar (Darcula orange/blue accents)
+            window_title_unfocused_fg: DARCULA_FOREGROUND,
+            window_title_unfocused_bg: DARCULA_BACKGROUND,
+            window_title_focused_fg: DARCULA_FOREGROUND,
+            window_title_focused_bg: DARCULA_UI_BACKGROUND, // UI background for focus
+            // Windows - Border
+            window_border_unfocused_fg: DARCULA_COMMENT, // Grey for unfocused
+            window_border_unfocused_bg: DARCULA_BACKGROUND,
+            window_border_focused_fg: DARCULA_ORANGE, // Orange for focused
+            window_border_focused_bg: DARCULA_UI_BACKGROUND,
+            // Windows - Content
             window_content_bg: DARCULA_BACKGROUND, // True dark background
             window_content_fg: DARCULA_FOREGROUND, // Good contrast on dark background
             window_shadow_color: PURE_BLACK,
@@ -844,25 +879,31 @@ impl Theme {
             desktop_fg: Color::Green,
 
             // Top bar
-            topbar_bg_desktop: Color::DarkGreen,
-            topbar_bg_window: Color::Black,
-            topbar_fg: Color::Green,
+            topbar_bg_focused: MID_GREEN_PHOSPHOR,
+            topbar_bg_unfocused: Color::Black,
+            topbar_fg_focused: Color::Green,
+            topbar_fg_unfocused: Color::Green,
             clock_bg: Color::Black,
             clock_fg: Color::Green,
 
-            // Windows
-            window_title_bg: Color::Black,
-            window_title_bg_focused: Color::DarkGreen, // Dark green for focus
-            window_title_fg: Color::Green,
-            window_border: Color::DarkGreen,
-            window_border_focused: Color::Green,
+            // Windows - Title bar
+            window_title_unfocused_fg: Color::Green,
+            window_title_unfocused_bg: Color::Black,
+            window_title_focused_fg: Color::Black,
+            window_title_focused_bg: MID_GREEN_PHOSPHOR,
+            // Windows - Border
+            window_border_unfocused_fg: Color::Green,
+            window_border_unfocused_bg: Color::Black,
+            window_border_focused_fg: Color::Black,
+            window_border_focused_bg: Color::Green,
+            // Windows - Content
             window_content_bg: Color::Black,
             window_content_fg: Color::Green,
             window_shadow_color: Color::DarkGreen,
 
             // Window controls - vary brightness for semantic distinction
             button_close_color: Color::Green, // Bright green for close (primary action)
-            button_maximize_color: Color::DarkGreen, // Dim green for maximize
+            button_maximize_color: MID_GREEN_PHOSPHOR, // Mid green for maximize
             button_minimize_color: DARK_GREEN_PHOSPHOR, // Dimmest for minimize
             button_bg: Color::Black,
             resize_handle_normal_fg: Color::DarkGreen,
@@ -961,7 +1002,7 @@ impl Theme {
             // Slight input popup - dark Spotlight-like style
             slight_bg: Color::Black,
             slight_fg: Color::Green,
-            slight_border: Color::DarkGreen, // Primary theme color (topbar_bg_desktop)
+            slight_border: Color::DarkGreen, // Primary theme color (topbar_bg_unfocused)
             slight_input_bg: Color::DarkGreen,
             slight_input_fg: Color::Green,
             slight_suggestion_fg: LIGHT_GREEN_PHOSPHOR, // Light green for clear distinction
@@ -981,18 +1022,24 @@ impl Theme {
             desktop_fg: Color::Yellow,
 
             // Top bar
-            topbar_bg_desktop: Color::DarkYellow,
-            topbar_bg_window: Color::Black,
-            topbar_fg: Color::Yellow,
+            topbar_bg_focused: Color::DarkYellow,
+            topbar_bg_unfocused: Color::Black,
+            topbar_fg_focused: Color::Yellow,
+            topbar_fg_unfocused: Color::Yellow,
             clock_bg: Color::Black,
             clock_fg: Color::Yellow,
 
-            // Windows
-            window_title_bg: Color::Black,
-            window_title_bg_focused: Color::DarkYellow, // Dark amber for focus
-            window_title_fg: Color::Yellow,
-            window_border: Color::DarkYellow,
-            window_border_focused: Color::Yellow,
+            // Windows - Title bar
+            window_title_unfocused_fg: Color::Yellow,
+            window_title_unfocused_bg: Color::Black,
+            window_title_focused_fg: Color::Yellow,
+            window_title_focused_bg: Color::DarkYellow, // Dark amber for focus
+            // Windows - Border
+            window_border_unfocused_fg: Color::DarkYellow,
+            window_border_unfocused_bg: Color::Black,
+            window_border_focused_fg: Color::Yellow,
+            window_border_focused_bg: Color::DarkYellow,
+            // Windows - Content
             window_content_bg: Color::Black,
             window_content_fg: Color::Yellow,
             window_shadow_color: Color::DarkYellow,
@@ -1098,7 +1145,7 @@ impl Theme {
             // Slight input popup - dark Spotlight-like style
             slight_bg: Color::Black,
             slight_fg: Color::Yellow,
-            slight_border: Color::DarkYellow, // Primary theme color (topbar_bg_desktop)
+            slight_border: Color::DarkYellow, // Primary theme color (topbar_bg_unfocused)
             slight_input_bg: Color::DarkYellow,
             slight_input_fg: Color::Yellow,
             slight_suggestion_fg: BRIGHT_AMBER, // Bright amber for clear distinction
@@ -1118,18 +1165,24 @@ impl Theme {
             desktop_fg: Color::Cyan,
 
             // Top bar
-            topbar_bg_desktop: Color::Cyan,
-            topbar_bg_window: Color::Black,
-            topbar_fg: Color::Black,
+            topbar_bg_focused: Color::Cyan,
+            topbar_bg_unfocused: Color::Black,
+            topbar_fg_focused: Color::Black,
+            topbar_fg_unfocused: Color::Black,
             clock_bg: Color::DarkCyan,
             clock_fg: Color::White,
 
-            // Windows
-            window_title_bg: Color::DarkCyan,
-            window_title_bg_focused: Color::Cyan,
-            window_title_fg: Color::Black,
-            window_border: Color::DarkCyan,
-            window_border_focused: Color::Cyan,
+            // Windows - Title bar
+            window_title_unfocused_fg: Color::Black,
+            window_title_unfocused_bg: Color::DarkCyan,
+            window_title_focused_fg: Color::Black,
+            window_title_focused_bg: Color::Cyan,
+            // Windows - Border
+            window_border_unfocused_fg: Color::DarkCyan,
+            window_border_unfocused_bg: Color::DarkCyan,
+            window_border_focused_fg: Color::Cyan,
+            window_border_focused_bg: Color::Cyan,
+            // Windows - Content
             window_content_bg: Color::DarkBlue,
             window_content_fg: Color::Cyan,
             window_shadow_color: Color::Black,
@@ -1255,18 +1308,23 @@ impl Theme {
             desktop_fg: Color::White,
 
             // Top bar
-            topbar_bg_desktop: Color::White,
-            topbar_bg_window: Color::Black,
-            topbar_fg: Color::Black,
+            topbar_bg_focused: Color::White,
+            topbar_bg_unfocused: Color::Black,
+            topbar_fg_focused: Color::Black,
+            topbar_fg_unfocused: Color::Black,
             clock_bg: Color::DarkGrey,
             clock_fg: Color::White,
 
-            // Windows
-            window_title_bg: Color::DarkGrey,
-            window_title_bg_focused: Color::White,
-            window_title_fg: Color::Black,
-            window_border: Color::Grey,
-            window_border_focused: Color::White,
+            // Windows - Title bar
+            window_title_unfocused_fg: Color::Black,
+            window_title_unfocused_bg: Color::DarkGrey,
+            window_title_focused_fg: Color::Black,
+            window_title_focused_bg: Color::White,
+            // Windows - Border
+            window_border_unfocused_fg: Color::Grey,
+            window_border_unfocused_bg: Color::DarkGrey,
+            window_border_focused_fg: Color::White,
+            window_border_focused_bg: Color::White,
             window_content_bg: Color::DarkBlue,
             window_content_fg: Color::Yellow,
             window_shadow_color: Color::Black,
@@ -1392,18 +1450,24 @@ impl Theme {
             desktop_fg: Color::Yellow,
 
             // Top bar
-            topbar_bg_desktop: Color::Yellow,
-            topbar_bg_window: Color::Black,
-            topbar_fg: Color::Black,
+            topbar_bg_focused: Color::Yellow,
+            topbar_bg_unfocused: Color::Black,
+            topbar_fg_focused: Color::Black,
+            topbar_fg_unfocused: Color::Black,
             clock_bg: Color::Black,
             clock_fg: Color::Yellow,
 
-            // Windows
-            window_title_bg: Color::Grey,
-            window_title_bg_focused: Color::Yellow,
-            window_title_fg: Color::Black,
-            window_border: Color::Grey,
-            window_border_focused: Color::Yellow,
+            // Windows - Title bar
+            window_title_unfocused_fg: Color::Black,
+            window_title_unfocused_bg: Color::Grey,
+            window_title_focused_fg: Color::Black,
+            window_title_focused_bg: Color::Yellow,
+            // Windows - Border
+            window_border_unfocused_fg: Color::Grey,
+            window_border_unfocused_bg: Color::Grey,
+            window_border_focused_fg: Color::Yellow,
+            window_border_focused_bg: Color::Yellow,
+            // Windows - Content
             window_content_bg: Color::DarkBlue,
             window_content_fg: Color::Yellow,
             window_shadow_color: Color::Black,
@@ -1529,18 +1593,24 @@ impl Theme {
             desktop_fg: Color::Cyan,
 
             // Top bar
-            topbar_bg_desktop: Color::Cyan,
-            topbar_bg_window: Color::Black,
-            topbar_fg: Color::Black,
+            topbar_bg_focused: Color::Cyan,
+            topbar_bg_unfocused: Color::Black,
+            topbar_fg_focused: Color::Black,
+            topbar_fg_unfocused: Color::Black,
             clock_bg: Color::Black,
             clock_fg: Color::Cyan,
 
-            // Windows - cyan panels on blue background
-            window_title_bg: Color::Black,
-            window_title_bg_focused: Color::Cyan,
-            window_title_fg: Color::Black,
-            window_border: Color::Cyan,
-            window_border_focused: Color::Yellow,
+            // Windows - Title bar (cyan panels on blue background)
+            window_title_unfocused_fg: Color::Black,
+            window_title_unfocused_bg: Color::Black,
+            window_title_focused_fg: Color::Black,
+            window_title_focused_bg: Color::Cyan,
+            // Windows - Border
+            window_border_unfocused_fg: Color::Cyan,
+            window_border_unfocused_bg: Color::Black,
+            window_border_focused_fg: Color::Yellow,
+            window_border_focused_bg: Color::Cyan,
+            // Windows - Content
             window_content_bg: Color::Blue,
             window_content_fg: Color::Cyan,
             window_shadow_color: Color::Black,
@@ -1666,18 +1736,23 @@ impl Theme {
             desktop_fg: Color::Yellow,
 
             // Top bar
-            topbar_bg_desktop: Color::Yellow,
-            topbar_bg_window: Color::Black,
-            topbar_fg: Color::Black,
+            topbar_bg_focused: Color::Yellow,
+            topbar_bg_unfocused: Color::Black,
+            topbar_fg_focused: Color::Black,
+            topbar_fg_unfocused: Color::Black,
             clock_bg: Color::Black,
             clock_fg: Color::Yellow,
 
-            // Windows - yellow/white on blue
-            window_title_bg: Color::Black,
-            window_title_bg_focused: Color::Yellow,
-            window_title_fg: Color::Black,
-            window_border: Color::White,
-            window_border_focused: Color::Yellow,
+            // Windows - Title bar (yellow/white on blue)
+            window_title_unfocused_fg: Color::Black,
+            window_title_unfocused_bg: Color::Black,
+            window_title_focused_fg: Color::Black,
+            window_title_focused_bg: Color::Yellow,
+            // Windows - Border
+            window_border_unfocused_fg: Color::White,
+            window_border_unfocused_bg: Color::Black,
+            window_border_focused_fg: Color::Yellow,
+            window_border_focused_bg: Color::Yellow,
             window_content_bg: Color::Blue,
             window_content_fg: Color::Yellow,
             window_shadow_color: Color::Black,
@@ -1803,18 +1878,24 @@ impl Theme {
             desktop_fg: Color::White,
 
             // Top bar
-            topbar_bg_desktop: Color::Cyan,
-            topbar_bg_window: Color::Black,
-            topbar_fg: Color::Black,
+            topbar_bg_focused: Color::Cyan,
+            topbar_bg_unfocused: Color::Black,
+            topbar_fg_focused: Color::Black,
+            topbar_fg_unfocused: Color::Black,
             clock_bg: Color::Black,
             clock_fg: Color::Cyan,
 
-            // Windows - white/cyan on blue
-            window_title_bg: Color::Black,
-            window_title_bg_focused: Color::Cyan,
-            window_title_fg: Color::Black,
-            window_border: Color::Cyan,
-            window_border_focused: Color::White,
+            // Windows - Title bar (white/cyan on blue)
+            window_title_unfocused_fg: Color::Black,
+            window_title_unfocused_bg: Color::Black,
+            window_title_focused_fg: Color::Black,
+            window_title_focused_bg: Color::Cyan,
+            // Windows - Border
+            window_border_unfocused_fg: Color::Cyan,
+            window_border_unfocused_bg: Color::Black,
+            window_border_focused_fg: Color::White,
+            window_border_focused_bg: Color::Cyan,
+            // Windows - Content
             window_content_bg: Color::Blue,
             window_content_fg: Color::White,
             window_shadow_color: Color::Black,
@@ -1940,18 +2021,24 @@ impl Theme {
             desktop_fg: Color::Cyan,
 
             // Top bar
-            topbar_bg_desktop: Color::White,
-            topbar_bg_window: Color::Black,
-            topbar_fg: Color::Black,
+            topbar_bg_focused: Color::White,
+            topbar_bg_unfocused: Color::Black,
+            topbar_fg_focused: Color::Black,
+            topbar_fg_unfocused: Color::Black,
             clock_bg: Color::Black,
             clock_fg: Color::White,
 
-            // Windows - cyan on blue
-            window_title_bg: Color::Black,
-            window_title_bg_focused: Color::White,
-            window_title_fg: Color::Black,
-            window_border: Color::Cyan,
-            window_border_focused: Color::White,
+            // Windows - Title bar (cyan on blue)
+            window_title_unfocused_fg: Color::Black,
+            window_title_unfocused_bg: Color::Black,
+            window_title_focused_fg: Color::Black,
+            window_title_focused_bg: Color::White,
+            // Windows - Border
+            window_border_unfocused_fg: Color::Cyan,
+            window_border_unfocused_bg: Color::Black,
+            window_border_focused_fg: Color::White,
+            window_border_focused_bg: Color::White,
+            // Windows - Content
             window_content_bg: Color::Blue,
             window_content_fg: Color::Cyan,
             window_shadow_color: Color::Black,

@@ -437,12 +437,12 @@ impl FbSetupWindow {
         let selector_text = format!("< {} >", scale_display);
 
         let selector_fg = if is_focused {
-            theme.window_title_fg
+            theme.window_title_focused_fg
         } else {
             fg
         };
         let selector_bg = if is_focused {
-            theme.window_title_bg_focused
+            theme.window_title_focused_bg
         } else {
             bg
         };
@@ -523,11 +523,15 @@ impl FbSetupWindow {
                 // Selection indicator
                 let indicator = if selected { ">" } else { " " };
                 let entry_bg = if selected {
-                    theme.window_title_bg_focused
+                    theme.window_title_focused_bg
                 } else {
                     bg
                 };
-                let entry_fg = if selected { theme.window_title_fg } else { fg };
+                let entry_fg = if selected {
+                    theme.window_title_focused_fg
+                } else {
+                    fg
+                };
 
                 // Clear the line with proper background
                 for dx in 1..list_width - 1 {
@@ -645,12 +649,12 @@ impl FbSetupWindow {
         let selector_text = format!("< {} >", device_display);
 
         let selector_fg = if device_focused {
-            theme.window_title_fg
+            theme.window_title_focused_fg
         } else {
             fg
         };
         let selector_bg = if device_focused {
-            theme.window_title_bg_focused
+            theme.window_title_focused_bg
         } else {
             bg
         };
@@ -686,7 +690,7 @@ impl FbSetupWindow {
             format!("[{}]", charset.shade())
         };
         let option_bg = if x_focused {
-            theme.window_title_bg_focused
+            theme.window_title_focused_bg
         } else {
             bg
         };
@@ -698,7 +702,7 @@ impl FbSetupWindow {
                     theme.config_toggle_off_color
                 }
             } else if x_focused {
-                theme.window_title_fg
+                theme.window_title_focused_fg
             } else {
                 fg
             };
@@ -710,7 +714,11 @@ impl FbSetupWindow {
         }
 
         let invert_x_label = " Invert X";
-        let label_fg = if x_focused { theme.window_title_fg } else { fg };
+        let label_fg = if x_focused {
+            theme.window_title_focused_fg
+        } else {
+            fg
+        };
         for (i, ch) in invert_x_label.chars().enumerate() {
             buffer.set(
                 invert_x_x + 3 + i as u16,
@@ -728,7 +736,7 @@ impl FbSetupWindow {
             format!("[{}]", charset.shade())
         };
         let option_bg = if y_focused {
-            theme.window_title_bg_focused
+            theme.window_title_focused_bg
         } else {
             bg
         };
@@ -740,7 +748,7 @@ impl FbSetupWindow {
                     theme.config_toggle_off_color
                 }
             } else if y_focused {
-                theme.window_title_fg
+                theme.window_title_focused_fg
             } else {
                 fg
             };
@@ -752,7 +760,11 @@ impl FbSetupWindow {
         }
 
         let invert_y_label = " Invert Y";
-        let label_fg = if y_focused { theme.window_title_fg } else { fg };
+        let label_fg = if y_focused {
+            theme.window_title_focused_fg
+        } else {
+            fg
+        };
         for (i, ch) in invert_y_label.chars().enumerate() {
             buffer.set(
                 invert_y_x + 3 + i as u16,
@@ -770,7 +782,7 @@ impl FbSetupWindow {
             format!("[{}]", charset.shade())
         };
         let option_bg = if swap_focused {
-            theme.window_title_bg_focused
+            theme.window_title_focused_bg
         } else {
             bg
         };
@@ -782,7 +794,7 @@ impl FbSetupWindow {
                     theme.config_toggle_off_color
                 }
             } else if swap_focused {
-                theme.window_title_fg
+                theme.window_title_focused_fg
             } else {
                 fg
             };
@@ -795,7 +807,7 @@ impl FbSetupWindow {
 
         let swap_label = " Swap";
         let label_fg = if swap_focused {
-            theme.window_title_fg
+            theme.window_title_focused_fg
         } else {
             fg
         };
@@ -820,8 +832,8 @@ impl FbSetupWindow {
         }
 
         // Button styles
-        let button_fg = theme.window_title_fg;
-        let button_bg = theme.window_title_bg_focused;
+        let button_fg = theme.window_title_focused_fg;
+        let button_bg = theme.window_title_focused_bg;
 
         // Save & Launch button (F1)
         let sl_focused = is_focused && self.button_index == 0;

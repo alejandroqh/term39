@@ -257,23 +257,23 @@ impl Window {
     fn render_frame(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
         // Use different backgrounds based on focus state
         let title_bg = if self.is_focused {
-            theme.window_title_bg_focused
+            theme.window_title_focused_bg
         } else {
-            theme.window_title_bg
+            theme.window_title_unfocused_bg
         };
 
-        // Border background uses same as title bar
+        // Border colors based on focus state
         let border_bg = if self.is_focused {
-            theme.window_title_bg_focused
+            theme.window_border_focused_bg
         } else {
-            theme.window_title_bg
+            theme.window_border_unfocused_bg
         };
 
         // Border foreground color based on focus state
         let border_fg = if self.is_focused {
-            theme.window_border_focused
+            theme.window_border_focused_fg
         } else {
-            theme.window_border
+            theme.window_border_unfocused_fg
         };
 
         // Top border (title bar) with corner characters
@@ -392,22 +392,26 @@ impl Window {
         theme: &Theme,
         dynamic_title: Option<&str>,
     ) {
-        // Use different backgrounds based on focus state
+        // Use different colors based on focus state
         let title_bg = if self.is_focused {
-            theme.window_title_bg_focused
+            theme.window_title_focused_bg
         } else {
-            theme.window_title_bg
+            theme.window_title_unfocused_bg
         };
 
         // Border foreground color based on focus state
         let border_fg = if self.is_focused {
-            theme.window_border_focused
+            theme.window_border_focused_fg
         } else {
-            theme.window_border
+            theme.window_border_unfocused_fg
         };
 
-        // Title text color
-        let title_fg = theme.window_title_fg;
+        // Title text color based on focus state
+        let title_fg = if self.is_focused {
+            theme.window_title_focused_fg
+        } else {
+            theme.window_title_unfocused_fg
+        };
 
         // Buttons: [X] [+] [_] followed by title (with spacing for better visual parsing)
         let buttons = "[X] [+] [_] ";

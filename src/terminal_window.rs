@@ -840,7 +840,7 @@ fn apply_theme_tint(color: Color, theme: &Theme, is_foreground: bool) -> Color {
 
         // Blue colors - use border color for visibility (avoid mapping to Black)
         // This ensures blue text is visible across all themes
-        Color::Blue | Color::DarkBlue => theme.window_border,
+        Color::Blue | Color::DarkBlue => theme.window_border_unfocused_fg,
 
         // Cyan colors - map to content foreground for differentiation from blue
         Color::Cyan | Color::DarkCyan => theme.window_content_fg,
@@ -877,10 +877,10 @@ fn apply_theme_tint(color: Color, theme: &Theme, is_foreground: bool) -> Color {
                             _ => theme.button_minimize_color,
                         }
                     }
-                    4 => theme.window_border, // Blue - use border for visibility
-                    5 => theme.resize_handle_active_fg, // Magenta
-                    6 => theme.window_content_fg, // Cyan - differentiate from blue
-                    7 => theme.window_content_fg, // White
+                    4 => theme.window_border_unfocused_fg, // Blue - use border for visibility
+                    5 => theme.resize_handle_active_fg,    // Magenta
+                    6 => theme.window_content_fg,          // Cyan - differentiate from blue
+                    7 => theme.window_content_fg,          // White
                     _ => color,
                 }
             } else if idx < 16 {
