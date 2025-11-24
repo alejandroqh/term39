@@ -52,6 +52,108 @@ const LIGHT_GREEN_PHOSPHOR: Color = Color::Rgb {
     b: 51,
 };
 
+// dBase IV theme colors - authentic Borland dBASE IV 2.0 colors
+const DB_BLUE: Color = Color::Rgb { r: 0, g: 0, b: 170 }; // #0000AA - main/description background
+const DB_GREY: Color = Color::Rgb {
+    r: 192,
+    g: 192,
+    b: 192,
+}; // #C0C0C0 - dialog background, bars
+const DB_LIGHT_GREY: Color = Color::Rgb {
+    r: 170,
+    g: 170,
+    b: 170,
+}; // #AAAAAA - shadow border, UI shading
+const DB_YELLOW: Color = Color::Rgb {
+    r: 255,
+    g: 255,
+    b: 85,
+}; // #FFFF55 - F2-DO-IT, Description label
+const DB_BRIGHT_RED: Color = Color::Rgb {
+    r: 255,
+    g: 85,
+    b: 85,
+}; // #FF5555 - ENTER-Change, ESC-Previous
+
+// WordPerfect theme colors - authentic WP 5.1 VGA colors
+const WP_BLUE: Color = Color::Rgb { r: 0, g: 0, b: 170 }; // #0000AA - main background
+const WP_LIGHT_GREY: Color = Color::Rgb {
+    r: 192,
+    g: 192,
+    b: 192,
+}; // #C0C0C0 - menu bar, pop-ups
+const WP_RED: Color = Color::Rgb { r: 170, g: 0, b: 0 }; // #AA0000 - menu highlight
+const WP_CYAN: Color = Color::Rgb {
+    r: 0,
+    g: 170,
+    b: 170,
+}; // #00AAAA - selection boxes
+const WP_BRIGHT_CYAN: Color = Color::Rgb {
+    r: 85,
+    g: 255,
+    b: 255,
+}; // #55FFFF - inline color coding
+const WP_BRIGHT_BLUE: Color = Color::Rgb {
+    r: 85,
+    g: 85,
+    b: 255,
+}; // #5555FF - borders, underlines
+
+// XTree Gold theme colors - authentic XTree Gold colors
+const XT_DARK_BLUE: Color = Color::Rgb {
+    r: 28,
+    g: 28,
+    b: 28,
+}; // #1C1C1C - main background
+const XT_CYAN: Color = Color::Rgb {
+    r: 190,
+    g: 190,
+    b: 50,
+}; // #BEBE32 - file tree text
+const XT_YELLOW: Color = Color::Rgb {
+    r: 255,
+    g: 255,
+    b: 0,
+}; // #FFFF00 - highlight bar, borders, tree lines
+const XT_ORANGE: Color = Color::Rgb {
+    r: 255,
+    g: 123,
+    b: 0,
+}; // #FF7B00 - orange accent
+const XT_LIGHT_PURPLE: Color = Color::Rgb {
+    r: 90,
+    g: 255,
+    b: 255,
+}; // #5AFFFF - cyan accent
+
+// Norton Commander theme colors - authentic NC 5.0 colors
+const NC_BLUE: Color = Color::Rgb { r: 0, g: 0, b: 175 }; // #0000AF - main panel background
+const NC_CYAN: Color = Color::Rgb {
+    r: 80,
+    g: 255,
+    b: 255,
+}; // #50FFFF - file list text
+const NC_TEAL: Color = Color::Rgb {
+    r: 0,
+    g: 168,
+    b: 175,
+}; // #00A8AF - headers, menus
+const NC_GREY: Color = Color::Rgb {
+    r: 175,
+    g: 168,
+    b: 175,
+}; // #AFA8AF - menu bar
+const NC_YELLOW: Color = Color::Rgb {
+    r: 255,
+    g: 255,
+    b: 80,
+}; // #FFFF50 - selection highlight
+const NC_ORANGE_RED: Color = Color::Rgb {
+    r: 255,
+    g: 87,
+    b: 80,
+}; // #FF5750 - cursor/selection bar
+
 // Turbo Pascal theme colors - authentic Borland Turbo Pascal 7.0 colors
 const TURBO_DARK_BLUE: Color = Color::Rgb { r: 0, g: 0, b: 123 }; // #00007B - desktop/editor background
 const TURBO_BLUE_PURPLE: Color = Color::Rgb {
@@ -1673,574 +1775,575 @@ impl Theme {
         }
     }
 
-    /// NCC theme - inspired by classic file manager interfaces
-    /// Cyan panels on blue background with yellow highlights
+    /// NCC theme - authentic Norton Commander 5.0 color scheme
+    /// Blue panels with cyan text, teal headers, grey menu bar, yellow/orange-red selection
     pub fn norton_commander() -> Self {
         Self {
-            // Desktop - blue background
-            desktop_bg: Color::Blue,
-            desktop_fg: Color::Cyan,
+            // Desktop - blue panel background (#0000AF) with cyan text (#50FFFF)
+            desktop_bg: NC_BLUE,
+            desktop_fg: NC_CYAN,
 
-            // Top bar
-            topbar_bg_focused: Color::Cyan,
-            topbar_bg_unfocused: Color::Black,
-            topbar_fg_focused: Color::Black,
-            topbar_fg_unfocused: Color::Black,
-            clock_bg: Color::Black,
-            clock_fg: Color::Cyan,
-
-            // Windows - Title bar (cyan panels on blue background)
-            window_title_unfocused_fg: Color::Black,
-            window_title_unfocused_bg: Color::Black,
-            window_title_focused_fg: Color::Black,
-            window_title_focused_bg: Color::Cyan,
-            // Windows - Border
-            window_border_unfocused_fg: Color::Cyan,
-            window_border_unfocused_bg: Color::Black,
-            window_border_focused_fg: Color::Yellow,
-            window_border_focused_bg: Color::Cyan,
-            // Windows - Content
-            window_content_bg: Color::Blue,
-            window_content_fg: Color::Cyan,
-            window_shadow_color: Color::Black,
-
-            // Window controls
-            button_close_color: Color::Red,
-            button_maximize_color: Color::Green,
-            button_minimize_color: Color::Yellow,
-            button_bg: Color::Black,
-            resize_handle_normal_fg: Color::Cyan,
-            resize_handle_normal_bg: Color::Blue,
-            resize_handle_active_fg: Color::Yellow,
-            resize_handle_active_bg: Color::Cyan,
-
-            // UI Buttons
-            button_normal_fg: Color::Black,
-            button_normal_bg: Color::Cyan,
-            button_hovered_fg: Color::Black,
-            button_hovered_bg: Color::Yellow,
-            button_pressed_fg: Color::Cyan,
-            button_pressed_bg: Color::Black,
-
-            // Bottom bar
-            bottombar_bg: Color::Black,
-            bottombar_fg: Color::Cyan,
-            bottombar_button_normal_fg: Color::Cyan,
-            bottombar_button_normal_bg: Color::Black,
-            bottombar_button_focused_fg: Color::Black,
-            bottombar_button_focused_bg: Color::Cyan,
-            bottombar_button_minimized_fg: Color::DarkCyan,
-            bottombar_button_minimized_bg: Color::Black,
-
-            // Toggle button
-            toggle_enabled_fg: Color::Yellow,
-            toggle_enabled_bg_normal: Color::Blue,
-            toggle_enabled_bg_hovered: Color::Cyan,
-            toggle_enabled_bg_pressed: Color::Black,
-            toggle_disabled_fg: Color::DarkCyan,
-            toggle_disabled_bg_normal: Color::Blue,
-            toggle_disabled_bg_hovered: Color::Cyan,
-            toggle_disabled_bg_pressed: Color::Black,
-
-            // Prompts/Dialogs
-            prompt_info_bg: Color::Cyan,
-            prompt_info_fg: Color::Black,
-            prompt_success_bg: Color::Green,
-            prompt_success_fg: Color::Black,
-            prompt_warning_bg: Color::Yellow,
-            prompt_warning_fg: Color::Black,
-            prompt_danger_bg: Color::Red,
-            prompt_danger_fg: Color::White,
-
-            // Dialog buttons
-            dialog_button_primary_info_fg: Color::Black,
-            dialog_button_primary_info_bg: Color::Cyan,
-            dialog_button_primary_success_fg: Color::Black,
-            dialog_button_primary_success_bg: Color::Green,
-            dialog_button_primary_warning_fg: Color::Black,
-            dialog_button_primary_warning_bg: Color::Yellow,
-            dialog_button_primary_danger_fg: Color::White,
-            dialog_button_primary_danger_bg: Color::Red,
-            dialog_button_secondary_fg: Color::Cyan,
-            dialog_button_secondary_bg: Color::Blue,
-
-            // Config window
-            config_title_bg: Color::Cyan,
-            config_title_fg: Color::Black,
-            config_border: Color::Yellow,
-            config_content_bg: Color::Blue,
-            config_content_fg: Color::Cyan,
-            config_instructions_fg: Color::DarkCyan,
-            config_toggle_on_color: Color::Yellow,
-            config_toggle_off_color: Color::DarkCyan,
-
-            // Calendar
-            calendar_bg: Color::Blue,
-            calendar_fg: Color::Cyan,
-            calendar_title_color: Color::Yellow,
-            calendar_today_bg: Color::Cyan,
-            calendar_today_fg: Color::Black,
-
-            // Scrollbar
-            scrollbar_track_fg: Color::DarkCyan,
-            scrollbar_thumb_fg: Color::Cyan,
-
-            // Context menu
-            menu_bg: Color::Blue,
-            menu_fg: Color::Cyan,
-            menu_border: Color::Yellow,
-            menu_selected_bg: Color::Cyan,
-            menu_selected_fg: Color::Black,
-            menu_shadow_fg: Color::Black,
-
-            // Snap preview
-            snap_preview_border: Color::Yellow,
-            snap_preview_bg: Color::Black,
-
-            // Splash screen - theme background with primary accent
-            splash_border: Color::Yellow,
-            splash_bg: Color::Blue,
-            splash_fg: Color::Cyan, // Primary cyan accent
-
-            // Slight input popup
-            slight_bg: Color::Blue,
-            slight_fg: Color::Cyan,
-            slight_border: Color::Cyan,
-            slight_input_bg: Color::Black,
-            slight_input_fg: Color::Cyan,
-            slight_suggestion_fg: Color::Yellow,
-            slight_dropdown_bg: Color::Blue,
-            slight_dropdown_fg: Color::Cyan,
-            slight_dropdown_selected_bg: Color::Cyan,
-            slight_dropdown_selected_fg: Color::Black,
-        }
-    }
-
-    /// XT theme - inspired by golden file manager interfaces
-    /// Yellow on blue with white borders
-    pub fn xtree() -> Self {
-        Self {
-            // Desktop - blue background
-            desktop_bg: Color::Blue,
-            desktop_fg: Color::Yellow,
-
-            // Top bar
-            topbar_bg_focused: Color::Yellow,
-            topbar_bg_unfocused: Color::Black,
-            topbar_fg_focused: Color::Black,
-            topbar_fg_unfocused: Color::Black,
-            clock_bg: Color::Black,
-            clock_fg: Color::Yellow,
-
-            // Windows - Title bar (yellow/white on blue)
-            window_title_unfocused_fg: Color::Black,
-            window_title_unfocused_bg: Color::Black,
-            window_title_focused_fg: Color::Black,
-            window_title_focused_bg: Color::Yellow,
-            // Windows - Border
-            window_border_unfocused_fg: Color::White,
-            window_border_unfocused_bg: Color::Black,
-            window_border_focused_fg: Color::Yellow,
-            window_border_focused_bg: Color::Yellow,
-            window_content_bg: Color::Blue,
-            window_content_fg: Color::Yellow,
-            window_shadow_color: Color::Black,
-
-            // Window controls
-            button_close_color: Color::Red,
-            button_maximize_color: Color::Green,
-            button_minimize_color: Color::Cyan,
-            button_bg: Color::Black,
-            resize_handle_normal_fg: Color::White,
-            resize_handle_normal_bg: Color::Blue,
-            resize_handle_active_fg: Color::Yellow,
-            resize_handle_active_bg: Color::White,
-
-            // UI Buttons
-            button_normal_fg: Color::Black,
-            button_normal_bg: Color::Yellow,
-            button_hovered_fg: Color::Black,
-            button_hovered_bg: Color::White,
-            button_pressed_fg: Color::Yellow,
-            button_pressed_bg: Color::Black,
-
-            // Bottom bar
-            bottombar_bg: Color::Black,
-            bottombar_fg: Color::Yellow,
-            bottombar_button_normal_fg: Color::Yellow,
-            bottombar_button_normal_bg: Color::Black,
-            bottombar_button_focused_fg: Color::Black,
-            bottombar_button_focused_bg: Color::Yellow,
-            bottombar_button_minimized_fg: Color::DarkYellow,
-            bottombar_button_minimized_bg: Color::Black,
-
-            // Toggle button
-            toggle_enabled_fg: Color::Yellow,
-            toggle_enabled_bg_normal: Color::Blue,
-            toggle_enabled_bg_hovered: Color::White,
-            toggle_enabled_bg_pressed: Color::Black,
-            toggle_disabled_fg: Color::DarkYellow,
-            toggle_disabled_bg_normal: Color::Blue,
-            toggle_disabled_bg_hovered: Color::White,
-            toggle_disabled_bg_pressed: Color::Black,
-
-            // Prompts/Dialogs
-            prompt_info_bg: Color::White,
-            prompt_info_fg: Color::Black,
-            prompt_success_bg: Color::Green,
-            prompt_success_fg: Color::Black,
-            prompt_warning_bg: Color::Yellow,
-            prompt_warning_fg: Color::Black,
-            prompt_danger_bg: Color::Red,
-            prompt_danger_fg: Color::White,
-
-            // Dialog buttons
-            dialog_button_primary_info_fg: Color::Black,
-            dialog_button_primary_info_bg: Color::Yellow,
-            dialog_button_primary_success_fg: Color::Black,
-            dialog_button_primary_success_bg: Color::Green,
-            dialog_button_primary_warning_fg: Color::Black,
-            dialog_button_primary_warning_bg: Color::Yellow,
-            dialog_button_primary_danger_fg: Color::White,
-            dialog_button_primary_danger_bg: Color::Red,
-            dialog_button_secondary_fg: Color::Yellow,
-            dialog_button_secondary_bg: Color::Blue,
-
-            // Config window
-            config_title_bg: Color::Yellow,
-            config_title_fg: Color::Black,
-            config_border: Color::White,
-            config_content_bg: Color::Blue,
-            config_content_fg: Color::Yellow,
-            config_instructions_fg: Color::DarkYellow,
-            config_toggle_on_color: Color::Yellow,
-            config_toggle_off_color: Color::DarkYellow,
-
-            // Calendar
-            calendar_bg: Color::Blue,
-            calendar_fg: Color::Yellow,
-            calendar_title_color: Color::White,
-            calendar_today_bg: Color::Yellow,
-            calendar_today_fg: Color::Black,
-
-            // Scrollbar
-            scrollbar_track_fg: Color::DarkYellow,
-            scrollbar_thumb_fg: Color::Yellow,
-
-            // Context menu
-            menu_bg: Color::Blue,
-            menu_fg: Color::Yellow,
-            menu_border: Color::White,
-            menu_selected_bg: Color::Yellow,
-            menu_selected_fg: Color::Black,
-            menu_shadow_fg: Color::Black,
-
-            // Snap preview
-            snap_preview_border: Color::White,
-            snap_preview_bg: Color::Black,
-
-            // Splash screen - theme background with primary accent
-            splash_border: Color::White,
-            splash_bg: Color::Blue,
-            splash_fg: Color::Yellow, // Primary yellow accent
-
-            // Slight input popup
-            slight_bg: Color::Blue,
-            slight_fg: Color::Yellow,
-            slight_border: Color::White,
-            slight_input_bg: Color::Black,
-            slight_input_fg: Color::Yellow,
-            slight_suggestion_fg: Color::White,
-            slight_dropdown_bg: Color::Blue,
-            slight_dropdown_fg: Color::Yellow,
-            slight_dropdown_selected_bg: Color::Yellow,
-            slight_dropdown_selected_fg: Color::Black,
-        }
-    }
-
-    /// WP theme - inspired by classic word processor interfaces
-    /// White/cyan on blue background
-    pub fn wordperfect() -> Self {
-        Self {
-            // Desktop - deep blue background (iconic WP 5.1 blue screen)
-            desktop_bg: Color::Blue,
-            desktop_fg: Color::White,
-
-            // Top bar
-            topbar_bg_focused: Color::Cyan,
-            topbar_bg_unfocused: Color::Black,
-            topbar_fg_focused: Color::Black,
-            topbar_fg_unfocused: Color::Black,
-            clock_bg: Color::Black,
-            clock_fg: Color::Cyan,
-
-            // Windows - Title bar (white/cyan on blue)
-            window_title_unfocused_fg: Color::Black,
-            window_title_unfocused_bg: Color::Black,
-            window_title_focused_fg: Color::Black,
-            window_title_focused_bg: Color::Cyan,
-            // Windows - Border
-            window_border_unfocused_fg: Color::Cyan,
-            window_border_unfocused_bg: Color::Black,
-            window_border_focused_fg: Color::White,
-            window_border_focused_bg: Color::Cyan,
-            // Windows - Content
-            window_content_bg: Color::Blue,
-            window_content_fg: Color::White,
-            window_shadow_color: Color::Black,
-
-            // Window controls
-            button_close_color: Color::Red,
-            button_maximize_color: Color::Green,
-            button_minimize_color: Color::Yellow,
-            button_bg: Color::Black,
-            resize_handle_normal_fg: Color::Cyan,
-            resize_handle_normal_bg: Color::Blue,
-            resize_handle_active_fg: Color::White,
-            resize_handle_active_bg: Color::Cyan,
-
-            // UI Buttons
-            button_normal_fg: Color::Black,
-            button_normal_bg: Color::Cyan,
-            button_hovered_fg: Color::Black,
-            button_hovered_bg: Color::White,
-            button_pressed_fg: Color::Cyan,
-            button_pressed_bg: Color::Black,
-
-            // Bottom bar - status line style
-            bottombar_bg: Color::Black,
-            bottombar_fg: Color::White,
-            bottombar_button_normal_fg: Color::White,
-            bottombar_button_normal_bg: Color::Black,
-            bottombar_button_focused_fg: Color::Black,
-            bottombar_button_focused_bg: Color::Cyan,
-            bottombar_button_minimized_fg: Color::DarkGrey,
-            bottombar_button_minimized_bg: Color::Black,
-
-            // Toggle button
-            toggle_enabled_fg: Color::White,
-            toggle_enabled_bg_normal: Color::Blue,
-            toggle_enabled_bg_hovered: Color::Cyan,
-            toggle_enabled_bg_pressed: Color::Black,
-            toggle_disabled_fg: Color::DarkCyan,
-            toggle_disabled_bg_normal: Color::Blue,
-            toggle_disabled_bg_hovered: Color::Cyan,
-            toggle_disabled_bg_pressed: Color::Black,
-
-            // Prompts/Dialogs
-            prompt_info_bg: Color::Cyan,
-            prompt_info_fg: Color::Black,
-            prompt_success_bg: Color::Green,
-            prompt_success_fg: Color::Black,
-            prompt_warning_bg: Color::Yellow,
-            prompt_warning_fg: Color::Black,
-            prompt_danger_bg: Color::Red,
-            prompt_danger_fg: Color::White,
-
-            // Dialog buttons
-            dialog_button_primary_info_fg: Color::Black,
-            dialog_button_primary_info_bg: Color::Cyan,
-            dialog_button_primary_success_fg: Color::Black,
-            dialog_button_primary_success_bg: Color::Green,
-            dialog_button_primary_warning_fg: Color::Black,
-            dialog_button_primary_warning_bg: Color::Yellow,
-            dialog_button_primary_danger_fg: Color::White,
-            dialog_button_primary_danger_bg: Color::Red,
-            dialog_button_secondary_fg: Color::White,
-            dialog_button_secondary_bg: Color::Blue,
-
-            // Config window
-            config_title_bg: Color::Cyan,
-            config_title_fg: Color::Black,
-            config_border: Color::White,
-            config_content_bg: Color::Blue,
-            config_content_fg: Color::White,
-            config_instructions_fg: Color::Cyan,
-            config_toggle_on_color: Color::White,
-            config_toggle_off_color: Color::DarkCyan,
-
-            // Calendar
-            calendar_bg: Color::Blue,
-            calendar_fg: Color::White,
-            calendar_title_color: Color::Cyan,
-            calendar_today_bg: Color::Cyan,
-            calendar_today_fg: Color::Black,
-
-            // Scrollbar
-            scrollbar_track_fg: Color::DarkCyan,
-            scrollbar_thumb_fg: Color::Cyan,
-
-            // Context menu
-            menu_bg: Color::Blue,
-            menu_fg: Color::White,
-            menu_border: Color::Cyan,
-            menu_selected_bg: Color::Cyan,
-            menu_selected_fg: Color::Black,
-            menu_shadow_fg: Color::Black,
-
-            // Snap preview
-            snap_preview_border: Color::White,
-            snap_preview_bg: Color::Black,
-
-            // Splash screen - theme background with primary accent
-            splash_border: Color::Cyan,
-            splash_bg: Color::Blue,
-            splash_fg: Color::Cyan, // Primary cyan accent
-
-            // Slight input popup
-            slight_bg: Color::Blue,
-            slight_fg: Color::White,
-            slight_border: Color::Cyan,
-            slight_input_bg: Color::Black,
-            slight_input_fg: Color::Cyan,
-            slight_suggestion_fg: Color::White,
-            slight_dropdown_bg: Color::Blue,
-            slight_dropdown_fg: Color::White,
-            slight_dropdown_selected_bg: Color::Cyan,
-            slight_dropdown_selected_fg: Color::Black,
-        }
-    }
-
-    /// dB theme - inspired by classic database manager interfaces
-    /// Cyan on blue with white accents
-    pub fn dbase() -> Self {
-        Self {
-            // Desktop - blue background
-            desktop_bg: Color::Blue,
-            desktop_fg: Color::Cyan,
-
-            // Top bar
-            topbar_bg_focused: Color::White,
-            topbar_bg_unfocused: Color::Black,
-            topbar_fg_focused: Color::Black,
-            topbar_fg_unfocused: Color::Black,
-            clock_bg: Color::Black,
+            // Top bar - grey menu bar (#AFA8AF) with black text
+            topbar_bg_focused: NC_GREY,
+            topbar_bg_unfocused: NC_GREY,
+            topbar_fg_focused: PURE_BLACK,
+            topbar_fg_unfocused: PURE_BLACK,
+            clock_bg: NC_TEAL,
             clock_fg: Color::White,
 
-            // Windows - Title bar (cyan on blue)
-            window_title_unfocused_fg: Color::Black,
-            window_title_unfocused_bg: Color::Black,
-            window_title_focused_fg: Color::Black,
-            window_title_focused_bg: Color::White,
-            // Windows - Border
-            window_border_unfocused_fg: Color::Cyan,
-            window_border_unfocused_bg: Color::Black,
+            // Windows - Title bar (teal headers #00A8AF with black text)
+            window_title_unfocused_fg: Color::White,
+            window_title_unfocused_bg: NC_BLUE,
+            window_title_focused_fg: PURE_BLACK,
+            window_title_focused_bg: NC_TEAL,
+            // Windows - Border (white borders)
+            window_border_unfocused_fg: NC_CYAN,
+            window_border_unfocused_bg: NC_BLUE,
             window_border_focused_fg: Color::White,
-            window_border_focused_bg: Color::White,
-            // Windows - Content
-            window_content_bg: Color::Blue,
-            window_content_fg: Color::Cyan,
-            window_shadow_color: Color::Black,
+            window_border_focused_bg: NC_BLUE,
+            // Windows - Content (blue panels with cyan text)
+            window_content_bg: NC_BLUE,
+            window_content_fg: NC_CYAN,
+            window_shadow_color: PURE_BLACK,
 
             // Window controls
-            button_close_color: Color::Red,
+            button_close_color: NC_ORANGE_RED,
             button_maximize_color: Color::Green,
-            button_minimize_color: Color::Yellow,
-            button_bg: Color::Black,
-            resize_handle_normal_fg: Color::Cyan,
-            resize_handle_normal_bg: Color::Blue,
-            resize_handle_active_fg: Color::White,
-            resize_handle_active_bg: Color::Cyan,
+            button_minimize_color: NC_YELLOW,
+            button_bg: NC_TEAL,
+            resize_handle_normal_fg: NC_CYAN,
+            resize_handle_normal_bg: NC_BLUE,
+            resize_handle_active_fg: NC_YELLOW,
+            resize_handle_active_bg: NC_TEAL,
 
-            // UI Buttons
-            button_normal_fg: Color::Black,
-            button_normal_bg: Color::White,
-            button_hovered_fg: Color::Black,
-            button_hovered_bg: Color::Cyan,
+            // UI Buttons - teal background with white text
+            button_normal_fg: Color::White,
+            button_normal_bg: NC_TEAL,
+            button_hovered_fg: PURE_BLACK,
+            button_hovered_bg: NC_YELLOW,
             button_pressed_fg: Color::White,
-            button_pressed_bg: Color::Black,
+            button_pressed_bg: NC_BLUE,
 
-            // Bottom bar
-            bottombar_bg: Color::Black,
-            bottombar_fg: Color::Cyan,
-            bottombar_button_normal_fg: Color::Cyan,
-            bottombar_button_normal_bg: Color::Black,
-            bottombar_button_focused_fg: Color::Black,
-            bottombar_button_focused_bg: Color::White,
-            bottombar_button_minimized_fg: Color::DarkCyan,
-            bottombar_button_minimized_bg: Color::Black,
+            // Bottom bar - black status bar with yellow/cyan F-key text
+            bottombar_bg: PURE_BLACK,
+            bottombar_fg: NC_CYAN,
+            bottombar_button_normal_fg: NC_YELLOW,
+            bottombar_button_normal_bg: PURE_BLACK,
+            bottombar_button_focused_fg: Color::White,
+            bottombar_button_focused_bg: NC_ORANGE_RED,
+            bottombar_button_minimized_fg: NC_TEAL,
+            bottombar_button_minimized_bg: PURE_BLACK,
 
             // Toggle button
-            toggle_enabled_fg: Color::White,
-            toggle_enabled_bg_normal: Color::Blue,
-            toggle_enabled_bg_hovered: Color::Cyan,
-            toggle_enabled_bg_pressed: Color::Black,
-            toggle_disabled_fg: Color::DarkCyan,
-            toggle_disabled_bg_normal: Color::Blue,
-            toggle_disabled_bg_hovered: Color::Cyan,
-            toggle_disabled_bg_pressed: Color::Black,
+            toggle_enabled_fg: NC_YELLOW,
+            toggle_enabled_bg_normal: NC_BLUE,
+            toggle_enabled_bg_hovered: NC_TEAL,
+            toggle_enabled_bg_pressed: PURE_BLACK,
+            toggle_disabled_fg: NC_TEAL,
+            toggle_disabled_bg_normal: NC_BLUE,
+            toggle_disabled_bg_hovered: NC_TEAL,
+            toggle_disabled_bg_pressed: PURE_BLACK,
 
-            // Prompts/Dialogs
-            prompt_info_bg: Color::White,
-            prompt_info_fg: Color::Black,
+            // Prompts/Dialogs - teal background (#00A8AF) with white text
+            prompt_info_bg: NC_TEAL,
+            prompt_info_fg: Color::White,
             prompt_success_bg: Color::Green,
-            prompt_success_fg: Color::Black,
-            prompt_warning_bg: Color::Yellow,
-            prompt_warning_fg: Color::Black,
+            prompt_success_fg: PURE_BLACK,
+            prompt_warning_bg: NC_YELLOW,
+            prompt_warning_fg: PURE_BLACK,
+            prompt_danger_bg: NC_ORANGE_RED,
+            prompt_danger_fg: Color::White,
+
+            // Dialog buttons
+            dialog_button_primary_info_fg: Color::White,
+            dialog_button_primary_info_bg: NC_TEAL,
+            dialog_button_primary_success_fg: PURE_BLACK,
+            dialog_button_primary_success_bg: Color::Green,
+            dialog_button_primary_warning_fg: PURE_BLACK,
+            dialog_button_primary_warning_bg: NC_YELLOW,
+            dialog_button_primary_danger_fg: Color::White,
+            dialog_button_primary_danger_bg: NC_ORANGE_RED,
+            dialog_button_secondary_fg: NC_CYAN,
+            dialog_button_secondary_bg: NC_BLUE,
+
+            // Config window - teal like NC dialogs
+            config_title_bg: NC_TEAL,
+            config_title_fg: PURE_BLACK,
+            config_border: Color::White,
+            config_content_bg: NC_BLUE,
+            config_content_fg: NC_CYAN,
+            config_instructions_fg: NC_TEAL,
+            config_toggle_on_color: NC_YELLOW,
+            config_toggle_off_color: NC_TEAL,
+
+            // Calendar - blue panels with cyan text
+            calendar_bg: NC_BLUE,
+            calendar_fg: NC_CYAN,
+            calendar_title_color: Color::White,
+            calendar_today_bg: NC_ORANGE_RED,
+            calendar_today_fg: Color::White,
+
+            // Scrollbar
+            scrollbar_track_fg: NC_TEAL,
+            scrollbar_thumb_fg: NC_CYAN,
+
+            // Context menu - teal drop-down (#00A8AF) with white text, yellow selection
+            menu_bg: NC_TEAL,
+            menu_fg: Color::White,
+            menu_border: Color::White,
+            menu_selected_bg: NC_YELLOW,
+            menu_selected_fg: PURE_BLACK,
+            menu_shadow_fg: PURE_BLACK,
+
+            // Snap preview
+            snap_preview_border: NC_YELLOW,
+            snap_preview_bg: NC_BLUE,
+
+            // Splash screen - blue with cyan text
+            splash_border: Color::White,
+            splash_bg: NC_BLUE,
+            splash_fg: NC_CYAN,
+
+            // Slight input popup - teal dialog style
+            slight_bg: NC_TEAL,
+            slight_fg: Color::White,
+            slight_border: Color::White,
+            slight_input_bg: NC_BLUE,
+            slight_input_fg: NC_CYAN,
+            slight_suggestion_fg: NC_YELLOW,
+            slight_dropdown_bg: NC_TEAL,
+            slight_dropdown_fg: Color::White,
+            slight_dropdown_selected_bg: NC_YELLOW,
+            slight_dropdown_selected_fg: PURE_BLACK,
+        }
+    }
+
+    /// XT theme - authentic XTree Gold color scheme
+    /// Dark blue background, cyan file text, yellow borders/selection, orange accents
+    pub fn xtree() -> Self {
+        Self {
+            // Desktop - dark blue background (#00007B) with white text
+            desktop_bg: XT_DARK_BLUE,
+            desktop_fg: Color::White,
+
+            // Top bar - dark blue with white path text
+            topbar_bg_focused: XT_DARK_BLUE,
+            topbar_bg_unfocused: XT_DARK_BLUE,
+            topbar_fg_focused: Color::White,
+            topbar_fg_unfocused: Color::White,
+            clock_bg: XT_DARK_BLUE,
+            clock_fg: XT_YELLOW,
+
+            // Windows - Title bar (dark blue with white text)
+            window_title_unfocused_fg: XT_CYAN,
+            window_title_unfocused_bg: XT_DARK_BLUE,
+            window_title_focused_fg: Color::White,
+            window_title_focused_bg: XT_DARK_BLUE,
+            // Windows - Border (yellow borders on blue)
+            window_border_unfocused_fg: XT_LIGHT_PURPLE,
+            window_border_unfocused_bg: XT_DARK_BLUE,
+            window_border_focused_fg: XT_YELLOW,
+            window_border_focused_bg: XT_DARK_BLUE,
+            // Windows - Content (dark blue with cyan file text)
+            window_content_bg: XT_DARK_BLUE,
+            window_content_fg: XT_CYAN,
+            window_shadow_color: PURE_BLACK,
+
+            // Window controls
+            button_close_color: XT_ORANGE,
+            button_maximize_color: Color::Green,
+            button_minimize_color: XT_CYAN,
+            button_bg: XT_DARK_BLUE,
+            resize_handle_normal_fg: XT_YELLOW,
+            resize_handle_normal_bg: XT_DARK_BLUE,
+            resize_handle_active_fg: Color::White,
+            resize_handle_active_bg: XT_YELLOW,
+
+            // UI Buttons - yellow selection style
+            button_normal_fg: PURE_BLACK,
+            button_normal_bg: XT_YELLOW,
+            button_hovered_fg: PURE_BLACK,
+            button_hovered_bg: Color::White,
+            button_pressed_fg: XT_YELLOW,
+            button_pressed_bg: XT_DARK_BLUE,
+
+            // Bottom bar - dark blue with yellow/cyan F-key text
+            bottombar_bg: XT_DARK_BLUE,
+            bottombar_fg: XT_CYAN,
+            bottombar_button_normal_fg: XT_YELLOW,
+            bottombar_button_normal_bg: XT_DARK_BLUE,
+            bottombar_button_focused_fg: PURE_BLACK,
+            bottombar_button_focused_bg: XT_YELLOW,
+            bottombar_button_minimized_fg: XT_LIGHT_PURPLE,
+            bottombar_button_minimized_bg: XT_DARK_BLUE,
+
+            // Toggle button
+            toggle_enabled_fg: XT_YELLOW,
+            toggle_enabled_bg_normal: XT_DARK_BLUE,
+            toggle_enabled_bg_hovered: XT_LIGHT_PURPLE,
+            toggle_enabled_bg_pressed: PURE_BLACK,
+            toggle_disabled_fg: XT_LIGHT_PURPLE,
+            toggle_disabled_bg_normal: XT_DARK_BLUE,
+            toggle_disabled_bg_hovered: XT_LIGHT_PURPLE,
+            toggle_disabled_bg_pressed: PURE_BLACK,
+
+            // Prompts/Dialogs - yellow highlight bar style
+            prompt_info_bg: XT_YELLOW,
+            prompt_info_fg: PURE_BLACK,
+            prompt_success_bg: Color::Green,
+            prompt_success_fg: PURE_BLACK,
+            prompt_warning_bg: XT_ORANGE,
+            prompt_warning_fg: PURE_BLACK,
             prompt_danger_bg: Color::Red,
             prompt_danger_fg: Color::White,
 
             // Dialog buttons
-            dialog_button_primary_info_fg: Color::Black,
-            dialog_button_primary_info_bg: Color::White,
-            dialog_button_primary_success_fg: Color::Black,
+            dialog_button_primary_info_fg: PURE_BLACK,
+            dialog_button_primary_info_bg: XT_YELLOW,
+            dialog_button_primary_success_fg: PURE_BLACK,
             dialog_button_primary_success_bg: Color::Green,
-            dialog_button_primary_warning_fg: Color::Black,
-            dialog_button_primary_warning_bg: Color::Yellow,
+            dialog_button_primary_warning_fg: PURE_BLACK,
+            dialog_button_primary_warning_bg: XT_ORANGE,
             dialog_button_primary_danger_fg: Color::White,
             dialog_button_primary_danger_bg: Color::Red,
-            dialog_button_secondary_fg: Color::Cyan,
-            dialog_button_secondary_bg: Color::Blue,
+            dialog_button_secondary_fg: XT_CYAN,
+            dialog_button_secondary_bg: XT_DARK_BLUE,
 
-            // Config window
-            config_title_bg: Color::White,
-            config_title_fg: Color::Black,
-            config_border: Color::Cyan,
-            config_content_bg: Color::Blue,
-            config_content_fg: Color::Cyan,
-            config_instructions_fg: Color::DarkCyan,
-            config_toggle_on_color: Color::White,
-            config_toggle_off_color: Color::DarkCyan,
+            // Config window - dark blue with yellow borders
+            config_title_bg: XT_DARK_BLUE,
+            config_title_fg: Color::White,
+            config_border: XT_YELLOW,
+            config_content_bg: XT_DARK_BLUE,
+            config_content_fg: XT_CYAN,
+            config_instructions_fg: XT_LIGHT_PURPLE,
+            config_toggle_on_color: XT_YELLOW,
+            config_toggle_off_color: XT_LIGHT_PURPLE,
 
-            // Calendar
-            calendar_bg: Color::Blue,
-            calendar_fg: Color::Cyan,
+            // Calendar - dark blue with cyan/yellow
+            calendar_bg: XT_DARK_BLUE,
+            calendar_fg: XT_CYAN,
             calendar_title_color: Color::White,
-            calendar_today_bg: Color::White,
-            calendar_today_fg: Color::Black,
+            calendar_today_bg: XT_YELLOW,
+            calendar_today_fg: PURE_BLACK,
 
             // Scrollbar
-            scrollbar_track_fg: Color::DarkCyan,
-            scrollbar_thumb_fg: Color::Cyan,
+            scrollbar_track_fg: XT_LIGHT_PURPLE,
+            scrollbar_thumb_fg: XT_YELLOW,
 
-            // Context menu
-            menu_bg: Color::Blue,
-            menu_fg: Color::Cyan,
-            menu_border: Color::White,
-            menu_selected_bg: Color::White,
-            menu_selected_fg: Color::Black,
-            menu_shadow_fg: Color::Black,
+            // Context menu - dark blue with yellow selection
+            menu_bg: XT_DARK_BLUE,
+            menu_fg: XT_CYAN,
+            menu_border: XT_YELLOW,
+            menu_selected_bg: XT_YELLOW,
+            menu_selected_fg: PURE_BLACK,
+            menu_shadow_fg: PURE_BLACK,
 
             // Snap preview
-            snap_preview_border: Color::White,
-            snap_preview_bg: Color::Black,
+            snap_preview_border: XT_YELLOW,
+            snap_preview_bg: XT_DARK_BLUE,
 
-            // Splash screen - theme background with primary accent
-            splash_border: Color::White,
-            splash_bg: Color::Blue,
-            splash_fg: Color::Cyan, // Primary cyan accent
+            // Splash screen - dark blue with cyan text
+            splash_border: XT_YELLOW,
+            splash_bg: XT_DARK_BLUE,
+            splash_fg: XT_CYAN,
 
-            // Slight input popup
-            slight_bg: Color::Blue,
-            slight_fg: Color::Cyan,
+            // Slight input popup - dark blue with yellow accents
+            slight_bg: XT_DARK_BLUE,
+            slight_fg: XT_CYAN,
+            slight_border: XT_YELLOW,
+            slight_input_bg: XT_DARK_BLUE,
+            slight_input_fg: Color::White,
+            slight_suggestion_fg: XT_LIGHT_PURPLE,
+            slight_dropdown_bg: XT_DARK_BLUE,
+            slight_dropdown_fg: XT_CYAN,
+            slight_dropdown_selected_bg: XT_YELLOW,
+            slight_dropdown_selected_fg: PURE_BLACK,
+        }
+    }
+
+    /// WP theme - authentic WordPerfect 5.1 VGA color scheme
+    /// Royal blue background, light grey menus, red highlight, cyan selections
+    pub fn wordperfect() -> Self {
+        Self {
+            // Desktop - royal blue background (#0000AA) with white text
+            desktop_bg: WP_BLUE,
+            desktop_fg: Color::White,
+
+            // Top bar - light grey menu bar (#C0C0C0) with black text
+            topbar_bg_focused: WP_LIGHT_GREY,
+            topbar_bg_unfocused: WP_LIGHT_GREY,
+            topbar_fg_focused: PURE_BLACK,
+            topbar_fg_unfocused: PURE_BLACK,
+            clock_bg: WP_BLUE,
+            clock_fg: Color::White,
+
+            // Windows - Title bar (light grey with black text)
+            window_title_unfocused_fg: PURE_BLACK,
+            window_title_unfocused_bg: WP_CYAN,
+            window_title_focused_fg: PURE_BLACK,
+            window_title_focused_bg: WP_LIGHT_GREY,
+            // Windows - Border (blue borders #0000AA)
+            window_border_unfocused_fg: WP_CYAN,
+            window_border_unfocused_bg: WP_CYAN,
+            window_border_focused_fg: WP_BLUE,
+            window_border_focused_bg: WP_LIGHT_GREY,
+            // Windows - Content (royal blue with white text)
+            window_content_bg: WP_BLUE,
+            window_content_fg: Color::White,
+            window_shadow_color: PURE_BLACK,
+
+            // Window controls
+            button_close_color: WP_RED,
+            button_maximize_color: Color::Green,
+            button_minimize_color: Color::Yellow,
+            button_bg: WP_LIGHT_GREY,
+            resize_handle_normal_fg: Color::White,
+            resize_handle_normal_bg: WP_BLUE,
+            resize_handle_active_fg: Color::White,
+            resize_handle_active_bg: WP_RED,
+
+            // UI Buttons - cyan selection boxes (#00AAAA) with black text
+            button_normal_fg: PURE_BLACK,
+            button_normal_bg: WP_CYAN,
+            button_hovered_fg: Color::White,
+            button_hovered_bg: WP_RED,
+            button_pressed_fg: WP_BLUE,
+            button_pressed_bg: Color::White,
+
+            // Bottom bar - dark blue status bar with white text
+            bottombar_bg: WP_BLUE,
+            bottombar_fg: Color::White,
+            bottombar_button_normal_fg: Color::White,
+            bottombar_button_normal_bg: WP_BLUE,
+            bottombar_button_focused_fg: Color::White,
+            bottombar_button_focused_bg: WP_RED,
+            bottombar_button_minimized_fg: WP_BRIGHT_BLUE,
+            bottombar_button_minimized_bg: WP_BLUE,
+
+            // Toggle button
+            toggle_enabled_fg: Color::White,
+            toggle_enabled_bg_normal: WP_CYAN,
+            toggle_enabled_bg_hovered: WP_RED,
+            toggle_enabled_bg_pressed: WP_BLUE,
+            toggle_disabled_fg: WP_BRIGHT_BLUE,
+            toggle_disabled_bg_normal: WP_LIGHT_GREY,
+            toggle_disabled_bg_hovered: WP_CYAN,
+            toggle_disabled_bg_pressed: WP_BLUE,
+
+            // Prompts/Dialogs - light grey pop-up panels (#C0C0C0)
+            prompt_info_bg: WP_LIGHT_GREY,
+            prompt_info_fg: PURE_BLACK,
+            prompt_success_bg: Color::Green,
+            prompt_success_fg: PURE_BLACK,
+            prompt_warning_bg: Color::Yellow,
+            prompt_warning_fg: PURE_BLACK,
+            prompt_danger_bg: WP_RED,
+            prompt_danger_fg: Color::White,
+
+            // Dialog buttons
+            dialog_button_primary_info_fg: PURE_BLACK,
+            dialog_button_primary_info_bg: WP_CYAN,
+            dialog_button_primary_success_fg: PURE_BLACK,
+            dialog_button_primary_success_bg: Color::Green,
+            dialog_button_primary_warning_fg: PURE_BLACK,
+            dialog_button_primary_warning_bg: Color::Yellow,
+            dialog_button_primary_danger_fg: Color::White,
+            dialog_button_primary_danger_bg: WP_RED,
+            dialog_button_secondary_fg: Color::White,
+            dialog_button_secondary_bg: WP_BLUE,
+
+            // Config window - light grey like WP dialogs
+            config_title_bg: WP_LIGHT_GREY,
+            config_title_fg: PURE_BLACK,
+            config_border: WP_BLUE,
+            config_content_bg: WP_LIGHT_GREY,
+            config_content_fg: PURE_BLACK,
+            config_instructions_fg: WP_BLUE,
+            config_toggle_on_color: Color::Green,
+            config_toggle_off_color: WP_RED,
+
+            // Calendar - royal blue with white text
+            calendar_bg: WP_BLUE,
+            calendar_fg: Color::White,
+            calendar_title_color: WP_BRIGHT_CYAN,
+            calendar_today_bg: WP_RED,
+            calendar_today_fg: Color::White,
+
+            // Scrollbar
+            scrollbar_track_fg: WP_BRIGHT_BLUE,
+            scrollbar_thumb_fg: WP_CYAN,
+
+            // Context menu - light grey (#C0C0C0) with red highlight (#AA0000)
+            menu_bg: WP_LIGHT_GREY,
+            menu_fg: PURE_BLACK,
+            menu_border: WP_BLUE,
+            menu_selected_bg: WP_RED,
+            menu_selected_fg: Color::White,
+            menu_shadow_fg: PURE_BLACK,
+
+            // Snap preview
+            snap_preview_border: WP_BRIGHT_CYAN,
+            snap_preview_bg: WP_BLUE,
+
+            // Splash screen - royal blue with white text
+            splash_border: WP_LIGHT_GREY,
+            splash_bg: WP_BLUE,
+            splash_fg: Color::White,
+
+            // Slight input popup - light grey dialog style
+            slight_bg: WP_LIGHT_GREY,
+            slight_fg: PURE_BLACK,
+            slight_border: WP_BLUE,
+            slight_input_bg: Color::White,
+            slight_input_fg: WP_BLUE,
+            slight_suggestion_fg: WP_CYAN,
+            slight_dropdown_bg: WP_LIGHT_GREY,
+            slight_dropdown_fg: PURE_BLACK,
+            slight_dropdown_selected_bg: WP_RED,
+            slight_dropdown_selected_fg: Color::White,
+        }
+    }
+
+    /// dB theme - authentic Borland dBASE IV 2.0 color scheme
+    /// Blue background, grey dialogs, yellow/red F-key highlights
+    pub fn dbase() -> Self {
+        Self {
+            // Desktop - dark patterned blue (#0000AA) with white text
+            desktop_bg: Color::Black,
+            desktop_fg: DB_BLUE,
+
+            // Top bar - light grey (#C0C0C0) with black text
+            topbar_bg_focused: DB_GREY,
+            topbar_bg_unfocused: DB_GREY,
+            topbar_fg_focused: PURE_BLACK,
+            topbar_fg_unfocused: PURE_BLACK,
+            clock_bg: DB_BLUE,
+            clock_fg: DB_YELLOW,
+
+            // Windows - Title bar (light grey #C0C0C0 with black text)
+            window_title_unfocused_fg: PURE_BLACK,
+            window_title_unfocused_bg: DB_LIGHT_GREY,
+            window_title_focused_fg: PURE_BLACK,
+            window_title_focused_bg: DB_GREY,
+            // Windows - Border (white #FFFFFF and darker grey #AAAAAA - 3D effect)
+            window_border_unfocused_fg: DB_LIGHT_GREY,
+            window_border_unfocused_bg: DB_LIGHT_GREY,
+            window_border_focused_fg: Color::White,
+            window_border_focused_bg: DB_GREY,
+            // Windows - Content (blue description panel #0000AA with white text)
+            window_content_bg: DB_LIGHT_GREY,
+            window_content_fg: Color::White,
+            window_shadow_color: DB_BLUE,
+
+            // Window controls
+            button_close_color: DB_BRIGHT_RED,
+            button_maximize_color: Color::Green,
+            button_minimize_color: DB_YELLOW,
+            button_bg: DB_GREY,
+            resize_handle_normal_fg: Color::White,
+            resize_handle_normal_bg: DB_BLUE,
+            resize_handle_active_fg: DB_YELLOW,
+            resize_handle_active_bg: DB_GREY,
+
+            // UI Buttons - grey dialog style
+            button_normal_fg: PURE_BLACK,
+            button_normal_bg: DB_GREY,
+            button_hovered_fg: Color::White,
+            button_hovered_bg: DB_BLUE,
+            button_pressed_fg: Color::White,
+            button_pressed_bg: PURE_BLACK,
+
+            // Bottom bar - light grey key bar (#C0C0C0) with red/yellow/black text
+            bottombar_bg: DB_GREY,
+            bottombar_fg: PURE_BLACK,
+            bottombar_button_normal_fg: DB_BRIGHT_RED,
+            bottombar_button_normal_bg: DB_GREY,
+            bottombar_button_focused_fg: PURE_BLACK,
+            bottombar_button_focused_bg: DB_YELLOW,
+            bottombar_button_minimized_fg: DB_LIGHT_GREY,
+            bottombar_button_minimized_bg: DB_GREY,
+
+            // Toggle button
+            toggle_enabled_fg: DB_YELLOW,
+            toggle_enabled_bg_normal: DB_BLUE,
+            toggle_enabled_bg_hovered: DB_GREY,
+            toggle_enabled_bg_pressed: PURE_BLACK,
+            toggle_disabled_fg: DB_LIGHT_GREY,
+            toggle_disabled_bg_normal: DB_GREY,
+            toggle_disabled_bg_hovered: DB_LIGHT_GREY,
+            toggle_disabled_bg_pressed: PURE_BLACK,
+
+            // Prompts/Dialogs - light grey dialog (#C0C0C0) with black text
+            prompt_info_bg: DB_GREY,
+            prompt_info_fg: PURE_BLACK,
+            prompt_success_bg: Color::Green,
+            prompt_success_fg: PURE_BLACK,
+            prompt_warning_bg: DB_YELLOW,
+            prompt_warning_fg: PURE_BLACK,
+            prompt_danger_bg: DB_BRIGHT_RED,
+            prompt_danger_fg: Color::White,
+
+            // Dialog buttons
+            dialog_button_primary_info_fg: PURE_BLACK,
+            dialog_button_primary_info_bg: DB_GREY,
+            dialog_button_primary_success_fg: PURE_BLACK,
+            dialog_button_primary_success_bg: Color::Green,
+            dialog_button_primary_warning_fg: PURE_BLACK,
+            dialog_button_primary_warning_bg: DB_YELLOW,
+            dialog_button_primary_danger_fg: Color::White,
+            dialog_button_primary_danger_bg: DB_BRIGHT_RED,
+            dialog_button_secondary_fg: Color::White,
+            dialog_button_secondary_bg: DB_BLUE,
+
+            // Config window - grey dialog with blue description panel
+            config_title_bg: DB_GREY,
+            config_title_fg: PURE_BLACK,
+            config_border: Color::White,
+            config_content_bg: DB_GREY,
+            config_content_fg: PURE_BLACK,
+            config_instructions_fg: DB_BLUE,
+            config_toggle_on_color: DB_YELLOW,
+            config_toggle_off_color: DB_LIGHT_GREY,
+
+            // Calendar - blue with yellow header
+            calendar_bg: DB_BLUE,
+            calendar_fg: Color::White,
+            calendar_title_color: DB_YELLOW,
+            calendar_today_bg: DB_YELLOW,
+            calendar_today_fg: PURE_BLACK,
+
+            // Scrollbar
+            scrollbar_track_fg: DB_LIGHT_GREY,
+            scrollbar_thumb_fg: Color::White,
+
+            // Context menu - grey with yellow selection
+            menu_bg: DB_GREY,
+            menu_fg: PURE_BLACK,
+            menu_border: Color::White,
+            menu_selected_bg: DB_BLUE,
+            menu_selected_fg: Color::White,
+            menu_shadow_fg: PURE_BLACK,
+
+            // Snap preview
+            snap_preview_border: DB_YELLOW,
+            snap_preview_bg: DB_BLUE,
+
+            // Splash screen - blue with yellow text
+            splash_border: DB_GREY,
+            splash_bg: DB_BLUE,
+            splash_fg: DB_YELLOW,
+
+            // Slight input popup - grey dialog style with black input field
+            slight_bg: DB_GREY,
+            slight_fg: PURE_BLACK,
             slight_border: Color::White,
-            slight_input_bg: Color::Black,
-            slight_input_fg: Color::Cyan,
-            slight_suggestion_fg: Color::White,
-            slight_dropdown_bg: Color::Blue,
-            slight_dropdown_fg: Color::Cyan,
-            slight_dropdown_selected_bg: Color::White,
-            slight_dropdown_selected_fg: Color::Black,
+            slight_input_bg: PURE_BLACK,
+            slight_input_fg: Color::White,
+            slight_suggestion_fg: DB_LIGHT_GREY,
+            slight_dropdown_bg: DB_GREY,
+            slight_dropdown_fg: PURE_BLACK,
+            slight_dropdown_selected_bg: DB_BLUE,
+            slight_dropdown_selected_fg: Color::White,
         }
     }
 
