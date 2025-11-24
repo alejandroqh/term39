@@ -222,6 +222,65 @@ cargo build --release --no-default-features
 - **Title bar**: Drag to move | **[X]/[+]/[_]**: Close/Maximize/Minimize | **╬ handle**: Resize
 - **Click window**: Focus | **Bottom bar**: Switch | **Drag/Right-click**: Select/Context menu
 
+## Themes
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <a href="assets/themes/NDD.png">
+          <img src="assets/themes/NDD.png" width="150" alt="NDD Theme"/>
+        </a><br><sub>NDD</sub>
+      </td>
+      <td align="center">
+        <a href="assets/themes/Qbasic.png">
+          <img src="assets/themes/Qbasic.png" width="150" alt="QBasic Theme"/>
+        </a><br><sub>QBasic</sub>
+      </td>
+      <td align="center">
+        <a href="assets/themes/TurboP.png">
+          <img src="assets/themes/TurboP.png" width="150" alt="Turbo Pascal Theme"/>
+        </a><br><sub>Turbo Pascal</sub>
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        <a href="assets/themes/NCC.png">
+          <img src="assets/themes/NCC.png" width="150" alt="Norton Commander Theme"/>
+        </a><br><sub>Norton Commander</sub>
+      </td>
+      <td align="center">
+        <a href="assets/themes/Dracu.png">
+          <img src="assets/themes/Dracu.png" width="150" alt="Dracula Theme"/>
+        </a><br><sub>Dracula</sub>
+      </td>
+      <td align="center">
+        <a href="assets/themes/Dark.png">
+          <img src="assets/themes/Dark.png" width="150" alt="Dark Theme"/>
+        </a><br><sub>Dark</sub>
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        <a href="assets/themes/XT.png">
+          <img src="assets/themes/XT.png" width="150" alt="XT Theme"/>
+        </a><br><sub>XT</sub>
+      </td>
+      <td align="center">
+        <a href="assets/themes/WP.png">
+          <img src="assets/themes/WP.png" width="150" alt="WordPerfect Theme"/>
+        </a><br><sub>WordPerfect</sub>
+      </td>
+      <td align="center">
+        <a href="assets/themes/dB.png">
+          <img src="assets/themes/dB.png" width="150" alt="dBase Theme"/>
+        </a><br><sub>dBase</sub>
+      </td>
+    </tr>
+  </table>
+  <p><em>Click on any thumbnail to view full size</em></p>
+</div>
+
 ## Architecture
 
 **Core**: Double-buffered video system, window manager (Z-order/focus), VT100/ANSI parser (VTE), PTY integration (portable-pty)
