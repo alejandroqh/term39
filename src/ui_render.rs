@@ -6,26 +6,78 @@ use crate::video_buffer::{Cell, VideoBuffer};
 use crate::window_manager::{FocusState, WindowManager};
 use chrono::{Datelike, Local, NaiveDate};
 use crossterm::style::Color;
-use starship_battery::Manager;
+use starship_battery::{Manager, State};
+use std::cell::RefCell;
+use std::time::{Duration, Instant};
 
-/// Get the current battery percentage (0-100) or None if no battery is available
-fn get_battery_percentage() -> Option<u8> {
+/// Battery information including percentage and charging state
+#[derive(Clone)]
+struct BatteryInfo {
+    percentage: u8,
+    is_charging: bool,
+}
+
+/// Cached battery info with last update time
+struct BatteryCache {
+    info: Option<BatteryInfo>,
+    last_update: Instant,
+}
+
+thread_local! {
+    static BATTERY_CACHE: RefCell<BatteryCache> = RefCell::new(BatteryCache {
+        info: None,
+        last_update: Instant::now() - Duration::from_secs(2), // Force initial fetch
+    });
+}
+
+/// Get the current battery info or None if no battery is available (cached for 1 second)
+fn get_battery_info() -> Option<BatteryInfo> {
+    BATTERY_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+
+        // Refresh if more than 1 second has passed
+        if cache.last_update.elapsed() >= Duration::from_secs(1) {
+            cache.info = fetch_battery_info();
+            cache.last_update = Instant::now();
+        }
+
+        cache.info.clone()
+    })
+}
+
+/// Actually fetch battery info from the system
+fn fetch_battery_info() -> Option<BatteryInfo> {
     let manager = Manager::new().ok()?;
     let mut batteries = manager.batteries().ok()?;
     let battery = batteries.next()?.ok()?;
 
-    let percentage = battery.state_of_charge().value * 100.0;
-    Some(percentage.round() as u8)
+    let percentage = (battery.state_of_charge().value * 100.0).round() as u8;
+    // Show charging icon when plugged in (Charging or Full state)
+    let is_charging = matches!(battery.state(), State::Charging | State::Full);
+
+    Some(BatteryInfo {
+        percentage,
+        is_charging,
+    })
 }
 
-/// Get the color for the battery indicator based on charge level
-fn get_battery_color(percentage: u8) -> Color {
-    if percentage > 40 {
-        Color::White
-    } else if percentage >= 20 {
-        Color::DarkGrey
-    } else {
+/// Get the color for the battery indicator based on charge level and charging state
+fn get_battery_color(percentage: u8, is_charging: bool) -> Color {
+    if percentage < 15 {
         Color::Red
+    } else if percentage <= 40 {
+        if is_charging {
+            Color::Yellow
+        } else {
+            Color::White
+        }
+    } else {
+        // >40%
+        if is_charging {
+            Color::Green
+        } else {
+            Color::White
+        }
     }
 }
 
@@ -176,28 +228,34 @@ pub fn render_top_bar(
     let clock_with_separator = format!("| {} ", time_str);
     let clock_width = clock_with_separator.len() as u16;
 
-    // Get battery percentage and create block bar indicator
-    let battery_percentage = get_battery_percentage();
-    let battery_width = if battery_percentage.is_some() {
-        10u16
-    } else {
-        0u16
-    }; // "| [█████] "
+    // Get battery info and create block bar indicator
+    let battery_info = get_battery_info();
+    let battery_width = if battery_info.is_some() { 10u16 } else { 0u16 }; // "| [█████] " or "| [████⚡] " when charging
 
     // Calculate positions (battery comes before clock)
     let total_width = battery_width + clock_width;
     let start_pos = cols.saturating_sub(total_width);
 
     // Render battery indicator (block bar or percentage text on hover)
-    if let Some(pct) = battery_percentage {
-        let battery_color = get_battery_color(pct);
+    if let Some(info) = battery_info {
+        let pct = info.percentage;
+        let is_charging = info.is_charging;
+        let battery_color = get_battery_color(pct, is_charging);
+        let charging_icon = '≈'; // Approximately equal for charging (CP437 247)
+        let charging_color = Color::Yellow;
 
         if battery_hovered {
-            // Show percentage text on hover: "| [ 100%] " (10 chars)
-            let battery_text = format!("| [{:>5}] ", format!("{}%", pct));
+            // Show percentage text on hover: "| [ 100%] " or "| [⚡ 89%] " (10 chars)
+            let battery_text = if is_charging {
+                format!("| [{}{:>4}] ", charging_icon, format!("{}%", pct))
+            } else {
+                format!("| [{:>5}] ", format!("{}%", pct))
+            };
             for (i, ch) in battery_text.chars().enumerate() {
-                let fg = if (3..=7).contains(&i) {
-                    battery_color // Color the percentage
+                let fg = if ch == charging_icon {
+                    charging_color
+                } else if (3..=7).contains(&i) {
+                    battery_color
                 } else {
                     theme.clock_fg
                 };
@@ -208,42 +266,37 @@ pub fn render_top_bar(
                 );
             }
         } else {
-            // Show block bar: "| [█████] " (10 chars)
-            let filled_blocks = ((pct as f32 / 20.0).round() as usize).min(5);
-            let prefix = "| [";
-            let suffix = "] ";
+            // Show block bar: "| [█████] " or "| [███ ≈] " (10 chars)
+            let filled = ((pct as f32 / 20.0).round() as usize).min(5);
+            let blocks: String = (0..5)
+                .map(|i| {
+                    if is_charging && i == 3 {
+                        ' '
+                    } else if is_charging && i == 4 {
+                        charging_icon
+                    } else if i < filled {
+                        '█'
+                    } else {
+                        '░'
+                    }
+                })
+                .collect();
+            let battery_text = format!("| [{}] ", blocks);
 
-            // Render prefix with clock colors
-            for (i, ch) in prefix.chars().enumerate() {
+            for (i, ch) in battery_text.chars().enumerate() {
+                let fg = if ch == charging_icon {
+                    charging_color
+                } else if ch == '█' {
+                    battery_color
+                } else if ch == '░' {
+                    Color::DarkGrey
+                } else {
+                    theme.clock_fg
+                };
                 buffer.set(
                     start_pos + i as u16,
                     0,
-                    Cell::new_unchecked(ch, theme.clock_fg, theme.clock_bg),
-                );
-            }
-
-            // Render battery blocks
-            let block_start = start_pos + prefix.len() as u16;
-            for i in 0..5 {
-                let (ch, fg) = if i < filled_blocks {
-                    ('█', battery_color) // Filled block with battery color
-                } else {
-                    ('░', Color::DarkGrey) // Empty block
-                };
-                buffer.set(
-                    block_start + i as u16,
-                    0,
                     Cell::new_unchecked(ch, fg, theme.clock_bg),
-                );
-            }
-
-            // Render suffix with clock colors
-            let suffix_start = block_start + 5;
-            for (i, ch) in suffix.chars().enumerate() {
-                buffer.set(
-                    suffix_start + i as u16,
-                    0,
-                    Cell::new_unchecked(ch, theme.clock_fg, theme.clock_bg),
                 );
             }
         }
