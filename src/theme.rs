@@ -52,6 +52,34 @@ const LIGHT_GREEN_PHOSPHOR: Color = Color::Rgb {
     b: 51,
 };
 
+// Turbo Pascal theme colors - authentic Borland Turbo Pascal 7.0 colors
+const TURBO_DARK_BLUE: Color = Color::Rgb { r: 0, g: 0, b: 123 }; // #00007B - desktop/editor background
+const TURBO_BLUE_PURPLE: Color = Color::Rgb {
+    r: 62,
+    g: 59,
+    b: 149,
+}; // #3E3B95 - title bar
+const TURBO_TEAL: Color = Color::Rgb {
+    r: 0,
+    g: 132,
+    b: 132,
+}; // #008484 - help window body
+const TURBO_DARK_TEAL: Color = Color::Rgb {
+    r: 0,
+    g: 123,
+    b: 123,
+}; // #007B7B - help window title
+const TURBO_LIGHT_GREY: Color = Color::Rgb {
+    r: 181,
+    g: 177,
+    b: 189,
+}; // #B5B1BD - menu bar
+const TURBO_BEIGE: Color = Color::Rgb {
+    r: 231,
+    g: 231,
+    b: 206,
+}; // #E7E7CE - status bar
+
 // QBasic theme colors - authentic MS-DOS QBasic colors
 const QBASIC_ROYAL_BLUE: Color = Color::Rgb { r: 0, g: 0, b: 170 }; // #0000AA - main background
 const QBASIC_LIGHT_GREY: Color = Color::Rgb {
@@ -1502,146 +1530,146 @@ impl Theme {
         }
     }
 
-    /// TurboP theme - inspired by classic Pascal IDE interfaces
-    /// Yellow text on grey/blue backgrounds
+    /// TurboP theme - authentic Borland Turbo Pascal 7.0 color scheme
+    /// Dark navy blue desktop, blue-purple title bars, teal help windows, beige status bar
     pub fn turbo() -> Self {
         Self {
-            // Desktop - grey background
-            desktop_bg: Color::Black,
-            desktop_fg: Color::Yellow,
+            // Desktop - dark navy blue (#00007B)
+            desktop_bg: TURBO_DARK_BLUE,
+            desktop_fg: Color::White,
 
-            // Top bar
-            topbar_bg_focused: Color::Yellow,
-            topbar_bg_unfocused: Color::Black,
-            topbar_fg_focused: Color::Black,
-            topbar_fg_unfocused: Color::Black,
-            clock_bg: Color::Black,
-            clock_fg: Color::Yellow,
+            // Top bar - light grey menu bar (#B5B1BD) with black text
+            topbar_bg_focused: TURBO_LIGHT_GREY,
+            topbar_bg_unfocused: TURBO_LIGHT_GREY,
+            topbar_fg_focused: PURE_BLACK,
+            topbar_fg_unfocused: PURE_BLACK,
+            clock_bg: TURBO_DARK_TEAL,
+            clock_fg: Color::White,
 
-            // Windows - Title bar
-            window_title_unfocused_fg: Color::Black,
-            window_title_unfocused_bg: Color::Grey,
-            window_title_focused_fg: Color::Black,
-            window_title_focused_bg: Color::Yellow,
+            // Windows - Title bar (blue-purple #3E3B95 with white text)
+            window_title_unfocused_fg: Color::White,
+            window_title_unfocused_bg: TURBO_DARK_TEAL,
+            window_title_focused_fg: Color::White,
+            window_title_focused_bg: TURBO_BLUE_PURPLE,
             // Windows - Border
-            window_border_unfocused_fg: Color::Grey,
-            window_border_unfocused_bg: Color::Grey,
-            window_border_focused_fg: Color::Yellow,
-            window_border_focused_bg: Color::Yellow,
-            // Windows - Content
-            window_content_bg: Color::DarkBlue,
-            window_content_fg: Color::Yellow,
-            window_shadow_color: Color::Black,
+            window_border_unfocused_fg: TURBO_DARK_TEAL,
+            window_border_unfocused_bg: TURBO_DARK_TEAL,
+            window_border_focused_fg: TURBO_TEAL,
+            window_border_focused_bg: TURBO_TEAL,
+            // Windows - Content (dark blue editor area)
+            window_content_bg: TURBO_DARK_BLUE,
+            window_content_fg: Color::White,
+            window_shadow_color: PURE_BLACK,
 
             // Window controls
             button_close_color: Color::Red,
             button_maximize_color: Color::Green,
             button_minimize_color: Color::Cyan,
-            button_bg: Color::Black,
-            resize_handle_normal_fg: Color::Grey,
-            resize_handle_normal_bg: Color::DarkBlue,
+            button_bg: TURBO_BLUE_PURPLE,
+            resize_handle_normal_fg: Color::White,
+            resize_handle_normal_bg: TURBO_DARK_BLUE,
             resize_handle_active_fg: Color::Yellow,
-            resize_handle_active_bg: Color::Grey,
+            resize_handle_active_bg: TURBO_TEAL,
 
-            // UI Buttons
-            button_normal_fg: Color::Black,
-            button_normal_bg: Color::Yellow,
-            button_hovered_fg: Color::Yellow,
-            button_hovered_bg: Color::DarkGrey,
-            button_pressed_fg: Color::Yellow,
-            button_pressed_bg: Color::Black,
+            // UI Buttons - light grey style
+            button_normal_fg: PURE_BLACK,
+            button_normal_bg: TURBO_LIGHT_GREY,
+            button_hovered_fg: PURE_BLACK,
+            button_hovered_bg: TURBO_TEAL,
+            button_pressed_fg: Color::White,
+            button_pressed_bg: TURBO_DARK_BLUE,
 
-            // Bottom bar
-            bottombar_bg: Color::Black,
-            bottombar_fg: Color::Yellow,
-            bottombar_button_normal_fg: Color::Yellow,
-            bottombar_button_normal_bg: Color::Black,
-            bottombar_button_focused_fg: Color::Black,
-            bottombar_button_focused_bg: Color::Yellow,
-            bottombar_button_minimized_fg: Color::DarkYellow,
-            bottombar_button_minimized_bg: Color::Black,
+            // Bottom bar - beige status bar (#E7E7CE) with black text
+            bottombar_bg: TURBO_BEIGE,
+            bottombar_fg: PURE_BLACK,
+            bottombar_button_normal_fg: PURE_BLACK,
+            bottombar_button_normal_bg: TURBO_BEIGE,
+            bottombar_button_focused_fg: Color::White,
+            bottombar_button_focused_bg: TURBO_BLUE_PURPLE,
+            bottombar_button_minimized_fg: TURBO_DARK_TEAL,
+            bottombar_button_minimized_bg: TURBO_BEIGE,
 
             // Toggle button
             toggle_enabled_fg: Color::Green,
-            toggle_enabled_bg_normal: Color::Grey,
-            toggle_enabled_bg_hovered: Color::Yellow,
-            toggle_enabled_bg_pressed: Color::Black,
-            toggle_disabled_fg: Color::Yellow,
-            toggle_disabled_bg_normal: Color::Grey,
-            toggle_disabled_bg_hovered: Color::Yellow,
-            toggle_disabled_bg_pressed: Color::Black,
+            toggle_enabled_bg_normal: TURBO_LIGHT_GREY,
+            toggle_enabled_bg_hovered: TURBO_TEAL,
+            toggle_enabled_bg_pressed: TURBO_DARK_BLUE,
+            toggle_disabled_fg: TURBO_DARK_TEAL,
+            toggle_disabled_bg_normal: TURBO_LIGHT_GREY,
+            toggle_disabled_bg_hovered: TURBO_TEAL,
+            toggle_disabled_bg_pressed: TURBO_DARK_BLUE,
 
-            // Prompts/Dialogs
-            prompt_info_bg: Color::Grey,
-            prompt_info_fg: Color::Black,
+            // Prompts/Dialogs - teal help window style (#008484)
+            prompt_info_bg: TURBO_TEAL,
+            prompt_info_fg: PURE_BLACK,
             prompt_success_bg: Color::Green,
-            prompt_success_fg: Color::Black,
+            prompt_success_fg: PURE_BLACK,
             prompt_warning_bg: Color::Yellow,
-            prompt_warning_fg: Color::Black,
+            prompt_warning_fg: PURE_BLACK,
             prompt_danger_bg: Color::Red,
             prompt_danger_fg: Color::White,
 
             // Dialog buttons
-            dialog_button_primary_info_fg: Color::Black,
-            dialog_button_primary_info_bg: Color::Yellow,
-            dialog_button_primary_success_fg: Color::Black,
+            dialog_button_primary_info_fg: Color::White,
+            dialog_button_primary_info_bg: TURBO_BLUE_PURPLE,
+            dialog_button_primary_success_fg: PURE_BLACK,
             dialog_button_primary_success_bg: Color::Green,
-            dialog_button_primary_warning_fg: Color::Black,
+            dialog_button_primary_warning_fg: PURE_BLACK,
             dialog_button_primary_warning_bg: Color::Yellow,
             dialog_button_primary_danger_fg: Color::White,
             dialog_button_primary_danger_bg: Color::Red,
-            dialog_button_secondary_fg: Color::Black,
-            dialog_button_secondary_bg: Color::Grey,
+            dialog_button_secondary_fg: PURE_BLACK,
+            dialog_button_secondary_bg: TURBO_LIGHT_GREY,
 
-            // Config window
-            config_title_bg: Color::Yellow,
-            config_title_fg: Color::Black,
-            config_border: Color::Yellow,
-            config_content_bg: Color::DarkBlue,
-            config_content_fg: Color::Yellow,
-            config_instructions_fg: Color::Grey,
+            // Config window - teal like help windows
+            config_title_bg: TURBO_DARK_TEAL,
+            config_title_fg: Color::White,
+            config_border: TURBO_TEAL,
+            config_content_bg: TURBO_TEAL,
+            config_content_fg: PURE_BLACK,
+            config_instructions_fg: TURBO_DARK_TEAL,
             config_toggle_on_color: Color::Green,
-            config_toggle_off_color: Color::Grey,
+            config_toggle_off_color: TURBO_DARK_TEAL,
 
-            // Calendar
-            calendar_bg: Color::DarkBlue,
-            calendar_fg: Color::Yellow,
-            calendar_title_color: Color::White,
-            calendar_today_bg: Color::Yellow,
-            calendar_today_fg: Color::Black,
+            // Calendar - dark blue like editor
+            calendar_bg: TURBO_DARK_BLUE,
+            calendar_fg: Color::White,
+            calendar_title_color: Color::Yellow,
+            calendar_today_bg: TURBO_TEAL,
+            calendar_today_fg: PURE_BLACK,
 
             // Scrollbar
-            scrollbar_track_fg: Color::Grey,
-            scrollbar_thumb_fg: Color::Yellow,
+            scrollbar_track_fg: TURBO_DARK_TEAL,
+            scrollbar_thumb_fg: TURBO_TEAL,
 
-            // Context menu
-            menu_bg: Color::DarkBlue,
-            menu_fg: Color::Yellow,
-            menu_border: Color::Yellow,
-            menu_selected_bg: Color::Yellow,
-            menu_selected_fg: Color::Black,
-            menu_shadow_fg: Color::Black,
+            // Context menu - light grey like menu bar
+            menu_bg: TURBO_LIGHT_GREY,
+            menu_fg: PURE_BLACK,
+            menu_border: TURBO_DARK_TEAL,
+            menu_selected_bg: TURBO_BLUE_PURPLE,
+            menu_selected_fg: Color::White,
+            menu_shadow_fg: PURE_BLACK,
 
             // Snap preview
-            snap_preview_border: Color::Yellow,
-            snap_preview_bg: Color::Black,
+            snap_preview_border: TURBO_TEAL,
+            snap_preview_bg: TURBO_DARK_BLUE,
 
-            // Splash screen - theme background with primary accent
-            splash_border: Color::Yellow,
-            splash_bg: Color::DarkGrey,
-            splash_fg: Color::Yellow, // Primary yellow accent
+            // Splash screen - dark blue with white text
+            splash_border: TURBO_TEAL,
+            splash_bg: TURBO_DARK_BLUE,
+            splash_fg: Color::White,
 
-            // Slight input popup
-            slight_bg: Color::DarkBlue,
-            slight_fg: Color::Yellow,
-            slight_border: Color::Yellow,
-            slight_input_bg: Color::Grey,
-            slight_input_fg: Color::Black,
-            slight_suggestion_fg: Color::White,
-            slight_dropdown_bg: Color::DarkBlue,
-            slight_dropdown_fg: Color::Yellow,
-            slight_dropdown_selected_bg: Color::Yellow,
-            slight_dropdown_selected_fg: Color::Black,
+            // Slight input popup - teal dialog style
+            slight_bg: TURBO_TEAL,
+            slight_fg: PURE_BLACK,
+            slight_border: TURBO_DARK_TEAL,
+            slight_input_bg: TURBO_LIGHT_GREY,
+            slight_input_fg: PURE_BLACK,
+            slight_suggestion_fg: TURBO_DARK_TEAL,
+            slight_dropdown_bg: TURBO_TEAL,
+            slight_dropdown_fg: PURE_BLACK,
+            slight_dropdown_selected_bg: TURBO_BLUE_PURPLE,
+            slight_dropdown_selected_fg: Color::White,
         }
     }
 
