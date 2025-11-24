@@ -234,25 +234,25 @@ cargo build --release --no-default-features
       </td>
       <td align="center">
         <a href="assets/themes/Qbasic.png">
-          <img src="assets/themes/Qbasic.png" width="150" alt="QBasic Theme"/>
-        </a><br><sub>QBasic</sub>
+          <img src="assets/themes/Qbasic.png" width="150" alt="Qbasic Theme"/>
+        </a><br><sub>Qbasic</sub>
       </td>
       <td align="center">
         <a href="assets/themes/TurboP.png">
-          <img src="assets/themes/TurboP.png" width="150" alt="Turbo Pascal Theme"/>
-        </a><br><sub>Turbo Pascal</sub>
+          <img src="assets/themes/TurboP.png" width="150" alt="TurboP Theme"/>
+        </a><br><sub>TurboP</sub>
       </td>
     </tr>
     <tr>
       <td align="center">
         <a href="assets/themes/NCC.png">
-          <img src="assets/themes/NCC.png" width="150" alt="Norton Commander Theme"/>
-        </a><br><sub>Norton Commander</sub>
+          <img src="assets/themes/NCC.png" width="150" alt="NCC Theme"/>
+        </a><br><sub>NCC</sub>
       </td>
       <td align="center">
         <a href="assets/themes/Dracu.png">
-          <img src="assets/themes/Dracu.png" width="150" alt="Dracula Theme"/>
-        </a><br><sub>Dracula</sub>
+          <img src="assets/themes/Dracu.png" width="150" alt="Dracu Theme"/>
+        </a><br><sub>Dracu</sub>
       </td>
       <td align="center">
         <a href="assets/themes/Dark.png">
@@ -268,17 +268,16 @@ cargo build --release --no-default-features
       </td>
       <td align="center">
         <a href="assets/themes/WP.png">
-          <img src="assets/themes/WP.png" width="150" alt="WordPerfect Theme"/>
-        </a><br><sub>WordPerfect</sub>
+          <img src="assets/themes/WP.png" width="150" alt="WP Theme"/>
+        </a><br><sub>WP</sub>
       </td>
       <td align="center">
         <a href="assets/themes/dB.png">
-          <img src="assets/themes/dB.png" width="150" alt="dBase Theme"/>
-        </a><br><sub>dBase</sub>
+          <img src="assets/themes/dB.png" width="150" alt="dB Theme"/>
+        </a><br><sub>dB</sub>
       </td>
     </tr>
   </table>
-  <p><em>Click on any thumbnail to view full size</em></p>
 </div>
 
 ## Architecture
