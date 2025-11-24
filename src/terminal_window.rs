@@ -852,10 +852,12 @@ fn apply_theme_tint(color: Color, theme: &Theme, is_foreground: bool) -> Color {
         Color::Rgb { r, g, b } => {
             if is_foreground {
                 // For foreground, blend with theme foreground color
-                blend_with_theme_color(Color::Rgb { r, g, b }, theme.window_content_fg, 0.7)
+                // Use 0.3 blend factor: 30% original color, 70% theme color for strong tinting
+                blend_with_theme_color(Color::Rgb { r, g, b }, theme.window_content_fg, 0.3)
             } else {
                 // For background, blend with theme background color
-                blend_with_theme_color(Color::Rgb { r, g, b }, theme.window_content_bg, 0.7)
+                // Use 0.3 blend factor: 30% original color, 70% theme color for strong tinting
+                blend_with_theme_color(Color::Rgb { r, g, b }, theme.window_content_bg, 0.3)
             }
         }
 
@@ -894,7 +896,15 @@ fn apply_theme_tint(color: Color, theme: &Theme, is_foreground: bool) -> Color {
             }
         }
 
-        _ => color,
+        // Catch-all: tint any unhandled colors to prevent full-brightness rendering
+        // This ensures consistent tinting across all color types
+        _ => {
+            if is_foreground {
+                theme.window_content_fg
+            } else {
+                theme.window_content_bg
+            }
+        }
     }
 }
 
@@ -912,23 +922,82 @@ fn darken_color(color: Color, factor: f32) -> Color {
 
 /// Blend a color with a theme color
 fn blend_with_theme_color(original: Color, theme_color: Color, blend_factor: f32) -> Color {
-    match (original, theme_color) {
-        (
-            Color::Rgb {
-                r: r1,
-                g: g1,
-                b: b1,
-            },
-            Color::Rgb {
-                r: r2,
-                g: g2,
-                b: b2,
-            },
-        ) => Color::Rgb {
-            r: (r1 as f32 * blend_factor + r2 as f32 * (1.0 - blend_factor)) as u8,
-            g: (g1 as f32 * blend_factor + g2 as f32 * (1.0 - blend_factor)) as u8,
-            b: (b1 as f32 * blend_factor + b2 as f32 * (1.0 - blend_factor)) as u8,
-        },
-        _ => original,
+    // Convert both colors to RGB for blending
+    let (r1, g1, b1) = color_to_rgb(original);
+    let (r2, g2, b2) = color_to_rgb(theme_color);
+
+    Color::Rgb {
+        r: (r1 as f32 * blend_factor + r2 as f32 * (1.0 - blend_factor)) as u8,
+        g: (g1 as f32 * blend_factor + g2 as f32 * (1.0 - blend_factor)) as u8,
+        b: (b1 as f32 * blend_factor + b2 as f32 * (1.0 - blend_factor)) as u8,
+    }
+}
+
+/// Convert any Color to RGB values
+fn color_to_rgb(color: Color) -> (u8, u8, u8) {
+    match color {
+        Color::Rgb { r, g, b } => (r, g, b),
+        Color::Black => (0, 0, 0),
+        Color::DarkGrey => (128, 128, 128),
+        Color::Red => (255, 0, 0),
+        Color::DarkRed => (128, 0, 0),
+        Color::Green => (0, 255, 0),
+        Color::DarkGreen => (0, 128, 0),
+        Color::Yellow => (255, 255, 0),
+        Color::DarkYellow => (128, 128, 0),
+        Color::Blue => (0, 0, 255),
+        Color::DarkBlue => (0, 0, 128),
+        Color::Magenta => (255, 0, 255),
+        Color::DarkMagenta => (128, 0, 128),
+        Color::Cyan => (0, 255, 255),
+        Color::DarkCyan => (0, 128, 128),
+        Color::White => (255, 255, 255),
+        Color::Grey => (192, 192, 192),
+        // For indexed colors, use approximate RGB values
+        Color::AnsiValue(idx) => ansi_to_rgb(idx),
+        // Default to white for reset and unknown
+        _ => (255, 255, 255),
+    }
+}
+
+/// Convert ANSI 256-color palette index to approximate RGB
+fn ansi_to_rgb(idx: u8) -> (u8, u8, u8) {
+    match idx {
+        // Standard 16 colors (0-15)
+        0 => (0, 0, 0),        // Black
+        1 => (128, 0, 0),      // Dark Red
+        2 => (0, 128, 0),      // Dark Green
+        3 => (128, 128, 0),    // Dark Yellow
+        4 => (0, 0, 128),      // Dark Blue
+        5 => (128, 0, 128),    // Dark Magenta
+        6 => (0, 128, 128),    // Dark Cyan
+        7 => (192, 192, 192),  // Grey
+        8 => (128, 128, 128),  // Dark Grey
+        9 => (255, 0, 0),      // Red
+        10 => (0, 255, 0),     // Green
+        11 => (255, 255, 0),   // Yellow
+        12 => (0, 0, 255),     // Blue
+        13 => (255, 0, 255),   // Magenta
+        14 => (0, 255, 255),   // Cyan
+        15 => (255, 255, 255), // White
+
+        // 216-color cube (16-231): 6x6x6 RGB cube
+        16..=231 => {
+            let idx = idx - 16;
+            let r = (idx / 36) % 6;
+            let g = (idx / 6) % 6;
+            let b = idx % 6;
+            (
+                if r > 0 { 55 + r * 40 } else { 0 },
+                if g > 0 { 55 + g * 40 } else { 0 },
+                if b > 0 { 55 + b * 40 } else { 0 },
+            )
+        }
+
+        // Grayscale ramp (232-255): 24 shades of gray
+        232..=255 => {
+            let gray = 8 + (idx - 232) * 10;
+            (gray, gray, gray)
+        }
     }
 }
