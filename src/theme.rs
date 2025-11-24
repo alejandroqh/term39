@@ -52,6 +52,29 @@ const LIGHT_GREEN_PHOSPHOR: Color = Color::Rgb {
     b: 51,
 };
 
+// QBasic theme colors - authentic MS-DOS QBasic colors
+const QBASIC_ROYAL_BLUE: Color = Color::Rgb { r: 0, g: 0, b: 170 }; // #0000AA - main background
+const QBASIC_LIGHT_GREY: Color = Color::Rgb {
+    r: 192,
+    g: 192,
+    b: 192,
+}; // #C0C0C0 - dialog background
+const QBASIC_DARK_GREY: Color = Color::Rgb {
+    r: 128,
+    g: 128,
+    b: 128,
+}; // #808080 - dialog border
+const QBASIC_PALE_GREY: Color = Color::Rgb {
+    r: 224,
+    g: 224,
+    b: 224,
+}; // #E0E0E0 - menu bar
+const QBASIC_CYAN: Color = Color::Rgb {
+    r: 0,
+    g: 255,
+    b: 255,
+}; // #00FFFF - status line
+
 // Dracula theme colors - official palette from draculatheme.com
 const DRACULA_BACKGROUND: Color = Color::Rgb {
     r: 40,
@@ -1336,145 +1359,146 @@ impl Theme {
         }
     }
 
-    /// QBasic theme - inspired by classic BASIC IDE interfaces
-    /// Yellow/white text on blue backgrounds
+    /// QBasic theme - authentic MS-DOS QBasic (QBASIC.EXE) color scheme
+    /// Royal blue background, light grey dialogs, cyan status line
     pub fn qbasic() -> Self {
         Self {
-            // Desktop - classic blue
-            desktop_bg: Color::Black,
+            // Desktop - royal blue main area (#0000AA)
+            desktop_bg: QBASIC_ROYAL_BLUE,
             desktop_fg: Color::White,
 
-            // Top bar
-            topbar_bg_focused: Color::White,
-            topbar_bg_unfocused: Color::Black,
-            topbar_fg_focused: Color::Black,
-            topbar_fg_unfocused: Color::Black,
-            clock_bg: Color::DarkGrey,
-            clock_fg: Color::White,
+            // Top bar - pale grey menu bar with black text (#E0E0E0)
+            topbar_bg_focused: QBASIC_PALE_GREY,
+            topbar_bg_unfocused: QBASIC_PALE_GREY,
+            topbar_fg_focused: PURE_BLACK,
+            topbar_fg_unfocused: PURE_BLACK,
+            clock_bg: QBASIC_DARK_GREY,
+            clock_fg: PURE_BLACK,
 
-            // Windows - Title bar
-            window_title_unfocused_fg: Color::Black,
-            window_title_unfocused_bg: Color::DarkGrey,
-            window_title_focused_fg: Color::Black,
-            window_title_focused_bg: Color::White,
-            // Windows - Border
-            window_border_unfocused_fg: Color::Grey,
-            window_border_unfocused_bg: Color::DarkGrey,
-            window_border_focused_fg: Color::White,
-            window_border_focused_bg: Color::White,
-            window_content_bg: Color::DarkBlue,
-            window_content_fg: Color::Yellow,
-            window_shadow_color: Color::Black,
+            // Windows - Title bar (light grey background, black text)
+            window_title_unfocused_fg: PURE_BLACK,
+            window_title_unfocused_bg: QBASIC_DARK_GREY,
+            window_title_focused_fg: PURE_BLACK,
+            window_title_focused_bg: QBASIC_LIGHT_GREY,
+            // Windows - Border (darker grey #808080)
+            window_border_unfocused_fg: QBASIC_DARK_GREY,
+            window_border_unfocused_bg: QBASIC_DARK_GREY,
+            window_border_focused_fg: QBASIC_DARK_GREY,
+            window_border_focused_bg: QBASIC_LIGHT_GREY,
+            // Windows - Content (royal blue like main editing area)
+            window_content_bg: QBASIC_ROYAL_BLUE,
+            window_content_fg: Color::White,
+            window_shadow_color: PURE_BLACK,
 
             // Window controls
             button_close_color: Color::Red,
             button_maximize_color: Color::Green,
             button_minimize_color: Color::Yellow,
-            button_bg: Color::Black,
-            resize_handle_normal_fg: Color::Grey,
-            resize_handle_normal_bg: Color::DarkBlue,
-            resize_handle_active_fg: Color::White,
-            resize_handle_active_bg: Color::Grey,
+            button_bg: QBASIC_LIGHT_GREY,
+            resize_handle_normal_fg: Color::White,
+            resize_handle_normal_bg: QBASIC_ROYAL_BLUE,
+            resize_handle_active_fg: PURE_BLACK,
+            resize_handle_active_bg: QBASIC_PALE_GREY,
 
-            // UI Buttons
-            button_normal_fg: Color::Black,
-            button_normal_bg: Color::White,
-            button_hovered_fg: Color::White,
-            button_hovered_bg: Color::DarkGrey,
+            // UI Buttons - black text on light grey
+            button_normal_fg: PURE_BLACK,
+            button_normal_bg: QBASIC_LIGHT_GREY,
+            button_hovered_fg: PURE_BLACK,
+            button_hovered_bg: QBASIC_PALE_GREY,
             button_pressed_fg: Color::White,
-            button_pressed_bg: Color::Black,
+            button_pressed_bg: QBASIC_DARK_GREY,
 
-            // Bottom bar
-            bottombar_bg: Color::Black,
-            bottombar_fg: Color::White,
-            bottombar_button_normal_fg: Color::White,
-            bottombar_button_normal_bg: Color::Black,
-            bottombar_button_focused_fg: Color::Black,
-            bottombar_button_focused_bg: Color::White,
-            bottombar_button_minimized_fg: Color::DarkGrey,
-            bottombar_button_minimized_bg: Color::Black,
+            // Bottom bar - cyan/turquoise status line (#00FFFF) with black text
+            bottombar_bg: QBASIC_CYAN,
+            bottombar_fg: PURE_BLACK,
+            bottombar_button_normal_fg: PURE_BLACK,
+            bottombar_button_normal_bg: QBASIC_CYAN,
+            bottombar_button_focused_fg: PURE_BLACK,
+            bottombar_button_focused_bg: QBASIC_PALE_GREY,
+            bottombar_button_minimized_fg: QBASIC_DARK_GREY,
+            bottombar_button_minimized_bg: QBASIC_CYAN,
 
             // Toggle button
             toggle_enabled_fg: Color::Green,
-            toggle_enabled_bg_normal: Color::DarkGrey,
-            toggle_enabled_bg_hovered: Color::White,
-            toggle_enabled_bg_pressed: Color::Black,
-            toggle_disabled_fg: Color::White,
-            toggle_disabled_bg_normal: Color::DarkGrey,
-            toggle_disabled_bg_hovered: Color::White,
-            toggle_disabled_bg_pressed: Color::Black,
+            toggle_enabled_bg_normal: QBASIC_LIGHT_GREY,
+            toggle_enabled_bg_hovered: QBASIC_PALE_GREY,
+            toggle_enabled_bg_pressed: QBASIC_DARK_GREY,
+            toggle_disabled_fg: QBASIC_DARK_GREY,
+            toggle_disabled_bg_normal: QBASIC_LIGHT_GREY,
+            toggle_disabled_bg_hovered: QBASIC_PALE_GREY,
+            toggle_disabled_bg_pressed: QBASIC_DARK_GREY,
 
-            // Prompts/Dialogs
-            prompt_info_bg: Color::DarkGrey,
-            prompt_info_fg: Color::White,
+            // Prompts/Dialogs - light grey background with black text
+            prompt_info_bg: QBASIC_LIGHT_GREY,
+            prompt_info_fg: PURE_BLACK,
             prompt_success_bg: Color::Green,
-            prompt_success_fg: Color::Black,
+            prompt_success_fg: PURE_BLACK,
             prompt_warning_bg: Color::Yellow,
-            prompt_warning_fg: Color::Black,
+            prompt_warning_fg: PURE_BLACK,
             prompt_danger_bg: Color::Red,
             prompt_danger_fg: Color::White,
 
             // Dialog buttons
-            dialog_button_primary_info_fg: Color::Black,
-            dialog_button_primary_info_bg: Color::White,
-            dialog_button_primary_success_fg: Color::Black,
+            dialog_button_primary_info_fg: PURE_BLACK,
+            dialog_button_primary_info_bg: QBASIC_PALE_GREY,
+            dialog_button_primary_success_fg: PURE_BLACK,
             dialog_button_primary_success_bg: Color::Green,
-            dialog_button_primary_warning_fg: Color::Black,
+            dialog_button_primary_warning_fg: PURE_BLACK,
             dialog_button_primary_warning_bg: Color::Yellow,
             dialog_button_primary_danger_fg: Color::White,
             dialog_button_primary_danger_bg: Color::Red,
-            dialog_button_secondary_fg: Color::White,
-            dialog_button_secondary_bg: Color::DarkGrey,
+            dialog_button_secondary_fg: PURE_BLACK,
+            dialog_button_secondary_bg: QBASIC_LIGHT_GREY,
 
-            // Config window
-            config_title_bg: Color::White,
-            config_title_fg: Color::Black,
-            config_border: Color::White,
-            config_content_bg: Color::DarkBlue,
-            config_content_fg: Color::Yellow,
-            config_instructions_fg: Color::Grey,
+            // Config window - light grey like QBasic dialogs
+            config_title_bg: QBASIC_LIGHT_GREY,
+            config_title_fg: PURE_BLACK,
+            config_border: QBASIC_DARK_GREY,
+            config_content_bg: QBASIC_LIGHT_GREY,
+            config_content_fg: PURE_BLACK,
+            config_instructions_fg: QBASIC_DARK_GREY,
             config_toggle_on_color: Color::Green,
-            config_toggle_off_color: Color::DarkGrey,
+            config_toggle_off_color: QBASIC_DARK_GREY,
 
-            // Calendar
-            calendar_bg: Color::DarkBlue,
-            calendar_fg: Color::Yellow,
+            // Calendar - royal blue background like main area
+            calendar_bg: QBASIC_ROYAL_BLUE,
+            calendar_fg: Color::White,
             calendar_title_color: Color::White,
-            calendar_today_bg: Color::White,
-            calendar_today_fg: Color::Black,
+            calendar_today_bg: QBASIC_CYAN,
+            calendar_today_fg: PURE_BLACK,
 
             // Scrollbar
-            scrollbar_track_fg: Color::DarkGrey,
-            scrollbar_thumb_fg: Color::White,
+            scrollbar_track_fg: QBASIC_DARK_GREY,
+            scrollbar_thumb_fg: QBASIC_LIGHT_GREY,
 
-            // Context menu
-            menu_bg: Color::DarkBlue,
-            menu_fg: Color::White,
-            menu_border: Color::White,
-            menu_selected_bg: Color::White,
-            menu_selected_fg: Color::Black,
-            menu_shadow_fg: Color::Black,
+            // Context menu - light grey like dialogs
+            menu_bg: QBASIC_LIGHT_GREY,
+            menu_fg: PURE_BLACK,
+            menu_border: QBASIC_DARK_GREY,
+            menu_selected_bg: QBASIC_ROYAL_BLUE,
+            menu_selected_fg: Color::White,
+            menu_shadow_fg: PURE_BLACK,
 
             // Snap preview
-            snap_preview_border: Color::Yellow,
-            snap_preview_bg: Color::Black,
+            snap_preview_border: QBASIC_CYAN,
+            snap_preview_bg: QBASIC_ROYAL_BLUE,
 
-            // Splash screen - theme background with primary accent
-            splash_border: Color::White,
-            splash_bg: Color::DarkBlue,
-            splash_fg: Color::Yellow, // Primary yellow accent
+            // Splash screen - royal blue with white text
+            splash_border: QBASIC_LIGHT_GREY,
+            splash_bg: QBASIC_ROYAL_BLUE,
+            splash_fg: Color::White,
 
-            // Slight input popup
-            slight_bg: Color::DarkBlue,
-            slight_fg: Color::Yellow,
-            slight_border: Color::White,
-            slight_input_bg: Color::DarkGrey,
-            slight_input_fg: Color::White,
-            slight_suggestion_fg: Color::Cyan,
-            slight_dropdown_bg: Color::DarkBlue,
-            slight_dropdown_fg: Color::Yellow,
-            slight_dropdown_selected_bg: Color::White,
-            slight_dropdown_selected_fg: Color::Black,
+            // Slight input popup - light grey dialog style
+            slight_bg: QBASIC_LIGHT_GREY,
+            slight_fg: PURE_BLACK,
+            slight_border: QBASIC_DARK_GREY,
+            slight_input_bg: QBASIC_PALE_GREY,
+            slight_input_fg: PURE_BLACK,
+            slight_suggestion_fg: QBASIC_DARK_GREY,
+            slight_dropdown_bg: QBASIC_LIGHT_GREY,
+            slight_dropdown_fg: PURE_BLACK,
+            slight_dropdown_selected_bg: QBASIC_ROYAL_BLUE,
+            slight_dropdown_selected_fg: Color::White,
         }
     }
 
