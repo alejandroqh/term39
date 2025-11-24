@@ -1,4 +1,5 @@
 use std::fmt;
+use unicode_width::UnicodeWidthChar;
 
 /// Terminal color representation supporting 256-color palette and 24-bit truecolor
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -372,6 +373,15 @@ impl TerminalGrid {
                 // Ignore other control characters
             }
             c => {
+                // Get character width (0 for combining marks, 1 for normal, 2 for wide/fullwidth)
+                let char_width = c.width().unwrap_or(0);
+
+                // Skip zero-width characters (combining marks, etc.) - they don't advance cursor
+                // but we should still render them (TODO: proper combining char support)
+                if char_width == 0 {
+                    return;
+                }
+
                 // Write character at cursor position
                 if self.cursor.x < self.cols {
                     // Copy values before mutable borrow
@@ -379,13 +389,53 @@ impl TerminalGrid {
                     let bg = self.current_bg;
                     let attrs = self.current_attrs;
 
-                    if let Some(cell) = self.get_cell_mut(self.cursor.x, self.cursor.y) {
-                        cell.c = c;
-                        cell.fg = fg;
-                        cell.bg = bg;
-                        cell.attrs = attrs;
+                    // Handle wide characters (width = 2)
+                    if char_width == 2 {
+                        // Check if we have room for a wide character
+                        if self.cursor.x + 1 >= self.cols {
+                            // Not enough room on this line for wide char
+                            // Either wrap to next line or stay at end
+                            if self.auto_wrap_mode {
+                                if self.cursor.y == self.rows_count - 1 {
+                                    // At last row, can't wrap, skip the character
+                                    return;
+                                }
+                                // Wrap to next line
+                                self.cursor.x = 0;
+                                self.linefeed();
+                            } else {
+                                // No wrap mode, skip the character
+                                return;
+                            }
+                        }
+
+                        // Write the wide character to first cell
+                        if let Some(cell) = self.get_cell_mut(self.cursor.x, self.cursor.y) {
+                            cell.c = c;
+                            cell.fg = fg;
+                            cell.bg = bg;
+                            cell.attrs = attrs;
+                        }
+
+                        // Write a placeholder space to second cell (for wide char continuation)
+                        if let Some(cell) = self.get_cell_mut(self.cursor.x + 1, self.cursor.y) {
+                            cell.c = ' ';
+                            cell.fg = fg;
+                            cell.bg = bg;
+                            cell.attrs = attrs;
+                        }
+
+                        self.cursor.x += 2;
+                    } else {
+                        // Normal width character
+                        if let Some(cell) = self.get_cell_mut(self.cursor.x, self.cursor.y) {
+                            cell.c = c;
+                            cell.fg = fg;
+                            cell.bg = bg;
+                            cell.attrs = attrs;
+                        }
+                        self.cursor.x += 1;
                     }
-                    self.cursor.x += 1;
 
                     // Auto-wrap at end of line (if DECAWM is enabled)
                     if self.cursor.x >= self.cols {
