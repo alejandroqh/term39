@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2025-11-25
+
+### Added
+
+- Exit confirmation prompts with Windows support
+- Comprehensive keyboard system overhaul
+
+### Changed
+
+- Updated screenshots and theme assets
+- Improved framebuffer font rendering
+- Enhanced framebuffer and GPM handling
+- Windows 7 compatibility improvements
+
+### Fixed
+
+- Framebuffer font rendering issues
+- GPM mouse handling improvements
+
 ## [0.12.0] - 2025-11-24
 
 ### Added
@@ -291,6 +310,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.13.0]: https://github.com/alejandroqh/term39/releases/tag/v0.13.0
 [0.12.0]: https://github.com/alejandroqh/term39/releases/tag/v0.12.0
 [0.11.3]: https://github.com/alejandroqh/term39/releases/tag/v0.11.3
 [0.11.0]: https://github.com/alejandroqh/term39/releases/tag/v0.11.0
