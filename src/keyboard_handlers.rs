@@ -11,6 +11,10 @@ use crate::render_backend::RenderBackend;
 use crate::ui_render::CalendarState;
 use crate::window_manager::{FocusState, WindowManager};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use std::time::{Duration, Instant};
+
+/// Double-backtick threshold in milliseconds
+const DOUBLE_BACKTICK_THRESHOLD_MS: u64 = 300;
 
 /// Platform detection helper - returns true if running on macOS
 fn is_macos() -> bool {
@@ -42,13 +46,42 @@ pub fn handle_desktop_keyboard(
         return true;
     }
 
-    // Handle F8 or backtick (`) to toggle Window Mode (vim-like keyboard control)
-    // Placed early to ensure it's caught before any other processing
-    if key_event.code == KeyCode::F(8) || key_event.code == KeyCode::Char('`') {
+    // Handle F8 to toggle Window Mode (vim-like keyboard control)
+    if key_event.code == KeyCode::F(8) {
         app_state.keyboard_mode.toggle();
         app_state.move_state.reset();
         app_state.resize_state.reset();
         return true;
+    }
+
+    // Handle backtick (`) with double-press detection
+    // Single backtick: toggle Window Mode
+    // Double backtick (within 300ms): send literal '`' to terminal
+    if key_event.code == KeyCode::Char('`') {
+        let now = Instant::now();
+        let is_double_press = app_state
+            .last_backtick_time
+            .map(|t| now.duration_since(t) < Duration::from_millis(DOUBLE_BACKTICK_THRESHOLD_MS))
+            .unwrap_or(false);
+
+        if is_double_press {
+            // Double backtick: send literal '`' to focused terminal
+            app_state.last_backtick_time = None;
+            // Exit window mode if we're in it
+            app_state.keyboard_mode.exit_to_normal();
+            app_state.move_state.reset();
+            app_state.resize_state.reset();
+            // Send the backtick character to the terminal
+            let _ = window_manager.send_to_focused("`");
+            return true;
+        } else {
+            // Single backtick: toggle Window Mode and record time
+            app_state.last_backtick_time = Some(now);
+            app_state.keyboard_mode.toggle();
+            app_state.move_state.reset();
+            app_state.resize_state.reset();
+            return true;
+        }
     }
 
     // Handle ALT+TAB for window cycling (fallback, may be intercepted by OS)

@@ -282,6 +282,25 @@ pub fn handle_about_window_keyboard(app_state: &mut AppState, key_event: KeyEven
     false
 }
 
+/// Handles keyboard events when Window Mode help window is active
+/// Returns true if event was handled
+pub fn handle_winmode_help_window_keyboard(app_state: &mut AppState, key_event: KeyEvent) -> bool {
+    if app_state.active_winmode_help_window.is_some() {
+        match key_event.code {
+            KeyCode::Esc => {
+                // ESC dismisses the Window Mode help window
+                app_state.active_winmode_help_window = None;
+                return true;
+            }
+            _ => {
+                // Ignore other keys when Window Mode help window is active
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Handles keyboard events when config window is active
 /// Returns true if event was handled
 pub fn handle_config_window_keyboard(app_state: &mut AppState, key_event: KeyEvent) -> bool {

@@ -4,10 +4,15 @@
 //! allowing full keyboard-only control of windows.
 
 use crate::app_state::AppState;
+use crate::info_window::InfoWindow;
 use crate::keyboard_mode::{KeyboardMode, ResizeDirection, SnapPosition, WindowSubMode};
 use crate::render_backend::RenderBackend;
 use crate::window_manager::WindowManager;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use std::time::{Duration, Instant};
+
+/// Double-backtick threshold in milliseconds
+const DOUBLE_BACKTICK_THRESHOLD_MS: u64 = 300;
 
 /// Direction constants for spatial navigation
 pub const DIR_LEFT: u8 = 0;
@@ -57,11 +62,40 @@ fn handle_navigation_mode(
     let has_shift = key_event.modifiers.contains(KeyModifiers::SHIFT);
 
     match key_event.code {
-        // Exit Window Mode (F8, backtick, or Esc)
-        KeyCode::F(8) | KeyCode::Char('`') | KeyCode::Esc => {
+        // Exit Window Mode (F8 or Esc)
+        KeyCode::F(8) | KeyCode::Esc => {
             app_state.keyboard_mode.exit_to_normal();
             app_state.move_state.reset();
             app_state.resize_state.reset();
+            true
+        }
+
+        // Backtick with double-press detection
+        // Single backtick: exit Window Mode
+        // Double backtick (within 300ms): send literal '`' to terminal and exit
+        KeyCode::Char('`') => {
+            let now = Instant::now();
+            let is_double_press = app_state
+                .last_backtick_time
+                .map(|t| {
+                    now.duration_since(t) < Duration::from_millis(DOUBLE_BACKTICK_THRESHOLD_MS)
+                })
+                .unwrap_or(false);
+
+            if is_double_press {
+                // Double backtick: send literal '`' to focused terminal
+                app_state.last_backtick_time = None;
+                app_state.keyboard_mode.exit_to_normal();
+                app_state.move_state.reset();
+                app_state.resize_state.reset();
+                let _ = window_manager.send_to_focused("`");
+            } else {
+                // Single backtick: just exit Window Mode and record time
+                app_state.last_backtick_time = Some(now);
+                app_state.keyboard_mode.exit_to_normal();
+                app_state.move_state.reset();
+                app_state.resize_state.reset();
+            }
             true
         }
 
@@ -212,7 +246,7 @@ fn handle_navigation_mode(
 
         // Help overlay
         KeyCode::Char('?') => {
-            // TODO: Show help overlay window
+            show_winmode_help_window(app_state, cols, rows);
             true
         }
 
@@ -233,10 +267,36 @@ fn handle_move_mode(
     let has_shift = key_event.modifiers.contains(KeyModifiers::SHIFT);
 
     match key_event.code {
-        // Exit Move mode
-        KeyCode::Enter | KeyCode::Esc | KeyCode::F(8) | KeyCode::Char('m') | KeyCode::Char('`') => {
+        // Exit Move mode (Enter, Esc, F8, m)
+        KeyCode::Enter | KeyCode::Esc | KeyCode::F(8) | KeyCode::Char('m') => {
             app_state.keyboard_mode.return_to_navigation();
             app_state.move_state.reset();
+            true
+        }
+
+        // Backtick with double-press detection in Move mode
+        KeyCode::Char('`') => {
+            let now = Instant::now();
+            let is_double_press = app_state
+                .last_backtick_time
+                .map(|t| {
+                    now.duration_since(t) < Duration::from_millis(DOUBLE_BACKTICK_THRESHOLD_MS)
+                })
+                .unwrap_or(false);
+
+            if is_double_press {
+                // Double backtick: send literal '`' to focused terminal and exit
+                app_state.last_backtick_time = None;
+                app_state.keyboard_mode.exit_to_normal();
+                app_state.move_state.reset();
+                app_state.resize_state.reset();
+                let _ = window_manager.send_to_focused("`");
+            } else {
+                // Single backtick: exit to navigation and record time
+                app_state.last_backtick_time = Some(now);
+                app_state.keyboard_mode.return_to_navigation();
+                app_state.move_state.reset();
+            }
             true
         }
 
@@ -331,10 +391,36 @@ fn handle_resize_mode(
     let has_shift = key_event.modifiers.contains(KeyModifiers::SHIFT);
 
     match key_event.code {
-        // Exit Resize mode
-        KeyCode::Enter | KeyCode::Esc | KeyCode::F(8) | KeyCode::Char('r') | KeyCode::Char('`') => {
+        // Exit Resize mode (Enter, Esc, F8, r)
+        KeyCode::Enter | KeyCode::Esc | KeyCode::F(8) | KeyCode::Char('r') => {
             app_state.keyboard_mode.return_to_navigation();
             app_state.resize_state.reset();
+            true
+        }
+
+        // Backtick with double-press detection in Resize mode
+        KeyCode::Char('`') => {
+            let now = Instant::now();
+            let is_double_press = app_state
+                .last_backtick_time
+                .map(|t| {
+                    now.duration_since(t) < Duration::from_millis(DOUBLE_BACKTICK_THRESHOLD_MS)
+                })
+                .unwrap_or(false);
+
+            if is_double_press {
+                // Double backtick: send literal '`' to focused terminal and exit
+                app_state.last_backtick_time = None;
+                app_state.keyboard_mode.exit_to_normal();
+                app_state.move_state.reset();
+                app_state.resize_state.reset();
+                let _ = window_manager.send_to_focused("`");
+            } else {
+                // Single backtick: exit to navigation and record time
+                app_state.last_backtick_time = Some(now);
+                app_state.keyboard_mode.return_to_navigation();
+                app_state.resize_state.reset();
+            }
             true
         }
 
@@ -394,4 +480,66 @@ fn handle_resize_mode(
         // Consume all other keys - don't let them pass to terminal while in Resize mode
         _ => true,
     }
+}
+
+/// Show Window Mode help overlay with all keybindings
+pub fn show_winmode_help_window(app_state: &mut AppState, cols: u16, rows: u16) {
+    let help_message = "\
+{C}WINDOW MODE HELP{W}
+
+Press {Y}`{W} or {Y}F8{W} to toggle Window Mode
+
+{C}NAVIGATION (default){W}
+
+{Y}h{W}/{Y}\u{2190}{W}         Focus window to left
+{Y}j{W}/{Y}\u{2193}{W}         Focus window below
+{Y}k{W}/{Y}\u{2191}{W}         Focus window above
+{Y}l{W}/{Y}\u{2192}{W}         Focus window to right
+{Y}Tab{W}         Cycle to next window
+{Y}Shift+Tab{W}   Cycle to previous window
+
+{C}SNAP (Shift + h/j/k/l){W}
+
+{Y}H{W}           Snap to left half
+{Y}J{W}           Snap to bottom half
+{Y}K{W}           Snap to top half
+{Y}L{W}           Snap to right half
+
+{C}NUMPAD POSITIONS (1-9){W}
+
+{Y}7{W} {Y}8{W} {Y}9{W}       Top-left, Top-center, Top-right
+{Y}4{W} {Y}5{W} {Y}6{W}       Middle-left, Center, Middle-right
+{Y}1{W} {Y}2{W} {Y}3{W}       Bottom-left, Bottom-center, Bottom-right
+
+{C}WINDOW ACTIONS{W}
+
+{Y}m{W}           Enter Move mode
+{Y}r{W}           Enter Resize mode
+{Y}z{W}/{Y}+{W}/{Y}Space{W}   Toggle maximize
+{Y}-{W}/{Y}_{W}         Toggle minimize
+{Y}x{W}/{Y}q{W}         Close focused window
+
+{C}MOVE MODE (after 'm'){W}
+
+{Y}h/j/k/l{W}     Move window (adaptive speed)
+{Y}Shift+H/J/K/L{W} Snap to edge
+{Y}Enter{W}/{Y}Esc{W}/{Y}m{W} Exit Move mode
+
+{C}RESIZE MODE (after 'r'){W}
+
+{Y}h{W}/{Y}l{W}         Shrink/Grow width
+{Y}k{W}/{Y}j{W}         Shrink/Grow height
+{Y}Shift{W}       Invert direction
+{Y}Enter{W}/{Y}Esc{W}/{Y}r{W} Exit Resize mode
+
+{C}EXIT WINDOW MODE{W}
+
+{Y}`{W}/{Y}F8{W}/{Y}Esc{W}    Return to Normal mode";
+
+    app_state.active_winmode_help_window = Some(InfoWindow::new(
+        "Window Mode Help".to_string(),
+        help_message,
+        cols,
+        rows,
+    ));
 }

@@ -784,7 +784,7 @@ impl Theme {
 
             // Keyboard mode (vim-like window control) - grayscale variant
             keyboard_mode_border_fg: Color::White,
-            keyboard_mode_border_bg: Color::DarkGrey,
+            keyboard_mode_border_bg: Color::Black,
             keyboard_mode_title_fg: Color::Black,
             keyboard_mode_title_bg: Color::White,
             mode_indicator_window_fg: Color::Black,
@@ -939,8 +939,8 @@ impl Theme {
             slight_dropdown_selected_fg: DRACULA_FOREGROUND,
 
             // Keyboard mode (vim-like window control) - Dracula variant
-            keyboard_mode_border_fg: DRACULA_YELLOW,
-            keyboard_mode_border_bg: DRACULA_PURPLE,
+            keyboard_mode_border_fg: DRACULA_BACKGROUND,
+            keyboard_mode_border_bg: DRACULA_YELLOW,
             keyboard_mode_title_fg: DRACULA_BACKGROUND,
             keyboard_mode_title_bg: DRACULA_YELLOW,
             mode_indicator_window_fg: DRACULA_BACKGROUND,
@@ -1107,8 +1107,8 @@ impl Theme {
             slight_dropdown_selected_fg: DARCULA_BACKGROUND,
 
             // Keyboard mode (vim-like window control) - Darcula variant
-            keyboard_mode_border_fg: DARCULA_ORANGE,
-            keyboard_mode_border_bg: DARCULA_UI_BACKGROUND,
+            keyboard_mode_border_fg: DARCULA_BACKGROUND,
+            keyboard_mode_border_bg: DARCULA_ORANGE,
             keyboard_mode_title_fg: DARCULA_BACKGROUND,
             keyboard_mode_title_bg: DARCULA_ORANGE,
             mode_indicator_window_fg: DARCULA_BACKGROUND,
@@ -1417,8 +1417,8 @@ impl Theme {
             slight_dropdown_selected_fg: Color::Black,
 
             // Keyboard mode (vim-like window control) - Amber variant
-            keyboard_mode_border_fg: BRIGHT_AMBER,
-            keyboard_mode_border_bg: Color::DarkYellow,
+            keyboard_mode_border_fg: Color::Black,
+            keyboard_mode_border_bg: MID_AMBER,
             keyboard_mode_title_fg: Color::Black,
             keyboard_mode_title_bg: BRIGHT_AMBER,
             mode_indicator_window_fg: Color::Black,

@@ -748,6 +748,14 @@ fn main() -> io::Result<()> {
                         continue;
                     }
 
+                    // Handle Window Mode help window keyboard events
+                    if dialog_handlers::handle_winmode_help_window_keyboard(
+                        &mut app_state,
+                        key_event,
+                    ) {
+                        continue;
+                    }
+
                     // Handle Window Mode keyboard events (vim-like window control)
                     if window_mode_handlers::handle_window_mode_keyboard(
                         &mut app_state,

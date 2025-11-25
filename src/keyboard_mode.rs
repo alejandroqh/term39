@@ -310,5 +310,4 @@ mod tests {
         assert_eq!(SnapPosition::from_numpad('9'), Some(SnapPosition::TopRight));
         assert_eq!(SnapPosition::from_numpad('0'), None);
     }
-
 }

@@ -109,6 +109,12 @@ pub fn render_frame(
         about_win.render(video_buffer, charset, theme);
     }
 
+    // Render active Window Mode help window (if any)
+    if let Some(ref winmode_help_win) = app_state.active_winmode_help_window {
+        video_buffer::render_fullscreen_shadow(video_buffer, theme);
+        winmode_help_win.render(video_buffer, charset, theme);
+    }
+
     // Render error dialog (if any) on top of everything
     if let Some(ref error_dialog) = app_state.active_error_dialog {
         video_buffer::render_fullscreen_shadow(video_buffer, theme);

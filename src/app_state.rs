@@ -17,6 +17,7 @@ pub struct AppState {
     pub active_config_window: Option<ConfigWindow>,
     pub active_help_window: Option<InfoWindow>,
     pub active_about_window: Option<InfoWindow>,
+    pub active_winmode_help_window: Option<InfoWindow>,
     pub active_slight_input: Option<SlightInput>,
     pub active_error_dialog: Option<ErrorDialog>,
     pub context_menu: ContextMenu,
@@ -52,6 +53,9 @@ pub struct AppState {
     pub keyboard_mode: KeyboardMode,
     pub move_state: MovementState,
     pub resize_state: MovementState,
+
+    // Double-backtick detection for literal backtick input
+    pub last_backtick_time: Option<Instant>,
 }
 
 impl AppState {
@@ -99,6 +103,7 @@ impl AppState {
             active_config_window: None,
             active_help_window: None,
             active_about_window: None,
+            active_winmode_help_window: None,
             active_slight_input: None,
             active_error_dialog: None,
             context_menu,
@@ -134,6 +139,9 @@ impl AppState {
             keyboard_mode: KeyboardMode::Normal,
             move_state: MovementState::new(),
             resize_state: MovementState::new(),
+
+            // Double-backtick detection
+            last_backtick_time: None,
         }
     }
 
