@@ -1,6 +1,7 @@
 use crate::app_state::AppState;
 use crate::charset::Charset;
 use crate::config_manager::AppConfig;
+use crate::keyboard_mode::KeyboardMode;
 use crate::render_backend::RenderBackend;
 use crate::theme::Theme;
 use crate::ui_render;
@@ -43,8 +44,15 @@ pub fn render_frame(
     );
 
     // Render all windows (returns true if any were closed)
-    let windows_closed =
-        window_manager.render_all(video_buffer, charset, theme, app_state.tint_terminal);
+    // Pass keyboard mode active state for special border coloring
+    let keyboard_mode_active = !matches!(app_state.keyboard_mode, KeyboardMode::Normal);
+    let windows_closed = window_manager.render_all(
+        video_buffer,
+        charset,
+        theme,
+        app_state.tint_terminal,
+        keyboard_mode_active,
+    );
 
     // Render snap preview overlay (if dragging and snap zone is active)
     window_manager.render_snap_preview(video_buffer, charset, theme);
@@ -55,6 +63,7 @@ pub fn render_frame(
         window_manager,
         &app_state.auto_tiling_button,
         app_state.auto_tiling_enabled,
+        &app_state.keyboard_mode,
         theme,
     );
 

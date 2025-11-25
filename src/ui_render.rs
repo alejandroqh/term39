@@ -1,6 +1,7 @@
 use crate::button::{Button, ButtonState};
 use crate::charset::Charset;
 use crate::config_manager::AppConfig;
+use crate::keyboard_mode::{KeyboardMode, WindowSubMode};
 use crate::theme::Theme;
 use crate::video_buffer::{Cell, VideoBuffer};
 use crate::window_manager::{FocusState, WindowManager};
@@ -316,11 +317,48 @@ pub fn render_top_bar(
     }
 }
 
+/// Render the keyboard mode indicator in the bottom bar
+/// Returns the width of the indicator (0 if not shown)
+pub fn render_mode_indicator(
+    buffer: &mut VideoBuffer,
+    keyboard_mode: &KeyboardMode,
+    theme: &Theme,
+    x: u16,
+    y: u16,
+) -> u16 {
+    // Build text and get colors based on mode
+    let (text, fg, bg): (String, _, _) = match keyboard_mode {
+        KeyboardMode::Normal => return 0, // No indicator in normal mode
+        KeyboardMode::WindowMode(WindowSubMode::Navigation) => (
+            "[WIN]".to_string(),
+            theme.mode_indicator_window_fg,
+            theme.mode_indicator_window_bg,
+        ),
+        KeyboardMode::WindowMode(WindowSubMode::Move) => (
+            "[WIN:MOVE]".to_string(),
+            theme.mode_indicator_move_fg,
+            theme.mode_indicator_move_bg,
+        ),
+        KeyboardMode::WindowMode(WindowSubMode::Resize(_)) => (
+            "[WIN:SIZE]".to_string(),
+            theme.mode_indicator_resize_fg,
+            theme.mode_indicator_resize_bg,
+        ),
+    };
+
+    for (i, ch) in text.chars().enumerate() {
+        buffer.set(x + i as u16, y, Cell::new_unchecked(ch, fg, bg));
+    }
+
+    text.len() as u16
+}
+
 pub fn render_button_bar(
     buffer: &mut VideoBuffer,
     window_manager: &WindowManager,
     auto_tiling_button: &Button,
     auto_tiling_enabled: bool,
+    keyboard_mode: &KeyboardMode,
     theme: &Theme,
 ) {
     let (cols, rows) = buffer.dimensions();
@@ -332,6 +370,14 @@ pub fn render_button_bar(
     for x in 0..cols {
         buffer.set(x, bar_y, bar_cell);
     }
+
+    // Render keyboard mode indicator on the far left (if in Window Mode)
+    let mode_indicator_width = render_mode_indicator(buffer, keyboard_mode, theme, 0, bar_y);
+    let mode_offset = if mode_indicator_width > 0 {
+        mode_indicator_width + 1
+    } else {
+        0
+    };
 
     // Render Auto Tiling toggle on the left side
     let toggle_color = if auto_tiling_enabled {
@@ -364,7 +410,7 @@ pub fn render_button_bar(
         }
     };
 
-    let mut current_x = 1u16;
+    let mut current_x = 1u16 + mode_offset;
 
     // Render "[ "
     // Use new_unchecked for performance - theme colors are pre-validated

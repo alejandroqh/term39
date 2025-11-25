@@ -786,12 +786,14 @@ impl WindowManager {
 
     /// Render all windows in z-order (bottom to top)
     /// Returns true if any windows were closed (so caller can reposition)
+    /// If keyboard_mode_active is true, focused window uses keyboard mode colors
     pub fn render_all(
         &mut self,
         buffer: &mut VideoBuffer,
         charset: &Charset,
         theme: &Theme,
         tint_terminal: bool,
+        keyboard_mode_active: bool,
     ) -> bool {
         let mut windows_to_close = Vec::new();
 
@@ -802,7 +804,7 @@ impl WindowManager {
                 windows_to_close.push(self.windows[i].id());
             }
 
-            self.windows[i].render(buffer, charset, theme, tint_terminal);
+            self.windows[i].render(buffer, charset, theme, tint_terminal, keyboard_mode_active);
         }
 
         // Close windows whose shell processes have exited
@@ -1148,6 +1150,274 @@ impl WindowManager {
                 .and_then(|w| w.get_selected_text())
                 .map(|text| text.len() > 1)
                 .unwrap_or(false)
+        } else {
+            false
+        }
+    }
+
+    // =========================================================================
+    // Keyboard Mode Window Operations
+    // =========================================================================
+
+    /// Get immutable reference to the focused window
+    pub fn get_focused_window(&self) -> Option<&TerminalWindow> {
+        if let FocusState::Window(id) = self.focus {
+            self.windows.iter().find(|w| w.id() == id)
+        } else {
+            None
+        }
+    }
+
+    /// Get mutable reference to the focused window
+    pub fn get_focused_window_mut(&mut self) -> Option<&mut TerminalWindow> {
+        if let FocusState::Window(id) = self.focus {
+            self.windows.iter_mut().find(|w| w.id() == id)
+        } else {
+            None
+        }
+    }
+
+    /// Get the focused window ID
+    #[allow(dead_code)]
+    pub fn get_focused_window_id(&self) -> Option<u32> {
+        if let FocusState::Window(id) = self.focus {
+            Some(id)
+        } else {
+            None
+        }
+    }
+
+    /// Move the focused window by a relative offset with bounds checking
+    /// `top_y` is typically 1 (row 0 is the top bar)
+    pub fn move_focused_window_by(
+        &mut self,
+        dx: i16,
+        dy: i16,
+        buffer_width: u16,
+        buffer_height: u16,
+        top_y: u16,
+    ) {
+        if let Some(win) = self.get_focused_window_mut() {
+            // Don't move maximized windows
+            if win.window.is_maximized {
+                return;
+            }
+
+            // Calculate new position
+            let new_x = (win.window.x as i16 + dx).max(0) as u16;
+            let new_y = (win.window.y as i16 + dy).max(top_y as i16) as u16;
+
+            // Bounds check - keep window within screen
+            let max_x = buffer_width.saturating_sub(win.window.width);
+            let max_y = buffer_height.saturating_sub(win.window.height);
+
+            win.window.x = new_x.min(max_x);
+            win.window.y = new_y.max(top_y).min(max_y);
+        }
+    }
+
+    /// Resize the focused window by a relative amount
+    /// Returns true if resize was successful
+    pub fn resize_focused_window_by(&mut self, dw: i16, dh: i16) -> bool {
+        if let Some(win) = self.get_focused_window_mut() {
+            // Don't resize maximized windows
+            if win.window.is_maximized {
+                return false;
+            }
+
+            // Calculate new dimensions with minimum constraints
+            let new_width = (win.window.width as i16 + dw).max(24) as u16;
+            let new_height = (win.window.height as i16 + dh).max(5) as u16;
+
+            win.window.width = new_width;
+            win.window.height = new_height;
+            let _ = win.resize(new_width, new_height);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Resize from the left edge: positive step grows width and moves window left
+    /// Negative step shrinks width and moves window right
+    pub fn resize_focused_window_from_left(&mut self, step: i16) -> bool {
+        if let Some(win) = self.get_focused_window_mut() {
+            // Don't resize maximized windows
+            if win.window.is_maximized {
+                return false;
+            }
+
+            // Calculate new width and x position
+            let new_width = (win.window.width as i16 + step).max(24) as u16;
+            let width_change = new_width as i16 - win.window.width as i16;
+
+            // Move window left by the amount we grew (or right if we shrunk)
+            let new_x = (win.window.x as i16 - width_change).max(0) as u16;
+
+            win.window.x = new_x;
+            win.window.width = new_width;
+            let _ = win.resize(new_width, win.window.height);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Resize from the top edge: positive step grows height and moves window up
+    /// Negative step shrinks height and moves window down
+    pub fn resize_focused_window_from_top(&mut self, step: i16) -> bool {
+        if let Some(win) = self.get_focused_window_mut() {
+            // Don't resize maximized windows
+            if win.window.is_maximized {
+                return false;
+            }
+
+            // Calculate new height and y position
+            let new_height = (win.window.height as i16 + step).max(5) as u16;
+            let height_change = new_height as i16 - win.window.height as i16;
+
+            // Move window up by the amount we grew (or down if we shrunk)
+            // Keep y >= 1 (top bar is at row 0)
+            let new_y = (win.window.y as i16 - height_change).max(1) as u16;
+
+            win.window.y = new_y;
+            win.window.height = new_height;
+            let _ = win.resize(win.window.width, new_height);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Snap the focused window to specific position and size
+    /// Used for keyboard snap positions (numpad layout, half-screen, etc.)
+    pub fn snap_focused_window(&mut self, x: u16, y: u16, width: u16, height: u16) -> bool {
+        if let Some(win) = self.get_focused_window_mut() {
+            // If maximized, restore first
+            if win.window.is_maximized {
+                win.window.is_maximized = false;
+            }
+
+            win.window.x = x;
+            win.window.y = y;
+            win.window.width = width;
+            win.window.height = height;
+            let _ = win.resize(width, height);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Get window centers for spatial navigation
+    /// Returns Vec of (window_id, center_x, center_y) for all non-minimized windows
+    #[allow(dead_code)]
+    pub fn get_window_centers(&self) -> Vec<(u32, u16, u16)> {
+        self.windows
+            .iter()
+            .filter(|w| !w.window.is_minimized)
+            .map(|w| {
+                let center_x = w.window.x + w.window.width / 2;
+                let center_y = w.window.y + w.window.height / 2;
+                (w.id(), center_x, center_y)
+            })
+            .collect()
+    }
+
+    /// Focus the nearest window in the given direction from the current focused window
+    /// direction: 0=left, 1=down, 2=up, 3=right
+    /// Returns true if focus was changed
+    pub fn focus_window_in_direction(&mut self, direction: u8) -> bool {
+        let current_id = match self.focus {
+            FocusState::Window(id) => id,
+            FocusState::Desktop => return false,
+        };
+
+        // Get current window center
+        let current_window = self.windows.iter().find(|w| w.id() == current_id);
+        let (cx, cy) = match current_window {
+            Some(w) => (
+                w.window.x + w.window.width / 2,
+                w.window.y + w.window.height / 2,
+            ),
+            None => return false,
+        };
+
+        // Find candidate windows in the specified direction
+        let candidates: Vec<_> = self
+            .windows
+            .iter()
+            .filter(|w| w.id() != current_id && !w.window.is_minimized)
+            .filter_map(|w| {
+                let wx = w.window.x + w.window.width / 2;
+                let wy = w.window.y + w.window.height / 2;
+
+                // Check if window is in the right direction
+                let in_direction = match direction {
+                    0 => wx < cx, // left
+                    1 => wy > cy, // down
+                    2 => wy < cy, // up
+                    3 => wx > cx, // right
+                    _ => false,
+                };
+
+                if in_direction {
+                    // Calculate weighted distance (favor windows more aligned with direction)
+                    let dx = (wx as i32 - cx as i32).unsigned_abs();
+                    let dy = (wy as i32 - cy as i32).unsigned_abs();
+                    let distance = match direction {
+                        0 | 3 => dx + dy / 2, // horizontal: weight x more
+                        1 | 2 => dy + dx / 2, // vertical: weight y more
+                        _ => dx + dy,
+                    };
+                    Some((w.id(), distance))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Find the nearest candidate
+        if let Some((nearest_id, _)) = candidates.into_iter().min_by_key(|(_, dist)| *dist) {
+            self.focus_window(nearest_id);
+            return true;
+        }
+
+        false
+    }
+
+    /// Close the currently focused window
+    /// Returns true if a window was closed
+    pub fn close_focused_window(&mut self) -> bool {
+        if let FocusState::Window(id) = self.focus {
+            self.close_window(id)
+        } else {
+            false
+        }
+    }
+
+    /// Toggle maximize on the focused window
+    /// Returns true if the operation was performed
+    pub fn toggle_focused_window_maximize(
+        &mut self,
+        buffer_width: u16,
+        buffer_height: u16,
+    ) -> bool {
+        if let Some(win) = self.get_focused_window_mut() {
+            win.window.toggle_maximize(buffer_width, buffer_height);
+            let _ = win.resize(win.window.width, win.window.height);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Toggle minimize on the focused window
+    /// Returns true if the operation was performed
+    pub fn toggle_focused_window_minimize(&mut self) -> bool {
+        if let Some(win) = self.get_focused_window_mut() {
+            win.window.toggle_minimize();
+            true
         } else {
             false
         }

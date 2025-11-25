@@ -3,6 +3,7 @@ use crate::config_window::ConfigWindow;
 use crate::context_menu::ContextMenu;
 use crate::error_dialog::ErrorDialog;
 use crate::info_window::InfoWindow;
+use crate::keyboard_mode::{KeyboardMode, MovementState};
 use crate::prompt::Prompt;
 use crate::slight_input::SlightInput;
 use crate::ui_render::CalendarState;
@@ -46,6 +47,11 @@ pub struct AppState {
 
     // Exit flag
     pub should_exit: bool,
+
+    // Keyboard Mode State (vim-like window control)
+    pub keyboard_mode: KeyboardMode,
+    pub move_state: MovementState,
+    pub resize_state: MovementState,
 }
 
 impl AppState {
@@ -123,6 +129,11 @@ impl AppState {
 
             // Exit flag
             should_exit: false,
+
+            // Keyboard Mode State
+            keyboard_mode: KeyboardMode::Normal,
+            move_state: MovementState::new(),
+            resize_state: MovementState::new(),
         }
     }
 

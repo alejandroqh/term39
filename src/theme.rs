@@ -473,6 +473,18 @@ pub struct Theme {
     pub slight_dropdown_fg: Color,
     pub slight_dropdown_selected_bg: Color,
     pub slight_dropdown_selected_fg: Color,
+
+    // Keyboard mode (vim-like window control)
+    pub keyboard_mode_border_fg: Color,
+    pub keyboard_mode_border_bg: Color,
+    pub keyboard_mode_title_fg: Color,
+    pub keyboard_mode_title_bg: Color,
+    pub mode_indicator_window_fg: Color,
+    pub mode_indicator_window_bg: Color,
+    pub mode_indicator_move_fg: Color,
+    pub mode_indicator_move_bg: Color,
+    pub mode_indicator_resize_fg: Color,
+    pub mode_indicator_resize_bg: Color,
 }
 
 impl Theme {
@@ -615,6 +627,18 @@ impl Theme {
             slight_dropdown_fg: Color::White,
             slight_dropdown_selected_bg: Color::Cyan, // Cyan highlight
             slight_dropdown_selected_fg: Color::Black,
+
+            // Keyboard mode (vim-like window control)
+            keyboard_mode_border_fg: Color::Yellow,
+            keyboard_mode_border_bg: Color::DarkMagenta,
+            keyboard_mode_title_fg: Color::Black,
+            keyboard_mode_title_bg: Color::Yellow,
+            mode_indicator_window_fg: Color::Black,
+            mode_indicator_window_bg: Color::Cyan,
+            mode_indicator_move_fg: Color::Black,
+            mode_indicator_move_bg: Color::Green,
+            mode_indicator_resize_fg: Color::Black,
+            mode_indicator_resize_bg: Color::Magenta,
         }
     }
 
@@ -757,6 +781,18 @@ impl Theme {
             slight_dropdown_fg: Color::White,
             slight_dropdown_selected_bg: Color::White, // Inverted
             slight_dropdown_selected_fg: Color::Black,
+
+            // Keyboard mode (vim-like window control) - grayscale variant
+            keyboard_mode_border_fg: Color::White,
+            keyboard_mode_border_bg: Color::DarkGrey,
+            keyboard_mode_title_fg: Color::Black,
+            keyboard_mode_title_bg: Color::White,
+            mode_indicator_window_fg: Color::Black,
+            mode_indicator_window_bg: Color::White,
+            mode_indicator_move_fg: Color::Black,
+            mode_indicator_move_bg: Color::Grey,
+            mode_indicator_resize_fg: Color::White,
+            mode_indicator_resize_bg: Color::DarkGrey,
         }
     }
 
@@ -901,6 +937,18 @@ impl Theme {
             slight_dropdown_fg: DRACULA_FOREGROUND,
             slight_dropdown_selected_bg: DRACULA_PURPLE,
             slight_dropdown_selected_fg: DRACULA_FOREGROUND,
+
+            // Keyboard mode (vim-like window control) - Dracula variant
+            keyboard_mode_border_fg: DRACULA_YELLOW,
+            keyboard_mode_border_bg: DRACULA_PURPLE,
+            keyboard_mode_title_fg: DRACULA_BACKGROUND,
+            keyboard_mode_title_bg: DRACULA_YELLOW,
+            mode_indicator_window_fg: DRACULA_BACKGROUND,
+            mode_indicator_window_bg: DRACULA_CYAN,
+            mode_indicator_move_fg: DRACULA_BACKGROUND,
+            mode_indicator_move_bg: DRACULA_GREEN,
+            mode_indicator_resize_fg: DRACULA_BACKGROUND,
+            mode_indicator_resize_bg: DRACULA_PINK,
         }
     }
 
@@ -1057,6 +1105,18 @@ impl Theme {
             slight_dropdown_fg: DARCULA_NUMBER_BLUE, // Blue
             slight_dropdown_selected_bg: DARCULA_ORANGE, // Orange highlight
             slight_dropdown_selected_fg: DARCULA_BACKGROUND,
+
+            // Keyboard mode (vim-like window control) - Darcula variant
+            keyboard_mode_border_fg: DARCULA_ORANGE,
+            keyboard_mode_border_bg: DARCULA_UI_BACKGROUND,
+            keyboard_mode_title_fg: DARCULA_BACKGROUND,
+            keyboard_mode_title_bg: DARCULA_ORANGE,
+            mode_indicator_window_fg: DARCULA_BACKGROUND,
+            mode_indicator_window_bg: DARCULA_FOREGROUND,
+            mode_indicator_move_fg: DARCULA_BACKGROUND,
+            mode_indicator_move_bg: DARCULA_STRING_GREEN,
+            mode_indicator_resize_fg: DARCULA_BACKGROUND,
+            mode_indicator_resize_bg: DARCULA_ORANGE,
         }
     }
 
@@ -1200,6 +1260,18 @@ impl Theme {
             slight_dropdown_fg: Color::Green,
             slight_dropdown_selected_bg: Color::Green, // Inverted
             slight_dropdown_selected_fg: Color::Black,
+
+            // Keyboard mode (vim-like window control) - Green phosphor variant
+            keyboard_mode_border_fg: LIGHT_GREEN_PHOSPHOR,
+            keyboard_mode_border_bg: DARK_GREEN_PHOSPHOR,
+            keyboard_mode_title_fg: Color::Black,
+            keyboard_mode_title_bg: LIGHT_GREEN_PHOSPHOR,
+            mode_indicator_window_fg: Color::Black,
+            mode_indicator_window_bg: Color::Green,
+            mode_indicator_move_fg: Color::Black,
+            mode_indicator_move_bg: MID_GREEN_PHOSPHOR,
+            mode_indicator_resize_fg: Color::Black,
+            mode_indicator_resize_bg: LIGHT_GREEN_PHOSPHOR,
         }
     }
 
@@ -1343,6 +1415,18 @@ impl Theme {
             slight_dropdown_fg: Color::Yellow,
             slight_dropdown_selected_bg: Color::Yellow, // Inverted
             slight_dropdown_selected_fg: Color::Black,
+
+            // Keyboard mode (vim-like window control) - Amber variant
+            keyboard_mode_border_fg: BRIGHT_AMBER,
+            keyboard_mode_border_bg: Color::DarkYellow,
+            keyboard_mode_title_fg: Color::Black,
+            keyboard_mode_title_bg: BRIGHT_AMBER,
+            mode_indicator_window_fg: Color::Black,
+            mode_indicator_window_bg: Color::Yellow,
+            mode_indicator_move_fg: Color::Black,
+            mode_indicator_move_bg: MID_AMBER,
+            mode_indicator_resize_fg: Color::Black,
+            mode_indicator_resize_bg: LIGHT_AMBER,
         }
     }
 
@@ -1486,6 +1570,18 @@ impl Theme {
             slight_dropdown_fg: Color::Cyan,
             slight_dropdown_selected_bg: Color::Cyan,
             slight_dropdown_selected_fg: Color::Black,
+
+            // Keyboard mode (vim-like window control) - NDD variant
+            keyboard_mode_border_fg: Color::Yellow,
+            keyboard_mode_border_bg: NDD_LIGHT_PURPLE,
+            keyboard_mode_title_fg: Color::Black,
+            keyboard_mode_title_bg: Color::Yellow,
+            mode_indicator_window_fg: Color::Black,
+            mode_indicator_window_bg: Color::Cyan,
+            mode_indicator_move_fg: Color::Black,
+            mode_indicator_move_bg: Color::Green,
+            mode_indicator_resize_fg: Color::Black,
+            mode_indicator_resize_bg: Color::Magenta,
         }
     }
 
@@ -1629,6 +1725,18 @@ impl Theme {
             slight_dropdown_fg: PURE_BLACK,
             slight_dropdown_selected_bg: QBASIC_ROYAL_BLUE,
             slight_dropdown_selected_fg: Color::White,
+
+            // Keyboard mode (vim-like window control) - QBasic variant
+            keyboard_mode_border_fg: Color::Yellow,
+            keyboard_mode_border_bg: QBASIC_ROYAL_BLUE,
+            keyboard_mode_title_fg: Color::Black,
+            keyboard_mode_title_bg: Color::Yellow,
+            mode_indicator_window_fg: Color::Black,
+            mode_indicator_window_bg: QBASIC_CYAN,
+            mode_indicator_move_fg: Color::Black,
+            mode_indicator_move_bg: Color::Green,
+            mode_indicator_resize_fg: Color::White,
+            mode_indicator_resize_bg: QBASIC_ROYAL_BLUE,
         }
     }
 
@@ -1772,6 +1880,18 @@ impl Theme {
             slight_dropdown_fg: PURE_BLACK,
             slight_dropdown_selected_bg: TURBO_BLUE_PURPLE,
             slight_dropdown_selected_fg: Color::White,
+
+            // Keyboard mode (vim-like window control) - Turbo Pascal variant
+            keyboard_mode_border_fg: Color::Yellow,
+            keyboard_mode_border_bg: TURBO_BLUE_PURPLE,
+            keyboard_mode_title_fg: Color::Black,
+            keyboard_mode_title_bg: Color::Yellow,
+            mode_indicator_window_fg: Color::Black,
+            mode_indicator_window_bg: TURBO_TEAL,
+            mode_indicator_move_fg: Color::Black,
+            mode_indicator_move_bg: TURBO_BEIGE,
+            mode_indicator_resize_fg: Color::White,
+            mode_indicator_resize_bg: TURBO_BLUE_PURPLE,
         }
     }
 
@@ -1915,6 +2035,18 @@ impl Theme {
             slight_dropdown_fg: Color::White,
             slight_dropdown_selected_bg: NC_YELLOW,
             slight_dropdown_selected_fg: PURE_BLACK,
+
+            // Keyboard mode (vim-like window control) - Norton Commander variant
+            keyboard_mode_border_fg: NC_YELLOW,
+            keyboard_mode_border_bg: NC_TEAL,
+            keyboard_mode_title_fg: PURE_BLACK,
+            keyboard_mode_title_bg: NC_YELLOW,
+            mode_indicator_window_fg: PURE_BLACK,
+            mode_indicator_window_bg: NC_CYAN,
+            mode_indicator_move_fg: PURE_BLACK,
+            mode_indicator_move_bg: NC_YELLOW,
+            mode_indicator_resize_fg: Color::White,
+            mode_indicator_resize_bg: NC_TEAL,
         }
     }
 
@@ -2058,6 +2190,18 @@ impl Theme {
             slight_dropdown_fg: XT_CYAN,
             slight_dropdown_selected_bg: XT_YELLOW,
             slight_dropdown_selected_fg: PURE_BLACK,
+
+            // Keyboard mode (vim-like window control) - XTree Gold variant
+            keyboard_mode_border_fg: XT_YELLOW,
+            keyboard_mode_border_bg: XT_DARK_BLUE,
+            keyboard_mode_title_fg: PURE_BLACK,
+            keyboard_mode_title_bg: XT_YELLOW,
+            mode_indicator_window_fg: PURE_BLACK,
+            mode_indicator_window_bg: XT_LIGHT_PURPLE,
+            mode_indicator_move_fg: PURE_BLACK,
+            mode_indicator_move_bg: XT_YELLOW,
+            mode_indicator_resize_fg: PURE_BLACK,
+            mode_indicator_resize_bg: XT_ORANGE,
         }
     }
 
@@ -2201,6 +2345,18 @@ impl Theme {
             slight_dropdown_fg: PURE_BLACK,
             slight_dropdown_selected_bg: WP_RED,
             slight_dropdown_selected_fg: Color::White,
+
+            // Keyboard mode (vim-like window control) - WordPerfect variant
+            keyboard_mode_border_fg: WP_BRIGHT_CYAN,
+            keyboard_mode_border_bg: WP_BLUE,
+            keyboard_mode_title_fg: PURE_BLACK,
+            keyboard_mode_title_bg: WP_BRIGHT_CYAN,
+            mode_indicator_window_fg: Color::White,
+            mode_indicator_window_bg: WP_CYAN,
+            mode_indicator_move_fg: Color::White,
+            mode_indicator_move_bg: WP_BLUE,
+            mode_indicator_resize_fg: Color::White,
+            mode_indicator_resize_bg: WP_RED,
         }
     }
 
@@ -2344,6 +2500,18 @@ impl Theme {
             slight_dropdown_fg: PURE_BLACK,
             slight_dropdown_selected_bg: DB_BLUE,
             slight_dropdown_selected_fg: Color::White,
+
+            // Keyboard mode (vim-like window control) - dBase IV variant
+            keyboard_mode_border_fg: DB_YELLOW,
+            keyboard_mode_border_bg: DB_BLUE,
+            keyboard_mode_title_fg: PURE_BLACK,
+            keyboard_mode_title_bg: DB_YELLOW,
+            mode_indicator_window_fg: PURE_BLACK,
+            mode_indicator_window_bg: DB_GREY,
+            mode_indicator_move_fg: PURE_BLACK,
+            mode_indicator_move_bg: DB_YELLOW,
+            mode_indicator_resize_fg: Color::White,
+            mode_indicator_resize_bg: DB_BRIGHT_RED,
         }
     }
 

@@ -27,6 +27,7 @@ mod gpm_handler;
 mod info_window;
 mod initialization;
 mod keyboard_handlers;
+mod keyboard_mode;
 mod prompt;
 mod render_backend;
 mod render_frame;
@@ -42,6 +43,7 @@ mod ui_render;
 mod video_buffer;
 mod window;
 mod window_manager;
+mod window_mode_handlers;
 
 use app_state::AppState;
 use button::Button;
@@ -743,6 +745,16 @@ fn main() -> io::Result<()> {
 
                     // Handle config window keyboard events
                     if dialog_handlers::handle_config_window_keyboard(&mut app_state, key_event) {
+                        continue;
+                    }
+
+                    // Handle Window Mode keyboard events (vim-like window control)
+                    if window_mode_handlers::handle_window_mode_keyboard(
+                        &mut app_state,
+                        key_event,
+                        &mut window_manager,
+                        backend.as_ref(),
+                    ) {
                         continue;
                     }
 

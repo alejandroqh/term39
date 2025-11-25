@@ -145,19 +145,26 @@ impl TerminalWindow {
     }
 
     /// Render the terminal window
+    /// If keyboard_mode_active is true and window is focused, uses keyboard mode colors
     pub fn render(
         &mut self,
         buffer: &mut VideoBuffer,
         charset: &Charset,
         theme: &Theme,
         tint_terminal: bool,
+        keyboard_mode_active: bool,
     ) {
         // Get dynamic title with cached process name
         let dynamic_title = self.get_dynamic_title_cached();
 
         // Render the window frame and title bar with dynamic title
-        self.window
-            .render_with_title(buffer, charset, theme, Some(&dynamic_title));
+        self.window.render_with_title(
+            buffer,
+            charset,
+            theme,
+            Some(&dynamic_title),
+            keyboard_mode_active,
+        );
 
         // Render the terminal content
         self.render_terminal_content(buffer, theme, tint_terminal);

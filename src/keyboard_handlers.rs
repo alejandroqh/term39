@@ -42,6 +42,15 @@ pub fn handle_desktop_keyboard(
         return true;
     }
 
+    // Handle F8 or backtick (`) to toggle Window Mode (vim-like keyboard control)
+    // Placed early to ensure it's caught before any other processing
+    if key_event.code == KeyCode::F(8) || key_event.code == KeyCode::Char('`') {
+        app_state.keyboard_mode.toggle();
+        app_state.move_state.reset();
+        app_state.resize_state.reset();
+        return true;
+    }
+
     // Handle ALT+TAB for window cycling (fallback, may be intercepted by OS)
     if key_event.code == KeyCode::Tab && key_event.modifiers.contains(KeyModifiers::ALT) {
         window_manager.cycle_to_next_window();

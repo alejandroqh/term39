@@ -218,26 +218,28 @@ impl Window {
     /// Render the window to the video buffer
     #[allow(dead_code)]
     pub fn render(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
-        self.render_with_title(buffer, charset, theme, None);
+        self.render_with_title(buffer, charset, theme, None, false);
     }
 
     /// Render the window with an optional dynamic title override
+    /// If keyboard_mode_active is true and window is focused, uses keyboard mode colors
     pub fn render_with_title(
         &self,
         buffer: &mut VideoBuffer,
         charset: &Charset,
         theme: &Theme,
         dynamic_title: Option<&str>,
+        keyboard_mode_active: bool,
     ) {
         if self.is_minimized {
             return;
         }
 
         // Draw the window frame
-        self.render_frame(buffer, charset, theme);
+        self.render_frame(buffer, charset, theme, keyboard_mode_active);
 
         // Draw the title bar with buttons
-        self.render_title_bar(buffer, theme, dynamic_title);
+        self.render_title_bar(buffer, theme, dynamic_title, keyboard_mode_active);
 
         // Draw the content area
         self.render_content(buffer, theme);
@@ -254,23 +256,38 @@ impl Window {
         );
     }
 
-    fn render_frame(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
+    fn render_frame(
+        &self,
+        buffer: &mut VideoBuffer,
+        charset: &Charset,
+        theme: &Theme,
+        keyboard_mode_active: bool,
+    ) {
+        // Use keyboard mode colors when active and focused, otherwise normal focus state colors
+        let use_keyboard_colors = keyboard_mode_active && self.is_focused;
+
         // Use different backgrounds based on focus state
-        let title_bg = if self.is_focused {
+        let title_bg = if use_keyboard_colors {
+            theme.keyboard_mode_title_bg
+        } else if self.is_focused {
             theme.window_title_focused_bg
         } else {
             theme.window_title_unfocused_bg
         };
 
         // Border colors based on focus state
-        let border_bg = if self.is_focused {
+        let border_bg = if use_keyboard_colors {
+            theme.keyboard_mode_border_bg
+        } else if self.is_focused {
             theme.window_border_focused_bg
         } else {
             theme.window_border_unfocused_bg
         };
 
         // Border foreground color based on focus state
-        let border_fg = if self.is_focused {
+        let border_fg = if use_keyboard_colors {
+            theme.keyboard_mode_border_fg
+        } else if self.is_focused {
             theme.window_border_focused_fg
         } else {
             theme.window_border_unfocused_fg
@@ -391,23 +408,33 @@ impl Window {
         buffer: &mut VideoBuffer,
         theme: &Theme,
         dynamic_title: Option<&str>,
+        keyboard_mode_active: bool,
     ) {
+        // Use keyboard mode colors when active and focused
+        let use_keyboard_colors = keyboard_mode_active && self.is_focused;
+
         // Use different colors based on focus state
-        let title_bg = if self.is_focused {
+        let title_bg = if use_keyboard_colors {
+            theme.keyboard_mode_title_bg
+        } else if self.is_focused {
             theme.window_title_focused_bg
         } else {
             theme.window_title_unfocused_bg
         };
 
         // Border foreground color based on focus state
-        let border_fg = if self.is_focused {
+        let border_fg = if use_keyboard_colors {
+            theme.keyboard_mode_border_fg
+        } else if self.is_focused {
             theme.window_border_focused_fg
         } else {
             theme.window_border_unfocused_fg
         };
 
         // Title text color based on focus state
-        let title_fg = if self.is_focused {
+        let title_fg = if use_keyboard_colors {
+            theme.keyboard_mode_title_fg
+        } else if self.is_focused {
             theme.window_title_focused_fg
         } else {
             theme.window_title_unfocused_fg
