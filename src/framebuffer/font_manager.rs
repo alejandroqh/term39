@@ -21,7 +21,10 @@ const PSF1_MODEHASTAB: u8 = 0x02; // Has unicode table
 /// Embedded GNU Unifont APL8x16 (8x16) - gzip compressed
 /// GNU Unifont has comprehensive Unicode coverage including box-drawing characters
 /// Copyright (c) 1998-2024 Roman Czyborra, Paul Hardy, et al.
-/// Licensed under GNU General Public License version 2+ with font embedding exception
+/// Dual-licensed under:
+///   - GNU General Public License version 2+ with font embedding exception
+///   - SIL Open Font License version 1.1
+/// Redistribution permitted under either license. See: https://unifoundry.com/unifont/
 const EMBEDDED_FONT_UNIFONT_8X16: &[u8] = include_bytes!("Unifont-APL8x16.psf.gz");
 
 /// PSF1 font header structure (4 bytes)
