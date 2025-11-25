@@ -1229,32 +1229,39 @@ fn main() -> io::Result<()> {
                             .exit_button
                             .set_state(button::ButtonState::Pressed);
 
-                        // If windows are open, show confirmation prompt
-                        if window_manager.window_count() > 0 {
-                            let (cols, rows) = backend.dimensions();
-                            app_state.active_prompt = Some(Prompt::new(
+                        // Determine message based on window count
+                        let message = if window_manager.window_count() > 0 {
+                            "Exit with open windows?\nAll terminal sessions will be closed."
+                                .to_string()
+                        } else {
+                            "Exit term39?".to_string()
+                        };
+
+                        // Get dimensions
+                        let (cols, rows) = backend.dimensions();
+
+                        // Create prompt with "Cancel" selected by default (index 1)
+                        app_state.active_prompt = Some(
+                            Prompt::new(
                                 PromptType::Danger,
-                                "Exit with open windows?\nAll terminal sessions will be closed."
-                                    .to_string(),
+                                message,
                                 vec![
                                     PromptButton::new(
                                         "Exit".to_string(),
                                         PromptAction::Confirm,
                                         true,
-                                    ),
+                                    ), // Index 0
                                     PromptButton::new(
                                         "Cancel".to_string(),
                                         PromptAction::Cancel,
                                         false,
-                                    ),
+                                    ), // Index 1
                                 ],
                                 cols,
                                 rows,
-                            ));
-                        } else {
-                            // No windows open, exit immediately
-                            app_state.should_exit = true;
-                        }
+                            )
+                            .with_selected_button(1),
+                        ); // Select "Cancel"
 
                         handled = true;
                     }

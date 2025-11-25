@@ -192,6 +192,14 @@ impl Prompt {
         }
     }
 
+    /// Override the default selected button index
+    pub fn with_selected_button(mut self, index: usize) -> Self {
+        if index < self.buttons.len() {
+            self.selected_button_index = index;
+        }
+        self
+    }
+
     /// Strip color codes from a string for length calculation
     fn strip_color_codes(s: &str) -> String {
         let mut result = String::new();

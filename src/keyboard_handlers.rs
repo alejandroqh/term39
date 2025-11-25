@@ -149,21 +149,30 @@ pub fn handle_desktop_keyboard(
     // Handle F10 to exit application (classic DOS pattern)
     if key_event.code == KeyCode::F(10) {
         if current_focus == FocusState::Desktop {
-            if window_manager.window_count() > 0 {
-                let (cols, rows) = backend.dimensions();
-                app_state.active_prompt = Some(Prompt::new(
+            // Determine message based on window count
+            let message = if window_manager.window_count() > 0 {
+                "Exit with open windows?\nAll terminal sessions will be closed.".to_string()
+            } else {
+                "Exit term39?".to_string()
+            };
+
+            // Get dimensions
+            let (cols, rows) = backend.dimensions();
+
+            // Create prompt with "Cancel" selected by default (index 1)
+            app_state.active_prompt = Some(
+                Prompt::new(
                     PromptType::Danger,
-                    "Exit with open windows?\nAll terminal sessions will be closed.".to_string(),
+                    message,
                     vec![
-                        PromptButton::new("Exit".to_string(), PromptAction::Confirm, true),
-                        PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false),
+                        PromptButton::new("Exit".to_string(), PromptAction::Confirm, true), // Index 0
+                        PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false), // Index 1
                     ],
                     cols,
                     rows,
-                ));
-            } else {
-                app_state.should_exit = true;
-            }
+                )
+                .with_selected_button(1),
+            ); // Select "Cancel"
         }
         return true;
     }
@@ -448,23 +457,30 @@ fn handle_esc_key(
     backend: &dyn RenderBackend,
 ) {
     if current_focus == FocusState::Desktop {
-        // If windows are open, show confirmation
-        if window_manager.window_count() > 0 {
-            let (cols, rows) = backend.dimensions();
-            app_state.active_prompt = Some(Prompt::new(
+        // Determine message based on window count
+        let message = if window_manager.window_count() > 0 {
+            "Exit with open windows?\nAll terminal sessions will be closed.".to_string()
+        } else {
+            "Exit term39?".to_string()
+        };
+
+        // Get dimensions
+        let (cols, rows) = backend.dimensions();
+
+        // Create prompt with "Cancel" selected by default (index 1)
+        app_state.active_prompt = Some(
+            Prompt::new(
                 PromptType::Danger,
-                "Exit with open windows?\nAll terminal sessions will be closed.".to_string(),
+                message,
                 vec![
-                    PromptButton::new("Exit".to_string(), PromptAction::Confirm, true),
-                    PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false),
+                    PromptButton::new("Exit".to_string(), PromptAction::Confirm, true), // Index 0
+                    PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false), // Index 1
                 ],
                 cols,
                 rows,
-            ));
-        } else {
-            // If no windows, exit immediately
-            app_state.should_exit = true;
-        }
+            )
+            .with_selected_button(1),
+        ); // Select "Cancel"
     } else {
         // Send ESC to terminal
         let _ = window_manager.send_to_focused("\x1b");
@@ -478,23 +494,30 @@ fn handle_q_key(
     backend: &dyn RenderBackend,
 ) {
     if current_focus == FocusState::Desktop {
-        // If windows are open, show confirmation
-        if window_manager.window_count() > 0 {
-            let (cols, rows) = backend.dimensions();
-            app_state.active_prompt = Some(Prompt::new(
+        // Determine message based on window count
+        let message = if window_manager.window_count() > 0 {
+            "Exit with open windows?\nAll terminal sessions will be closed.".to_string()
+        } else {
+            "Exit term39?".to_string()
+        };
+
+        // Get dimensions
+        let (cols, rows) = backend.dimensions();
+
+        // Create prompt with "Cancel" selected by default (index 1)
+        app_state.active_prompt = Some(
+            Prompt::new(
                 PromptType::Danger,
-                "Exit with open windows?\nAll terminal sessions will be closed.".to_string(),
+                message,
                 vec![
-                    PromptButton::new("Exit".to_string(), PromptAction::Confirm, true),
-                    PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false),
+                    PromptButton::new("Exit".to_string(), PromptAction::Confirm, true), // Index 0
+                    PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false), // Index 1
                 ],
                 cols,
                 rows,
-            ));
-        } else {
-            // If no windows, exit immediately
-            app_state.should_exit = true;
-        }
+            )
+            .with_selected_button(1),
+        ); // Select "Cancel"
     } else {
         // Send 'q' to terminal
         let _ = window_manager.send_char_to_focused('q');

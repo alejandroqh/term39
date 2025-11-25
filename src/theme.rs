@@ -204,6 +204,11 @@ const QBASIC_CYAN: Color = Color::Rgb {
     g: 255,
     b: 255,
 }; // #00FFFF - status line
+const QBASIC_ORANGE: Color = Color::Rgb {
+    r: 255,
+    g: 165,
+    b: 0,
+}; // #FFA500 - Standard orange for warning/danger states
 
 // Dracula theme colors - official palette from draculatheme.com
 const DRACULA_BACKGROUND: Color = Color::Rgb {
@@ -1661,8 +1666,8 @@ impl Theme {
             prompt_success_fg: PURE_BLACK,
             prompt_warning_bg: Color::Yellow,
             prompt_warning_fg: PURE_BLACK,
-            prompt_danger_bg: Color::Red,
-            prompt_danger_fg: Color::White,
+            prompt_danger_bg: QBASIC_ORANGE,
+            prompt_danger_fg: PURE_BLACK,
 
             // Dialog buttons
             dialog_button_primary_info_fg: PURE_BLACK,
@@ -1671,8 +1676,8 @@ impl Theme {
             dialog_button_primary_success_bg: Color::Green,
             dialog_button_primary_warning_fg: PURE_BLACK,
             dialog_button_primary_warning_bg: Color::Yellow,
-            dialog_button_primary_danger_fg: Color::White,
-            dialog_button_primary_danger_bg: Color::Red,
+            dialog_button_primary_danger_fg: PURE_BLACK,
+            dialog_button_primary_danger_bg: QBASIC_ORANGE,
             dialog_button_secondary_fg: PURE_BLACK,
             dialog_button_secondary_bg: QBASIC_LIGHT_GREY,
 
