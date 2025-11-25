@@ -17,7 +17,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated screenshots and theme assets
 - Improved framebuffer font rendering
 - Enhanced framebuffer and GPM handling
-- Windows 7 compatibility improvements
 
 ### Fixed
 

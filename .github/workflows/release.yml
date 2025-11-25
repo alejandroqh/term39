@@ -118,13 +118,6 @@ jobs:
             bitwidth: 32bit
             arch: x86
 
-          # Windows 7 i686 (32-bit) - supports Windows 7+
-          - target: i686-win7-windows-msvc
-            os: windows-latest
-            platform: windows7
-            bitwidth: 32bit
-            arch: x86
-
           # Windows ARM64
           - target: aarch64-pc-windows-msvc
             os: windows-latest
@@ -401,11 +394,6 @@ jobs:
             bitwidth: 32bit
             arch: x86
             platform: windows
-          # Windows 7 i686 (32-bit) installer - supports Windows 7+
-          - target: i686-win7-windows-msvc
-            bitwidth: 32bit
-            arch: x86
-            platform: windows7
           # ARM64 (64-bit) installer
           - target: aarch64-pc-windows-msvc
             bitwidth: 64bit
