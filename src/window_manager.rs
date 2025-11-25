@@ -490,7 +490,8 @@ impl WindowManager {
 
                     if is_dirty {
                         // Show confirmation dialog
-                        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+                        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id)
+                        {
                             window.show_close_confirmation();
                         }
                         return false; // Don't close yet

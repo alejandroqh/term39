@@ -442,9 +442,7 @@ impl TerminalWindow {
 
         // Draw border
         let (tl, tr, bl, br, h, v) = match charset.mode {
-            CharsetMode::Unicode | CharsetMode::UnicodeSingleLine => {
-                ('╔', '╗', '╚', '╝', '═', '║')
-            }
+            CharsetMode::Unicode | CharsetMode::UnicodeSingleLine => ('╔', '╗', '╚', '╝', '═', '║'),
             CharsetMode::Ascii => ('+', '+', '+', '+', '-', '|'),
         };
 
@@ -489,11 +487,7 @@ impl TerminalWindow {
         );
 
         // Render message (3 lines centered)
-        let messages = [
-            "Close this terminal?",
-            "",
-            "Active content may be lost.",
-        ];
+        let messages = ["Close this terminal?", "", "Active content may be lost."];
 
         for (i, msg) in messages.iter().enumerate() {
             let msg_x = dialog_x + (dialog_width.saturating_sub(msg.len() as u16)) / 2;
@@ -635,15 +629,43 @@ impl TerminalWindow {
             // List of shell processes and common shell-related tools to ignore
             let ignore_list = [
                 // Shells (regular and login shell variants with - prefix)
-                "bash", "-bash", "zsh", "-zsh", "sh", "-sh", "fish", "-fish",
-                "dash", "-dash", "ksh", "-ksh", "csh", "-csh", "tcsh", "-tcsh",
-                "nu", "-nu", "elvish", "-elvish", "xonsh", "-xonsh",
+                "bash",
+                "-bash",
+                "zsh",
+                "-zsh",
+                "sh",
+                "-sh",
+                "fish",
+                "-fish",
+                "dash",
+                "-dash",
+                "ksh",
+                "-ksh",
+                "csh",
+                "-csh",
+                "tcsh",
+                "-tcsh",
+                "nu",
+                "-nu",
+                "elvish",
+                "-elvish",
+                "xonsh",
+                "-xonsh",
                 // Shell prompt tools
-                "starship", "gitstatus", "powerlevel10k",
+                "starship",
+                "gitstatus",
+                "powerlevel10k",
                 // Environment tools
-                "direnv", "asdf", "mise", "rtx", "fnm", "nvm",
+                "direnv",
+                "asdf",
+                "mise",
+                "rtx",
+                "fnm",
+                "nvm",
                 // Common shell integrations
-                "zsh-autocomplete", "zsh-autosuggestions", "zsh-syntax-highlighting",
+                "zsh-autocomplete",
+                "zsh-autosuggestions",
+                "zsh-syntax-highlighting",
             ];
             !ignore_list.contains(&process_name.as_str())
         } else {

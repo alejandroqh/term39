@@ -159,19 +159,19 @@ pub fn handle_desktop_keyboard(
             // Get dimensions
             let (cols, rows) = backend.dimensions();
 
-            // Create prompt with "Cancel" selected by default (index 1)
+            // Create prompt with "Cancel" selected by default (index 0)
             app_state.active_prompt = Some(
                 Prompt::new(
                     PromptType::Danger,
                     message,
                     vec![
-                        PromptButton::new("Exit".to_string(), PromptAction::Confirm, true), // Index 0
-                        PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false), // Index 1
+                        PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false), // Index 0
+                        PromptButton::new("Exit".to_string(), PromptAction::Confirm, true), // Index 1
                     ],
                     cols,
                     rows,
                 )
-                .with_selected_button(1),
+                .with_selected_button(0),
             ); // Select "Cancel"
         }
         return true;
@@ -467,19 +467,19 @@ fn handle_esc_key(
         // Get dimensions
         let (cols, rows) = backend.dimensions();
 
-        // Create prompt with "Cancel" selected by default (index 1)
+        // Create prompt with "Cancel" selected by default (index 0)
         app_state.active_prompt = Some(
             Prompt::new(
                 PromptType::Danger,
                 message,
                 vec![
-                    PromptButton::new("Exit".to_string(), PromptAction::Confirm, true), // Index 0
-                    PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false), // Index 1
+                    PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false), // Index 0
+                    PromptButton::new("Exit".to_string(), PromptAction::Confirm, true),   // Index 1
                 ],
                 cols,
                 rows,
             )
-            .with_selected_button(1),
+            .with_selected_button(0),
         ); // Select "Cancel"
     } else {
         // Send ESC to terminal
@@ -504,19 +504,19 @@ fn handle_q_key(
         // Get dimensions
         let (cols, rows) = backend.dimensions();
 
-        // Create prompt with "Cancel" selected by default (index 1)
+        // Create prompt with "Cancel" selected by default (index 0)
         app_state.active_prompt = Some(
             Prompt::new(
                 PromptType::Danger,
                 message,
                 vec![
-                    PromptButton::new("Exit".to_string(), PromptAction::Confirm, true), // Index 0
-                    PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false), // Index 1
+                    PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false), // Index 0
+                    PromptButton::new("Exit".to_string(), PromptAction::Confirm, true),   // Index 1
                 ],
                 cols,
                 rows,
             )
-            .with_selected_button(1),
+            .with_selected_button(0),
         ); // Select "Cancel"
     } else {
         // Send 'q' to terminal

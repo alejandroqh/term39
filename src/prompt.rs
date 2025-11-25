@@ -1,4 +1,4 @@
-use crate::charset::Charset;
+use crate::charset::{Charset, CharsetMode};
 use crate::theme::Theme;
 use crate::video_buffer::{self, Cell, VideoBuffer};
 use crossterm::style::Color;
@@ -65,6 +65,7 @@ impl PromptButton {
     }
 
     /// Get button colors based on whether it's primary
+    #[allow(dead_code)]
     pub fn colors(&self, prompt_type: PromptType, theme: &Theme) -> (Color, Color) {
         if self.is_primary {
             // Primary button: attractive colors based on prompt type
@@ -239,7 +240,7 @@ impl Prompt {
         let bg_color = self.prompt_type.background_color(theme);
         let default_fg_color = self.prompt_type.foreground_color(theme);
 
-        // Fill the entire prompt area with the background color (no borders)
+        // Fill the entire prompt area with the background color
         for y in 0..self.height {
             for x in 0..self.width {
                 buffer.set(
@@ -249,6 +250,67 @@ impl Prompt {
                 );
             }
         }
+
+        // Draw border using charset
+        let (tl, tr, bl, br, h, v) = match charset.mode {
+            CharsetMode::Unicode | CharsetMode::UnicodeSingleLine => (
+                charset.border_top_left,
+                charset.border_top_right,
+                charset.border_bottom_left,
+                charset.border_bottom_right,
+                charset.border_horizontal,
+                charset.border_vertical,
+            ),
+            CharsetMode::Ascii => ('+', '+', '+', '+', '-', '|'),
+        };
+
+        // Top border
+        buffer.set(self.x, self.y, Cell::new(tl, default_fg_color, bg_color));
+        for bx in 1..self.width - 1 {
+            buffer.set(
+                self.x + bx,
+                self.y,
+                Cell::new(h, default_fg_color, bg_color),
+            );
+        }
+        buffer.set(
+            self.x + self.width - 1,
+            self.y,
+            Cell::new(tr, default_fg_color, bg_color),
+        );
+
+        // Side borders
+        for by in 1..self.height - 1 {
+            buffer.set(
+                self.x,
+                self.y + by,
+                Cell::new(v, default_fg_color, bg_color),
+            );
+            buffer.set(
+                self.x + self.width - 1,
+                self.y + by,
+                Cell::new(v, default_fg_color, bg_color),
+            );
+        }
+
+        // Bottom border
+        buffer.set(
+            self.x,
+            self.y + self.height - 1,
+            Cell::new(bl, default_fg_color, bg_color),
+        );
+        for bx in 1..self.width - 1 {
+            buffer.set(
+                self.x + bx,
+                self.y + self.height - 1,
+                Cell::new(h, default_fg_color, bg_color),
+            );
+        }
+        buffer.set(
+            self.x + self.width - 1,
+            self.y + self.height - 1,
+            Cell::new(br, default_fg_color, bg_color),
+        );
 
         // Render message (with alignment and color support)
         let message_lines: Vec<&str> = self.message.lines().collect();
@@ -301,8 +363,28 @@ impl Prompt {
         let mut button_x = self.x + (self.width.saturating_sub(total_button_width)) / 2;
 
         for (index, button) in self.buttons.iter().enumerate() {
-            let (button_fg, button_bg) = button.colors(self.prompt_type, theme);
             let is_selected = index == self.selected_button_index;
+
+            // Color based on SELECTION state: selected shows action color, non-selected is gray
+            let (button_fg, button_bg) = if is_selected {
+                // Selected: show action color based on button action type
+                match button.action {
+                    PromptAction::Cancel => (
+                        theme.dialog_button_primary_success_fg,
+                        theme.dialog_button_primary_success_bg,
+                    ),
+                    PromptAction::Confirm | PromptAction::Custom(_) => (
+                        theme.dialog_button_primary_danger_fg,
+                        theme.dialog_button_primary_danger_bg,
+                    ),
+                }
+            } else {
+                // Not selected: gray
+                (
+                    theme.dialog_button_secondary_fg,
+                    theme.dialog_button_secondary_bg,
+                )
+            };
 
             // Render selection indicator before button
             if is_selected {
