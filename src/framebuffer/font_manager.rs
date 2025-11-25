@@ -24,6 +24,7 @@ const PSF1_MODEHASTAB: u8 = 0x02; // Has unicode table
 /// Dual-licensed under:
 ///   - GNU General Public License version 2+ with font embedding exception
 ///   - SIL Open Font License version 1.1
+///
 /// Redistribution permitted under either license. See: https://unifoundry.com/unifont/
 const EMBEDDED_FONT_UNIFONT_8X16: &[u8] = include_bytes!("Unifont-APL8x16.psf.gz");
 
@@ -764,6 +765,7 @@ impl FontManager {
     /// Check if a pixel is set in a glyph at (x, y) position
     /// Optimized with fast path for common 8-pixel-wide fonts
     #[inline(always)]
+    #[allow(dead_code)]
     pub fn is_pixel_set(&self, glyph_data: &[u8], x: usize, y: usize) -> bool {
         // Fast path for 8-pixel-wide fonts (most common case: 8x16, 8x8)
         // Eliminates bounds check on x (caller guarantees x < 8) and division

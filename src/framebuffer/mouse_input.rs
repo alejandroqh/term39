@@ -23,8 +23,10 @@ pub struct MouseEvent {
     pub dy: i8,
     pub buttons: MouseButtons,
     /// Scroll wheel movement (positive = up/away, negative = down/toward)
+    #[allow(dead_code)]
     pub scroll: i8,
     /// Horizontal scroll movement (positive = right, negative = left)
+    #[allow(dead_code)]
     pub scroll_h: i8,
 }
 

@@ -492,11 +492,13 @@ impl FramebufferRenderer {
     }
 
     /// Get scale factor
+    #[allow(dead_code)]
     pub fn scale(&self) -> usize {
         self.scale
     }
 
     /// Get offsets (x, y)
+    #[allow(dead_code)]
     pub fn offsets(&self) -> (usize, usize) {
         (self.offset_x, self.offset_y)
     }

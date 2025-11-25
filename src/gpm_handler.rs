@@ -65,6 +65,7 @@ const GPM_MOD_CTRL: u8 = 4;
 const GPM_MOD_META: u8 = 8; // ALT key
 
 // GPM click type masks (from gpm.h) - combined with DOWN/UP events
+#[allow(dead_code)]
 const GPM_SINGLE: c_int = 16;
 const GPM_DOUBLE: c_int = 32;
 const GPM_TRIPLE: c_int = 64;
@@ -234,6 +235,7 @@ pub struct GpmMouseEvent {
     pub y: u16,
     pub event_type: GpmEventType,
     pub button: Option<GpmButton>,
+    #[allow(dead_code)]
     pub clicks: ClickCount,
     pub shift: bool,
     pub ctrl: bool,
