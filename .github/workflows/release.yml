@@ -118,6 +118,13 @@ jobs:
             bitwidth: 32bit
             arch: x86
 
+          # Windows 7 i686 (32-bit) - supports Windows 7+
+          - target: i686-win7-windows-msvc
+            os: windows-latest
+            platform: windows7
+            bitwidth: 32bit
+            arch: x86
+
           # Windows ARM64
           - target: aarch64-pc-windows-msvc
             os: windows-latest
@@ -388,14 +395,22 @@ jobs:
           - target: x86_64-pc-windows-msvc
             bitwidth: 64bit
             arch: x86
+            platform: windows
           # i686 (32-bit) installer
           - target: i686-pc-windows-msvc
             bitwidth: 32bit
             arch: x86
+            platform: windows
+          # Windows 7 i686 (32-bit) installer - supports Windows 7+
+          - target: i686-win7-windows-msvc
+            bitwidth: 32bit
+            arch: x86
+            platform: windows7
           # ARM64 (64-bit) installer
           - target: aarch64-pc-windows-msvc
             bitwidth: 64bit
             arch: arm
+            platform: windows
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -443,9 +458,10 @@ jobs:
           $env:TargetTriple = "${{ matrix.target }}"
           $env:BitWidth = "${{ matrix.bitwidth }}"
           $env:Arch = "${{ matrix.arch }}"
+          $env:Platform = "${{ matrix.platform }}"
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
       - name: Upload Windows Installer to Release
         uses: softprops/action-gh-release@v1
         with:
-          files: installer-output/term39-${{ needs.create-release.outputs.version }}-windows-${{ matrix.bitwidth }}-${{ matrix.arch }}-installer.exe
+          files: installer-output/term39-${{ needs.create-release.outputs.version }}-${{ matrix.platform }}-${{ matrix.bitwidth }}-${{ matrix.arch }}-installer.exe
