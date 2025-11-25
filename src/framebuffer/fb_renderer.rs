@@ -221,6 +221,7 @@ impl FramebufferRenderer {
     }
 
     /// Convert Color enum to RGB tuple
+    #[inline(always)]
     fn color_to_rgb(&self, color: Color) -> (u8, u8, u8) {
         match color {
             Color::Black => DOS_PALETTE[0],
@@ -246,58 +247,103 @@ impl FramebufferRenderer {
 
     /// Put a pixel at (x, y) with RGB color (relative to content area)
     /// Applies scaling: each logical pixel becomes scale×scale physical pixels
+    /// Optimized with fast path for scale=1 (most common on modern displays)
+    #[inline(always)]
     fn put_pixel(&mut self, x: usize, y: usize, r: u8, g: u8, b: u8) {
-        // Apply scaling and offsets
-        for sy in 0..self.scale {
-            for sx in 0..self.scale {
-                let actual_x = x * self.scale + sx + self.offset_x;
-                let actual_y = y * self.scale + sy + self.offset_y;
+        // Precalculate base position once
+        let base_x = x * self.scale + self.offset_x;
+        let base_y = y * self.scale + self.offset_y;
 
-                if actual_x >= self.width_pixels || actual_y >= self.height_pixels {
-                    continue;
+        // Early exit if entire scaled block is out of bounds
+        if base_x >= self.width_pixels || base_y >= self.height_pixels {
+            return;
+        }
+
+        // Hoist frame borrow and constants outside loop
+        let frame = self.framebuffer.frame.as_mut();
+        let line_length = self.line_length;
+        let bytes_per_pixel = self.bytes_per_pixel;
+        let r_offset = self.r_offset;
+        let g_offset = self.g_offset;
+        let b_offset = self.b_offset;
+        let frame_len = frame.len();
+
+        // Fast path for scale=1 (eliminates loop overhead entirely)
+        if self.scale == 1 {
+            let offset = base_y * line_length + base_x * bytes_per_pixel;
+            match bytes_per_pixel {
+                4 if offset + 3 < frame_len => {
+                    frame[offset + r_offset] = r;
+                    frame[offset + g_offset] = g;
+                    frame[offset + b_offset] = b;
+                    frame[offset + 3] = 255;
+                }
+                3 if offset + 2 < frame_len => {
+                    frame[offset + r_offset] = r;
+                    frame[offset + g_offset] = g;
+                    frame[offset + b_offset] = b;
+                }
+                2 if offset + 1 < frame_len => {
+                    let r5 = (r >> 3) as u16;
+                    let g6 = (g >> 2) as u16;
+                    let b5 = (b >> 3) as u16;
+                    let color = (r5 << 11) | (g6 << 5) | b5;
+                    frame[offset] = (color & 0xFF) as u8;
+                    frame[offset + 1] = (color >> 8) as u8;
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        // Scaled rendering path (scale > 1)
+        let width_pixels = self.width_pixels;
+        let height_pixels = self.height_pixels;
+        let scale = self.scale;
+
+        for sy in 0..scale {
+            let actual_y = base_y + sy;
+            if actual_y >= height_pixels {
+                break;
+            }
+
+            for sx in 0..scale {
+                let actual_x = base_x + sx;
+                if actual_x >= width_pixels {
+                    break;
                 }
 
-                let offset = actual_y * self.line_length + actual_x * self.bytes_per_pixel;
-                let frame = self.framebuffer.frame.as_mut();
+                let offset = actual_y * line_length + actual_x * bytes_per_pixel;
 
-                // Handle different color depths
-                match self.bytes_per_pixel {
-                    4 => {
-                        // RGBA or BGRA (32-bit) - use dynamic offsets
-                        if offset + 3 < frame.len() {
-                            frame[offset + self.r_offset] = r;
-                            frame[offset + self.g_offset] = g;
-                            frame[offset + self.b_offset] = b;
-                            frame[offset + 3] = 255; // Alpha (usually at offset 3)
-                        }
+                match bytes_per_pixel {
+                    4 if offset + 3 < frame_len => {
+                        frame[offset + r_offset] = r;
+                        frame[offset + g_offset] = g;
+                        frame[offset + b_offset] = b;
+                        frame[offset + 3] = 255;
                     }
-                    3 => {
-                        // RGB or BGR (24-bit) - use dynamic offsets
-                        if offset + 2 < frame.len() {
-                            frame[offset + self.r_offset] = r;
-                            frame[offset + self.g_offset] = g;
-                            frame[offset + self.b_offset] = b;
-                        }
+                    3 if offset + 2 < frame_len => {
+                        frame[offset + r_offset] = r;
+                        frame[offset + g_offset] = g;
+                        frame[offset + b_offset] = b;
                     }
-                    2 => {
-                        // RGB565 (16-bit)
-                        if offset + 1 < frame.len() {
-                            let r5 = (r >> 3) as u16;
-                            let g6 = (g >> 2) as u16;
-                            let b5 = (b >> 3) as u16;
-                            let color = (r5 << 11) | (g6 << 5) | b5;
-                            frame[offset] = (color & 0xFF) as u8;
-                            frame[offset + 1] = (color >> 8) as u8;
-                        }
+                    2 if offset + 1 < frame_len => {
+                        let r5 = (r >> 3) as u16;
+                        let g6 = (g >> 2) as u16;
+                        let b5 = (b >> 3) as u16;
+                        let color = (r5 << 11) | (g6 << 5) | b5;
+                        frame[offset] = (color & 0xFF) as u8;
+                        frame[offset + 1] = (color >> 8) as u8;
                     }
-                    _ => {} // Unsupported format
+                    _ => {}
                 }
             }
         }
     }
 
     /// Render a single character at text position (col, row)
-    /// Optimized to use stack-allocated array instead of heap Vec
+    /// Uses single-pass rendering for optimal performance
+    #[inline]
     pub fn render_char(&mut self, col: usize, row: usize, cell: &Cell) {
         if !self.mode.is_valid_position(col, row) {
             return;
@@ -313,31 +359,16 @@ impl FramebufferRenderer {
 
         let glyph = self.font.get_glyph(cell.character);
 
-        // Use stack-allocated array for pixel states (max 32x32 font = 1024 pixels)
-        // This avoids heap allocation on every character render
-        let mut pixel_data = [false; 1024];
-        let pixel_count = font_height * font_width;
-
-        // Collect pixel states first to avoid borrowing conflicts
+        // Single-pass rendering: check pixel and render immediately
+        // This eliminates the intermediate array and reduces memory accesses
         for py in 0..font_height {
             for px in 0..font_width {
-                let idx = py * font_width + px;
-                if idx < 1024 {
-                    pixel_data[idx] = self.font.is_pixel_set(glyph, px, py);
-                }
-            }
-        }
-
-        // Now render pixels (can mutably borrow self)
-        // Note: must check against 1024 (array size) not pixel_count for large fonts
-        let max_idx = pixel_count.min(1024);
-        for py in 0..font_height {
-            for px in 0..font_width {
-                let idx = py * font_width + px;
-                if idx < max_idx {
-                    let color = if pixel_data[idx] { fg_color } else { bg_color };
-                    self.put_pixel(x_offset + px, y_offset + py, color.0, color.1, color.2);
-                }
+                let color = if self.font.is_pixel_set(glyph, px, py) {
+                    fg_color
+                } else {
+                    bg_color
+                };
+                self.put_pixel(x_offset + px, y_offset + py, color.0, color.1, color.2);
             }
         }
     }

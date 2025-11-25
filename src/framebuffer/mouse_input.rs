@@ -22,6 +22,10 @@ pub struct MouseEvent {
     pub dx: i8,
     pub dy: i8,
     pub buttons: MouseButtons,
+    /// Scroll wheel movement (positive = up/away, negative = down/toward)
+    pub scroll: i8,
+    /// Horizontal scroll movement (positive = right, negative = left)
+    pub scroll_h: i8,
 }
 
 // Event types
@@ -31,6 +35,8 @@ const EV_KEY: u16 = 0x01; // Button press/release
 // Relative axis codes
 const REL_X: u16 = 0x00;
 const REL_Y: u16 = 0x01;
+const REL_WHEEL: u16 = 0x08; // Vertical scroll wheel
+const REL_HWHEEL: u16 = 0x06; // Horizontal scroll wheel
 
 // Button codes
 const BTN_LEFT: u16 = 0x110;
@@ -58,6 +64,8 @@ pub struct MouseInput {
     protocol: Protocol,
     dx_accumulator: i32,
     dy_accumulator: i32,
+    scroll_accumulator: i32,   // Vertical scroll accumulator
+    scroll_h_accumulator: i32, // Horizontal scroll accumulator
     buttons: MouseButtons,
     button_changed: bool, // Track if button state changed
 }
@@ -131,6 +139,8 @@ impl MouseInput {
             protocol,
             dx_accumulator: 0,
             dy_accumulator: 0,
+            scroll_accumulator: 0,
+            scroll_h_accumulator: 0,
             buttons: MouseButtons {
                 left: false,
                 right: false,
@@ -170,13 +180,16 @@ impl MouseInput {
 
     /// Read PS/2 protocol event from /dev/input/mice
     fn read_ps2_event(&mut self) -> io::Result<Option<MouseEvent>> {
-        let mut buf = [0u8; 3];
+        let mut buf = [0u8; 4]; // 4 bytes for wheel mouse support
+
+        // Try to read 4 bytes first (IntelliMouse with wheel)
         match self.file.read(&mut buf) {
-            Ok(3) => {
-                // Parse PS/2 mouse protocol (3-byte packet)
+            Ok(n) if n >= 3 => {
+                // Parse PS/2 mouse protocol
                 // Byte 0: [Y overflow][X overflow][Y sign][X sign][Always 1][Middle][Right][Left]
                 // Byte 1: X movement (8-bit signed)
                 // Byte 2: Y movement (8-bit signed)
+                // Byte 3 (optional): Z/wheel movement (signed nibble in IntelliMouse protocol)
 
                 let buttons = MouseButtons {
                     left: (buf[0] & 0x01) != 0,
@@ -188,7 +201,24 @@ impl MouseInput {
                 let dx = buf[1] as i8;
                 let dy = buf[2] as i8;
 
-                Ok(Some(MouseEvent { dx, dy, buttons }))
+                // Scroll wheel (only if we got 4 bytes)
+                let scroll = if n == 4 {
+                    // IntelliMouse wheel data in byte 3 (signed 4-bit value)
+                    let wheel_byte = buf[3] as i8;
+                    // Typical values: -1 (down/toward), 1 (up/away)
+                    // Negate to match convention (positive = up)
+                    -wheel_byte
+                } else {
+                    0
+                };
+
+                Ok(Some(MouseEvent {
+                    dx,
+                    dy,
+                    buttons,
+                    scroll,
+                    scroll_h: 0,
+                }))
             }
             Ok(_) => {
                 // Incomplete read, ignore
@@ -226,10 +256,12 @@ impl MouseInput {
 
                     match type_ {
                         EV_REL => {
-                            // Relative movement
+                            // Relative movement and scroll
                             match code {
                                 REL_X => self.dx_accumulator += value,
                                 REL_Y => self.dy_accumulator += value,
+                                REL_WHEEL => self.scroll_accumulator += value,
+                                REL_HWHEEL => self.scroll_h_accumulator += value,
                                 _ => {}
                             }
                         }
@@ -253,20 +285,32 @@ impl MouseInput {
                         _ => {}
                     }
 
-                    // Check if we have accumulated movement OR button state change to report
-                    if self.dx_accumulator != 0 || self.dy_accumulator != 0 || self.button_changed {
+                    // Check if we have accumulated movement, scroll, OR button state change to report
+                    let has_data = self.dx_accumulator != 0
+                        || self.dy_accumulator != 0
+                        || self.scroll_accumulator != 0
+                        || self.scroll_h_accumulator != 0
+                        || self.button_changed;
+
+                    if has_data {
                         // Clamp to i8 range
                         let dx = self.dx_accumulator.clamp(-127, 127) as i8;
                         let dy = self.dy_accumulator.clamp(-127, 127) as i8;
+                        let scroll = self.scroll_accumulator.clamp(-127, 127) as i8;
+                        let scroll_h = self.scroll_h_accumulator.clamp(-127, 127) as i8;
 
                         self.dx_accumulator = 0;
                         self.dy_accumulator = 0;
+                        self.scroll_accumulator = 0;
+                        self.scroll_h_accumulator = 0;
                         self.button_changed = false;
 
                         return Ok(Some(MouseEvent {
                             dx,
                             dy,
                             buttons: self.buttons,
+                            scroll,
+                            scroll_h,
                         }));
                     }
                 }
@@ -276,18 +320,30 @@ impl MouseInput {
                 }
                 Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
                     // No more events available
-                    if self.dx_accumulator != 0 || self.dy_accumulator != 0 || self.button_changed {
+                    let has_data = self.dx_accumulator != 0
+                        || self.dy_accumulator != 0
+                        || self.scroll_accumulator != 0
+                        || self.scroll_h_accumulator != 0
+                        || self.button_changed;
+
+                    if has_data {
                         let dx = self.dx_accumulator.clamp(-127, 127) as i8;
                         let dy = self.dy_accumulator.clamp(-127, 127) as i8;
+                        let scroll = self.scroll_accumulator.clamp(-127, 127) as i8;
+                        let scroll_h = self.scroll_h_accumulator.clamp(-127, 127) as i8;
 
                         self.dx_accumulator = 0;
                         self.dy_accumulator = 0;
+                        self.scroll_accumulator = 0;
+                        self.scroll_h_accumulator = 0;
                         self.button_changed = false;
 
                         return Ok(Some(MouseEvent {
                             dx,
                             dy,
                             buttons: self.buttons,
+                            scroll,
+                            scroll_h,
                         }));
                     }
                     return Ok(None);

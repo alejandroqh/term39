@@ -118,6 +118,10 @@ pub struct FontManager {
     bytes_per_glyph: usize,
     /// Glyph bitmap data (row-major, 1 bit per pixel)
     glyphs: Vec<u8>,
+    /// Precomputed bytes per row (avoids division in hot path)
+    bytes_per_row: usize,
+    /// Fast path flag: true if font width is exactly 8 pixels (most common)
+    is_width_8: bool,
 }
 
 impl FontManager {
@@ -150,12 +154,18 @@ impl FontManager {
             let mut glyphs = vec![0u8; total_bytes];
             file.read_exact(&mut glyphs)?;
 
+            let width = header.width as usize;
+            let bytes_per_row = width.div_ceil(8);
+            let is_width_8 = width == 8;
+
             return Ok(FontManager {
-                width: header.width as usize,
+                width,
                 height: header.height as usize,
                 glyph_count: header.length as usize,
                 bytes_per_glyph: header.charsize as usize,
                 glyphs,
+                bytes_per_row,
+                is_width_8,
             });
         }
 
@@ -181,6 +191,8 @@ impl FontManager {
                 glyph_count,
                 bytes_per_glyph,
                 glyphs,
+                bytes_per_row: 1, // PSF1 is always 8 pixels wide = 1 byte per row
+                is_width_8: true, // PSF1 is always 8 pixels wide
             });
         }
 
@@ -221,10 +233,15 @@ impl FontManager {
             ));
         }
 
-        // Try multiple common locations for console fonts
+        // Try multiple common locations for console fonts across distros
         let base_paths = [
-            "/usr/share/consolefonts",     // Debian/Ubuntu primary location
-            "/usr/share/kbd/consolefonts", // Alternative/older location
+            "/usr/share/consolefonts",           // Debian/Ubuntu primary location
+            "/usr/share/kbd/consolefonts",       // Debian/Ubuntu alternative, some older systems
+            "/usr/lib/kbd/consolefonts",         // Fedora/RHEL/CentOS
+            "/lib/kbd/consolefonts",             // Some Fedora configurations
+            "/usr/share/console/consolefonts",   // Some BSDs
+            "/usr/local/share/consolefonts",     // Local installations
+            "/usr/local/share/kbd/consolefonts", // Local kbd installations
         ];
 
         // Try with various extensions: .psf.gz (compressed), .psfu, .psf
@@ -295,12 +312,18 @@ impl FontManager {
             let mut glyphs = vec![0u8; total_bytes];
             gz_decoder.read_exact(&mut glyphs)?;
 
+            let width = header.width as usize;
+            let bytes_per_row = width.div_ceil(8);
+            let is_width_8 = width == 8;
+
             return Ok(FontManager {
-                width: header.width as usize,
+                width,
                 height: header.height as usize,
                 glyph_count: header.length as usize,
                 bytes_per_glyph: header.charsize as usize,
                 glyphs,
+                bytes_per_row,
+                is_width_8,
             });
         }
 
@@ -326,6 +349,8 @@ impl FontManager {
                 glyph_count,
                 bytes_per_glyph,
                 glyphs,
+                bytes_per_row: 1, // PSF1 is always 8 pixels wide = 1 byte per row
+                is_width_8: true, // PSF1 is always 8 pixels wide
             });
         }
 
@@ -409,15 +434,32 @@ impl FontManager {
     }
 
     /// Check if a pixel is set in a glyph at (x, y) position
+    /// Optimized with fast path for common 8-pixel-wide fonts
+    #[inline(always)]
     pub fn is_pixel_set(&self, glyph_data: &[u8], x: usize, y: usize) -> bool {
+        // Fast path for 8-pixel-wide fonts (most common case: 8x16, 8x8)
+        // Eliminates bounds check on x (caller guarantees x < 8) and division
+        if self.is_width_8 {
+            // Each row is exactly 1 byte when width is 8
+            if y >= glyph_data.len() {
+                return false;
+            }
+            // Use shift instead of calculating bit_index = 7 - (x % 8)
+            // Since x < 8, we can use it directly: bit 7 is leftmost (x=0), bit 0 is rightmost (x=7)
+            return (glyph_data[y] & (0x80 >> x)) != 0;
+        }
+
+        // General path for wider fonts (16x16, etc.)
         if x >= self.width || y >= self.height {
             return false;
         }
 
-        let bytes_per_row = self.width.div_ceil(8);
-        let row_start = y * bytes_per_row;
-        let byte_index = row_start + (x / 8);
-        let bit_index = 7 - (x % 8);
+        // Use precomputed bytes_per_row (avoids division)
+        let row_start = y * self.bytes_per_row;
+        // Use bit shift instead of division by 8
+        let byte_index = row_start + (x >> 3);
+        // Use AND instead of modulo 8
+        let bit_index = 7 - (x & 7);
 
         if byte_index >= glyph_data.len() {
             return false;
@@ -430,7 +472,16 @@ impl FontManager {
     pub fn list_available_fonts() -> Vec<(String, usize, usize)> {
         use std::fs;
 
-        let base_paths = ["/usr/share/consolefonts", "/usr/share/kbd/consolefonts"];
+        // Same paths as load_console_font for consistency across distros
+        let base_paths = [
+            "/usr/share/consolefonts",           // Debian/Ubuntu
+            "/usr/share/kbd/consolefonts",       // Debian/Ubuntu alt
+            "/usr/lib/kbd/consolefonts",         // Fedora/RHEL/CentOS
+            "/lib/kbd/consolefonts",             // Some Fedora configurations
+            "/usr/share/console/consolefonts",   // Some BSDs
+            "/usr/local/share/consolefonts",     // Local installations
+            "/usr/local/share/kbd/consolefonts", // Local kbd installations
+        ];
 
         let mut fonts = Vec::new();
 

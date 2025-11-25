@@ -157,27 +157,24 @@ impl FramebufferBackend {
 
         // Calculate initial cell position from cursor tracker's pixel position
         // This fixes incorrect position_changed detection on first mouse movement
+        // Note: cursor_tracker.x/y are in LOGICAL (unscaled) pixel coordinates
+        // bounded by (base_width, base_height) from pixel_dimensions()
         let (cols, rows) = renderer.dimensions();
         let (base_width, base_height) = renderer.pixel_dimensions();
-        let scale = renderer.scale();
-        let (offset_x, offset_y) = renderer.offsets();
 
         let char_width = if cols > 0 { base_width / cols } else { 1 };
         let char_height = if rows > 0 { base_height / rows } else { 1 };
 
-        let x_in_content = cursor_tracker.x.saturating_sub(offset_x);
-        let y_in_content = cursor_tracker.y.saturating_sub(offset_y);
-
-        let x_base = x_in_content / scale;
-        let y_base = y_in_content / scale;
-
+        // Convert logical pixel position directly to cell coordinates
+        // No offset subtraction needed (cursor is bounded to content area)
+        // No scale division needed (cursor is already in logical pixel space)
         let initial_col = if char_width > 0 {
-            (x_base / char_width).min(cols.saturating_sub(1)) as u16
+            (cursor_tracker.x / char_width).min(cols.saturating_sub(1)) as u16
         } else {
             0
         };
         let initial_row = if char_height > 0 {
-            (y_base / char_height).min(rows.saturating_sub(1)) as u16
+            (cursor_tracker.y / char_height).min(rows.saturating_sub(1)) as u16
         } else {
             0
         };
@@ -210,31 +207,27 @@ impl FramebufferBackend {
 
     /// Queue a mouse event with current cursor position
     /// event_type: 0=Down, 1=Up, 2=Drag
+    /// Note: cursor_tracker.x/y are in LOGICAL (unscaled) pixel coordinates
     #[allow(dead_code)]
     fn queue_mouse_event(&mut self, event_type: u8, button_id: u8) {
         // Calculate coordinates at the time of the event
         let (cols, rows) = self.renderer.dimensions();
         let (base_width, base_height) = self.renderer.pixel_dimensions();
-        let scale = self.renderer.scale();
-        let (offset_x, offset_y) = self.renderer.offsets();
 
         // Add division-by-zero protection
         let char_width = if cols > 0 { base_width / cols } else { 1 };
         let char_height = if rows > 0 { base_height / rows } else { 1 };
 
-        let x_in_content = self.cursor_tracker.x.saturating_sub(offset_x);
-        let y_in_content = self.cursor_tracker.y.saturating_sub(offset_y);
-
-        let x_base = x_in_content / scale;
-        let y_base = y_in_content / scale;
-
+        // Convert logical pixel position directly to cell coordinates
+        // No offset subtraction needed (cursor is bounded to content area)
+        // No scale division needed (cursor is already in logical pixel space)
         let col = if char_width > 0 {
-            (x_base / char_width).min(cols.saturating_sub(1)) as u16
+            (self.cursor_tracker.x / char_width).min(cols.saturating_sub(1)) as u16
         } else {
             0
         };
         let row = if char_height > 0 {
-            (y_base / char_height).min(rows.saturating_sub(1)) as u16
+            (self.cursor_tracker.y / char_height).min(rows.saturating_sub(1)) as u16
         } else {
             0
         };
@@ -290,31 +283,27 @@ impl RenderBackend for FramebufferBackend {
             let mut moved = false;
 
             // Helper function to calculate cell coordinates from pixel position
-            // with division-by-zero protection
+            // Note: tracker.x/y are in LOGICAL (unscaled) pixel coordinates
+            // bounded by (base_width, base_height) from pixel_dimensions()
             let calc_coords =
                 |tracker: &crate::framebuffer::CursorTracker,
                  renderer: &crate::framebuffer::FramebufferRenderer| {
                     let (cols, rows) = renderer.dimensions();
                     let (base_width, base_height) = renderer.pixel_dimensions();
-                    let scale = renderer.scale();
-                    let (offset_x, offset_y) = renderer.offsets();
 
                     let char_width = if cols > 0 { base_width / cols } else { 1 };
                     let char_height = if rows > 0 { base_height / rows } else { 1 };
 
-                    let x_in_content = tracker.x.saturating_sub(offset_x);
-                    let y_in_content = tracker.y.saturating_sub(offset_y);
-
-                    let x_base = x_in_content / scale;
-                    let y_base = y_in_content / scale;
-
+                    // Convert logical pixel position directly to cell coordinates
+                    // No offset subtraction needed (cursor is bounded to content area)
+                    // No scale division needed (cursor is already in logical pixel space)
                     let col = if char_width > 0 {
-                        (x_base / char_width).min(cols.saturating_sub(1)) as u16
+                        (tracker.x / char_width).min(cols.saturating_sub(1)) as u16
                     } else {
                         0
                     };
                     let row = if char_height > 0 {
-                        (y_base / char_height).min(rows.saturating_sub(1)) as u16
+                        (tracker.y / char_height).min(rows.saturating_sub(1)) as u16
                     } else {
                         0
                     };

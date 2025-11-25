@@ -124,6 +124,7 @@ impl TextMode {
     }
 
     /// Check if a screen position is valid
+    #[inline(always)]
     pub fn is_valid_position(&self, col: usize, row: usize) -> bool {
         col < self.cols && row < self.rows
     }
