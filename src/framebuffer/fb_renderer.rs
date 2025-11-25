@@ -357,17 +357,28 @@ impl FramebufferRenderer {
         let fg_color = self.color_to_rgb(cell.fg_color);
         let bg_color = self.color_to_rgb(cell.bg_color);
 
-        let glyph = self.font.get_glyph(cell.character);
+        // Copy glyph data and font properties to avoid borrow conflicts
+        let glyph_data: Vec<u8> = self.font.get_glyph(cell.character).to_vec();
+        let is_width_8 = self.font.is_width_8;
+        let bytes_per_row = self.font.bytes_per_row;
 
         // Single-pass rendering: check pixel and render immediately
         // This eliminates the intermediate array and reduces memory accesses
         for py in 0..font_height {
             for px in 0..font_width {
-                let color = if self.font.is_pixel_set(glyph, px, py) {
-                    fg_color
+                // Inline pixel checking to avoid borrow conflicts with put_pixel
+                let is_set = if is_width_8 {
+                    // Fast path for 8-pixel-wide fonts
+                    py < glyph_data.len() && (glyph_data[py] & (0x80 >> px)) != 0
                 } else {
-                    bg_color
+                    // General path for wider fonts
+                    let row_start = py * bytes_per_row;
+                    let byte_index = row_start + (px >> 3);
+                    let bit_index = 7 - (px & 7);
+                    byte_index < glyph_data.len()
+                        && (glyph_data[byte_index] & (1 << bit_index)) != 0
                 };
+                let color = if is_set { fg_color } else { bg_color };
                 self.put_pixel(x_offset + px, y_offset + py, color.0, color.1, color.2);
             }
         }

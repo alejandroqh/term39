@@ -119,9 +119,9 @@ pub struct FontManager {
     /// Glyph bitmap data (row-major, 1 bit per pixel)
     glyphs: Vec<u8>,
     /// Precomputed bytes per row (avoids division in hot path)
-    bytes_per_row: usize,
+    pub bytes_per_row: usize,
     /// Fast path flag: true if font width is exactly 8 pixels (most common)
-    is_width_8: bool,
+    pub is_width_8: bool,
 }
 
 impl FontManager {

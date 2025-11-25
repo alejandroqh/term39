@@ -249,13 +249,16 @@ pub struct Cli {
 
     /// Swap left and right mouse buttons for GPM (Linux console only)
     ///
-    /// Some GPM configurations have left/right mouse buttons swapped.
-    /// Use this flag if left-click registers as right-click and vice versa
-    /// when running in Linux console with GPM mouse support.
+    /// By default, GPM button mapping is corrected for most hardware (where GPM
+    /// reports buttons swapped). Use this flag to swap them back if your hardware
+    /// reports buttons correctly and you experience reversed left/right clicks.
     ///
     /// Note: Only affects GPM mouse input on Linux console.
     #[cfg(target_os = "linux")]
-    #[arg(long, help = "Swap left/right mouse buttons for GPM")]
+    #[arg(
+        long,
+        help = "Swap left/right mouse buttons for GPM (use if clicks are reversed)"
+    )]
     pub swap_mouse_buttons: bool,
 }
 

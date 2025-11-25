@@ -439,16 +439,10 @@ fn main() -> io::Result<()> {
     initialization::setup_terminal(&mut stdout)?;
 
     // Initialize GPM (General Purpose Mouse) for Linux console if available
-    // In framebuffer mode with native mouse input, don't open GPM at all to avoid cursor conflicts
-    // When framebuffer reads directly from /dev/input/mice, GPM would cause duplicate cursors
+    // In framebuffer mode, ALWAYS connect to GPM with draw_cursor=false to suppress GPM's cursor
+    // even if we have native mouse input and don't use GPM for events
     #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
-    let mut gpm_connection = if backend.has_native_mouse_input() {
-        // Framebuffer has native mouse input - skip GPM entirely to avoid double cursor
-        None
-    } else {
-        // No native mouse input - use GPM, but don't let it draw cursor in framebuffer mode
-        initialization::initialize_gpm(cli_args.framebuffer)
-    };
+    let mut gpm_connection = initialization::initialize_gpm(cli_args.framebuffer);
     #[cfg(all(target_os = "linux", not(feature = "framebuffer-backend")))]
     let mut gpm_connection = initialization::initialize_gpm(false);
 

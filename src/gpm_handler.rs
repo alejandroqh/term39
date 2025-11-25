@@ -408,12 +408,15 @@ impl GpmConnection {
 
             // Determine which button (if any)
             // Use ONLY the buttons field - event_type has overlapping bit values!
+            // NOTE: GPM reports buttons swapped on most hardware - GPM_B_LEFT is actually
+            // the right button and GPM_B_RIGHT is the left button. This has been verified
+            // on multiple devices, so we swap them here to get correct behavior by default.
             let reported_button = if (buttons & GPM_B_LEFT) != 0 {
-                Some(GpmButton::Left)
+                Some(GpmButton::Right) // GPM_B_LEFT is actually the right button
             } else if (buttons & GPM_B_MIDDLE) != 0 {
                 Some(GpmButton::Middle)
             } else if (buttons & GPM_B_RIGHT) != 0 {
-                Some(GpmButton::Right)
+                Some(GpmButton::Left) // GPM_B_RIGHT is actually the left button
             } else {
                 None
             };

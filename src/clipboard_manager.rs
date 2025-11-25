@@ -12,13 +12,7 @@ impl ClipboardManager {
     /// Create a new clipboard manager
     pub fn new() -> Self {
         #[cfg(feature = "clipboard")]
-        let clipboard_instance = {
-            let clipboard = Clipboard::new().ok();
-            if clipboard.is_none() {
-                eprintln!("Warning: Could not initialize system clipboard");
-            }
-            clipboard
-        };
+        let clipboard_instance = Clipboard::new().ok();
 
         Self {
             #[cfg(feature = "clipboard")]
