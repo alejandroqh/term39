@@ -420,6 +420,39 @@ impl WindowManager {
             return false;
         }
 
+        // Check if the clicked window has a close confirmation dialog
+        // If so, handle confirmation clicks; otherwise allow normal interaction
+        if let Some(clicked_window_id) = self.window_at(x, y) {
+            // Check if this specific clicked window has a confirmation dialog
+            let clicked_window_has_confirmation = self
+                .windows
+                .iter()
+                .find(|w| w.id() == clicked_window_id)
+                .map(|w| w.has_close_confirmation())
+                .unwrap_or(false);
+
+            if clicked_window_has_confirmation {
+                if let MouseEventKind::Down(MouseButton::Left) = event.kind {
+                    // Handle confirmation dialog click
+                    if let Some(window) = self
+                        .windows
+                        .iter_mut()
+                        .find(|w| w.id() == clicked_window_id)
+                    {
+                        if let Some(should_close) =
+                            window.handle_close_confirmation_click(event.column, event.row)
+                        {
+                            if should_close {
+                                return self.close_window(clicked_window_id);
+                            }
+                        }
+                    }
+                }
+                // Block all other events on windows with confirmation dialogs
+                return false;
+            }
+        }
+
         match event.kind {
             MouseEventKind::Down(MouseButton::Left) => self.handle_mouse_down(buffer, x, y),
             MouseEventKind::Drag(MouseButton::Left) => {
@@ -452,8 +485,20 @@ impl WindowManager {
 
                 // Check if clicking close button
                 if terminal_window.is_in_close_button(x, y) {
-                    let closed = self.close_window(window_id);
-                    return closed;
+                    // Check if window is dirty (has user input or running process)
+                    let is_dirty = terminal_window.is_dirty();
+
+                    if is_dirty {
+                        // Show confirmation dialog
+                        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+                            window.show_close_confirmation();
+                        }
+                        return false; // Don't close yet
+                    } else {
+                        // Clean window - close immediately
+                        let closed = self.close_window(window_id);
+                        return closed;
+                    }
                 }
 
                 // Check if clicking maximize button
@@ -1011,6 +1056,19 @@ impl WindowManager {
         } else {
             false
         }
+    }
+
+    /// Handle keyboard input for close confirmation on focused window
+    /// Returns Some(true) if should close, Some(false) if canceled, None if no confirmation active
+    pub fn handle_close_confirmation_key(
+        &mut self,
+        window_id: u32,
+        key: crossterm::event::KeyEvent,
+    ) -> Option<bool> {
+        self.windows
+            .iter_mut()
+            .find(|w| w.id() == window_id)
+            .and_then(|w| w.handle_close_confirmation_key(key))
     }
 
     /// Maximize window by ID

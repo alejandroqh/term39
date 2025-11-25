@@ -711,6 +711,23 @@ fn main() -> io::Result<()> {
                         continue;
                     }
 
+                    // Handle close confirmation keyboard events (window-specific modal)
+                    if let FocusState::Window(window_id) = current_focus {
+                        if let Some(should_close) =
+                            window_manager.handle_close_confirmation_key(window_id, key_event)
+                        {
+                            if should_close {
+                                // User confirmed close
+                                window_manager.close_window(window_id);
+                                if app_state.auto_tiling_enabled {
+                                    let (cols, rows) = backend.dimensions();
+                                    window_manager.auto_position_windows(cols, rows);
+                                }
+                            }
+                            continue; // Handled
+                        }
+                    }
+
                     // Handle error dialog keyboard events
                     if dialog_handlers::handle_error_dialog_keyboard(&mut app_state, key_event) {
                         continue;

@@ -3,10 +3,25 @@ use crate::selection::{Position, Selection, SelectionType};
 use crate::term_grid::{Color as TermColor, NamedColor, TerminalCell};
 use crate::terminal_emulator::TerminalEmulator;
 use crate::theme::Theme;
-use crate::video_buffer::{Cell, VideoBuffer};
+use crate::video_buffer::{self, Cell, VideoBuffer};
 use crate::window::Window;
+use crossterm::event::{KeyCode, KeyEvent};
 use crossterm::style::Color;
 use std::time::Instant;
+
+/// Close confirmation dialog for a terminal window
+#[derive(Clone, Debug)]
+pub(crate) struct CloseConfirmation {
+    selected_button: usize, // 0 = Cancel, 1 = Close
+}
+
+impl CloseConfirmation {
+    fn new() -> Self {
+        Self {
+            selected_button: 0, // Default to Cancel (safe choice)
+        }
+    }
+}
 
 /// A window containing a terminal emulator
 pub struct TerminalWindow {
@@ -17,6 +32,11 @@ pub struct TerminalWindow {
     // Cached foreground process name to avoid spawning ps every frame
     cached_process_name: Option<String>,
     process_name_last_update: Instant,
+    // Close confirmation state
+    pub(crate) pending_close_confirmation: Option<CloseConfirmation>,
+    // Track user input (for dirty state detection)
+    created_at: Instant,
+    has_user_input: bool,
 }
 
 impl TerminalWindow {
@@ -53,6 +73,9 @@ impl TerminalWindow {
             selection: None,
             cached_process_name: None,
             process_name_last_update: Instant::now(),
+            pending_close_confirmation: None,
+            created_at: Instant::now(),
+            has_user_input: false,
         })
     }
 
@@ -101,11 +124,19 @@ impl TerminalWindow {
 
     /// Send input to the terminal
     pub fn send_str(&mut self, s: &str) -> std::io::Result<()> {
+        // Only track user input after initial shell setup (1 second grace period)
+        if self.created_at.elapsed().as_secs() >= 1 {
+            self.has_user_input = true;
+        }
         self.emulator.send_str(s)
     }
 
     /// Send a character to the terminal
     pub fn send_char(&mut self, c: char) -> std::io::Result<()> {
+        // Only track user input after initial shell setup (1 second grace period)
+        if self.created_at.elapsed().as_secs() >= 1 {
+            self.has_user_input = true;
+        }
         self.emulator.send_char(c)
     }
 
@@ -171,6 +202,9 @@ impl TerminalWindow {
 
         // Render the scrollbar
         self.render_scrollbar(buffer, charset, theme);
+
+        // Render close confirmation on top of window content (if active)
+        self.render_close_confirmation(buffer, charset, theme);
     }
 
     fn render_terminal_content(
@@ -354,6 +388,206 @@ impl TerminalWindow {
         }
     }
 
+    /// Render close confirmation dialog centered in window
+    fn render_close_confirmation(
+        &self,
+        buffer: &mut VideoBuffer,
+        charset: &Charset,
+        theme: &Theme,
+    ) {
+        if self.pending_close_confirmation.is_none() {
+            return;
+        }
+
+        let confirmation = self.pending_close_confirmation.as_ref().unwrap();
+
+        // Dialog dimensions
+        let dialog_width = 40u16;
+        let dialog_height = 7u16; // Border + message (3 lines) + buttons + border
+
+        // Center in window's content area
+        let content_x = self.window.x + 2;
+        let content_y = self.window.y + 1;
+        let content_width = self.window.width.saturating_sub(4);
+        let content_height = self.window.height.saturating_sub(2);
+
+        let dialog_x = content_x + (content_width.saturating_sub(dialog_width)) / 2;
+        let dialog_y = content_y + (content_height.saturating_sub(dialog_height)) / 2;
+
+        // Ensure dialog fits within window
+        let dialog_width = dialog_width.min(content_width);
+        let dialog_height = dialog_height.min(content_height);
+
+        // Draw shadow first (2 cells right, 1 cell down)
+        video_buffer::render_shadow(
+            buffer,
+            dialog_x,
+            dialog_y,
+            dialog_width,
+            dialog_height,
+            charset,
+            theme,
+        );
+
+        // Draw dialog background
+        let bg_color = theme.prompt_danger_bg;
+        let fg_color = theme.prompt_danger_fg;
+
+        for y in 0..dialog_height {
+            for x in 0..dialog_width {
+                let cell = Cell::new(' ', fg_color, bg_color);
+                buffer.set(dialog_x + x, dialog_y + y, cell);
+            }
+        }
+
+        // Draw border
+        let (tl, tr, bl, br, h, v) = match charset.mode {
+            CharsetMode::Unicode | CharsetMode::UnicodeSingleLine => {
+                ('╔', '╗', '╚', '╝', '═', '║')
+            }
+            CharsetMode::Ascii => ('+', '+', '+', '+', '-', '|'),
+        };
+
+        // Top border
+        buffer.set(dialog_x, dialog_y, Cell::new(tl, fg_color, bg_color));
+        for x in 1..dialog_width - 1 {
+            buffer.set(dialog_x + x, dialog_y, Cell::new(h, fg_color, bg_color));
+        }
+        buffer.set(
+            dialog_x + dialog_width - 1,
+            dialog_y,
+            Cell::new(tr, fg_color, bg_color),
+        );
+
+        // Side borders
+        for y in 1..dialog_height - 1 {
+            buffer.set(dialog_x, dialog_y + y, Cell::new(v, fg_color, bg_color));
+            buffer.set(
+                dialog_x + dialog_width - 1,
+                dialog_y + y,
+                Cell::new(v, fg_color, bg_color),
+            );
+        }
+
+        // Bottom border
+        buffer.set(
+            dialog_x,
+            dialog_y + dialog_height - 1,
+            Cell::new(bl, fg_color, bg_color),
+        );
+        for x in 1..dialog_width - 1 {
+            buffer.set(
+                dialog_x + x,
+                dialog_y + dialog_height - 1,
+                Cell::new(h, fg_color, bg_color),
+            );
+        }
+        buffer.set(
+            dialog_x + dialog_width - 1,
+            dialog_y + dialog_height - 1,
+            Cell::new(br, fg_color, bg_color),
+        );
+
+        // Render message (3 lines centered)
+        let messages = [
+            "Close this terminal?",
+            "",
+            "Active content may be lost.",
+        ];
+
+        for (i, msg) in messages.iter().enumerate() {
+            let msg_x = dialog_x + (dialog_width.saturating_sub(msg.len() as u16)) / 2;
+            let msg_y = dialog_y + 1 + i as u16;
+            for (j, ch) in msg.chars().enumerate() {
+                buffer.set(msg_x + j as u16, msg_y, Cell::new(ch, fg_color, bg_color));
+            }
+        }
+
+        // Render buttons on second-to-last row
+        let button_y = dialog_y + dialog_height - 2;
+
+        // Button texts
+        let cancel_text = "[ Cancel ]";
+        let close_text = "[ Close ]";
+
+        // Calculate button positions (centered, with spacing)
+        let total_width = cancel_text.len() + 4 + close_text.len(); // 4 = spacing
+        let buttons_start_x = dialog_x + (dialog_width.saturating_sub(total_width as u16)) / 2;
+
+        let cancel_x = buttons_start_x;
+        let close_x = buttons_start_x + cancel_text.len() as u16 + 4;
+
+        // Render Cancel button
+        let (cancel_fg, cancel_bg) = if confirmation.selected_button == 0 {
+            (
+                theme.dialog_button_primary_success_fg,
+                theme.dialog_button_primary_success_bg,
+            )
+        } else {
+            (
+                theme.dialog_button_secondary_fg,
+                theme.dialog_button_secondary_bg,
+            )
+        };
+
+        for (i, ch) in cancel_text.chars().enumerate() {
+            buffer.set(
+                cancel_x + i as u16,
+                button_y,
+                Cell::new(ch, cancel_fg, cancel_bg),
+            );
+        }
+
+        // Add selection indicator for Cancel
+        if confirmation.selected_button == 0 {
+            buffer.set(
+                cancel_x.saturating_sub(1),
+                button_y,
+                Cell::new('>', fg_color, bg_color),
+            );
+            buffer.set(
+                cancel_x + cancel_text.len() as u16,
+                button_y,
+                Cell::new('<', fg_color, bg_color),
+            );
+        }
+
+        // Render Close button
+        let (close_fg, close_bg) = if confirmation.selected_button == 1 {
+            (
+                theme.dialog_button_primary_danger_fg,
+                theme.dialog_button_primary_danger_bg,
+            )
+        } else {
+            (
+                theme.dialog_button_secondary_fg,
+                theme.dialog_button_secondary_bg,
+            )
+        };
+
+        for (i, ch) in close_text.chars().enumerate() {
+            buffer.set(
+                close_x + i as u16,
+                button_y,
+                Cell::new(ch, close_fg, close_bg),
+            );
+        }
+
+        // Add selection indicator for Close
+        if confirmation.selected_button == 1 {
+            buffer.set(
+                close_x.saturating_sub(1),
+                button_y,
+                Cell::new('>', fg_color, bg_color),
+            );
+            buffer.set(
+                close_x + close_text.len() as u16,
+                button_y,
+                Cell::new('<', fg_color, bg_color),
+            );
+        }
+    }
+
     /// Get the window's ID
     pub fn id(&self) -> u32 {
         self.window.id
@@ -386,6 +620,45 @@ impl TerminalWindow {
             return false;
         }
         self.window.is_in_close_button(x, y)
+    }
+
+    /// Check if window has unsaved work (user input or non-shell process running)
+    /// Ignores shell processes and common shell helpers
+    pub fn is_dirty(&self) -> bool {
+        // Check if user has typed anything (after initial 1 second grace period)
+        if self.has_user_input {
+            return true;
+        }
+
+        // Check if there's a non-shell process running
+        if let Some(process_name) = self.get_foreground_process_name() {
+            // List of shell processes and common shell-related tools to ignore
+            let ignore_list = [
+                // Shells (regular and login shell variants with - prefix)
+                "bash", "-bash", "zsh", "-zsh", "sh", "-sh", "fish", "-fish",
+                "dash", "-dash", "ksh", "-ksh", "csh", "-csh", "tcsh", "-tcsh",
+                "nu", "-nu", "elvish", "-elvish", "xonsh", "-xonsh",
+                // Shell prompt tools
+                "starship", "gitstatus", "powerlevel10k",
+                // Environment tools
+                "direnv", "asdf", "mise", "rtx", "fnm", "nvm",
+                // Common shell integrations
+                "zsh-autocomplete", "zsh-autosuggestions", "zsh-syntax-highlighting",
+            ];
+            !ignore_list.contains(&process_name.as_str())
+        } else {
+            false
+        }
+    }
+
+    /// Check if close confirmation dialog is currently shown
+    pub fn has_close_confirmation(&self) -> bool {
+        self.pending_close_confirmation.is_some()
+    }
+
+    /// Show the close confirmation dialog
+    pub fn show_close_confirmation(&mut self) {
+        self.pending_close_confirmation = Some(CloseConfirmation::new());
     }
 
     /// Get total number of lines (scrollback + visible)
@@ -758,6 +1031,95 @@ impl TerminalWindow {
         let grid = self.emulator.grid();
         let grid = grid.lock().unwrap();
         grid.application_cursor_keys
+    }
+
+    /// Handle keyboard input for close confirmation dialog
+    /// Returns Some(true) if should close, Some(false) if canceled, None if not handled
+    pub fn handle_close_confirmation_key(&mut self, key: KeyEvent) -> Option<bool> {
+        let confirmation = self.pending_close_confirmation.as_mut()?;
+
+        match key.code {
+            KeyCode::Left | KeyCode::Char('h') => {
+                confirmation.selected_button = 0; // Cancel
+                Some(false) // Don't close, just update UI
+            }
+            KeyCode::Right | KeyCode::Char('l') => {
+                confirmation.selected_button = 1; // Close
+                Some(false) // Don't close, just update UI
+            }
+            KeyCode::Tab => {
+                confirmation.selected_button = 1 - confirmation.selected_button; // Toggle
+                Some(false) // Don't close, just update UI
+            }
+            KeyCode::Enter => {
+                let should_close = confirmation.selected_button == 1;
+                self.pending_close_confirmation = None;
+                Some(should_close)
+            }
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.pending_close_confirmation = None;
+                Some(false) // Cancel
+            }
+            _ => None, // Ignore other keys
+        }
+    }
+
+    /// Handle mouse click for close confirmation dialog
+    /// Returns Some(true) if should close, Some(false) if canceled, None if not in dialog
+    pub fn handle_close_confirmation_click(&mut self, x: u16, y: u16) -> Option<bool> {
+        self.pending_close_confirmation.as_ref()?;
+
+        // Calculate dialog bounds
+        let dialog_width = 40u16;
+        let dialog_height = 7u16;
+
+        let content_x = self.window.x + 2;
+        let content_y = self.window.y + 1;
+        let content_width = self.window.width.saturating_sub(4);
+        let content_height = self.window.height.saturating_sub(2);
+
+        let dialog_x = content_x + (content_width.saturating_sub(dialog_width)) / 2;
+        let dialog_y = content_y + (content_height.saturating_sub(dialog_height)) / 2;
+        let dialog_width = dialog_width.min(content_width);
+        let dialog_height = dialog_height.min(content_height);
+
+        // Check if click is within dialog
+        if x < dialog_x
+            || x >= dialog_x + dialog_width
+            || y < dialog_y
+            || y >= dialog_y + dialog_height
+        {
+            return None; // Click outside dialog
+        }
+
+        // Calculate button positions (same as render)
+        let button_y = dialog_y + dialog_height - 2;
+
+        if y != button_y {
+            return None; // Not on button row
+        }
+
+        let cancel_text = "[ Cancel ]";
+        let close_text = "[ Close ]";
+        let total_width = cancel_text.len() + 4 + close_text.len();
+        let buttons_start_x = dialog_x + (dialog_width.saturating_sub(total_width as u16)) / 2;
+
+        let cancel_x = buttons_start_x;
+        let cancel_end = cancel_x + cancel_text.len() as u16;
+        let close_x = buttons_start_x + cancel_text.len() as u16 + 4;
+        let close_end = close_x + close_text.len() as u16;
+
+        if x >= cancel_x && x < cancel_end {
+            // Clicked Cancel
+            self.pending_close_confirmation = None;
+            Some(false)
+        } else if x >= close_x && x < close_end {
+            // Clicked Close
+            self.pending_close_confirmation = None;
+            Some(true)
+        } else {
+            None
+        }
     }
 }
 
