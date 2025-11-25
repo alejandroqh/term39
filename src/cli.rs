@@ -55,7 +55,7 @@ pub struct Cli {
     ///
     /// This mode uses thin single-line box characters (┌─┐│└┘) instead of
     /// double-line characters (╔═╗║╚╝). Use this when the font doesn't have
-    /// double-line box drawing glyphs (like embedded ter-v16n/ter-v32n fonts).
+    /// double-line box drawing glyphs.
     #[arg(long, help = "Use single-line Unicode box drawing characters")]
     pub single_line: bool,
 

@@ -18,15 +18,11 @@ const PSF1_MAGIC: u16 = 0x0436;
 const PSF1_MODE512: u8 = 0x01; // 512 glyphs instead of 256
 const PSF1_MODEHASTAB: u8 = 0x02; // Has unicode table
 
-/// Embedded Terminus font ter-v16n (8x16) - gzip compressed
-/// Copyright (c) 2010-2020 Dimitar Toshkov Zhekov
-/// Licensed under SIL Open Font License 1.1 - see TERMINUS-FONT-LICENSE.txt
-const EMBEDDED_FONT_TER_V16N: &[u8] = include_bytes!("ter-v16n.psf.gz");
-
-/// Embedded Terminus font ter-v32n (16x32) - gzip compressed
-/// Copyright (c) 2010-2020 Dimitar Toshkov Zhekov
-/// Licensed under SIL Open Font License 1.1 - see TERMINUS-FONT-LICENSE.txt
-const EMBEDDED_FONT_TER_V32N: &[u8] = include_bytes!("ter-v32n.psf.gz");
+/// Embedded GNU Unifont APL8x16 (8x16) - gzip compressed
+/// GNU Unifont has comprehensive Unicode coverage including box-drawing characters
+/// Copyright (c) 1998-2024 Roman Czyborra, Paul Hardy, et al.
+/// Licensed under GNU General Public License version 2+ with font embedding exception
+const EMBEDDED_FONT_UNIFONT_8X16: &[u8] = include_bytes!("Unifont-APL8x16.psf.gz");
 
 /// PSF1 font header structure (4 bytes)
 #[repr(C)]
@@ -655,24 +651,22 @@ impl FontManager {
     pub fn load_for_dimensions(char_width: usize, char_height: usize) -> io::Result<Self> {
         // Common console fonts with their dimensions
         // Debian/Ubuntu font names (Uni3-* series, compressed .psf.gz)
+        // Unifont is preferred for its comprehensive Unicode coverage
         let font_candidates = [
             // 8x16 fonts (80x25 mode)
+            ("Unifont-APL8x16", 8, 16), // GNU Unifont - excellent Unicode coverage (preferred)
             ("Uni3-Terminus16", 8, 16),
             ("Uni3-TerminusBold16", 8, 16),
-            ("Unifont-APL8x16", 8, 16), // GNU Unifont - excellent Unicode coverage
             ("Lat2-Terminus16", 8, 16), // Fallback for older systems
-            ("ter-116n", 8, 16),
             ("default8x16", 8, 16),
             // 8x8 fonts (80x50 mode - rare, might not exist)
             ("Uni2-VGA8", 8, 8),
             ("Lat2-Terminus8", 8, 8),
-            ("ter-108n", 8, 8),
             ("default8x8", 8, 8),
             // 8x14 fonts (80x28 mode)
             ("Uni3-Terminus14", 8, 14),
             ("Uni3-TerminusBold14", 8, 14),
             ("Lat2-Terminus14", 8, 14),
-            ("ter-114n", 8, 14),
             // 16x32 fonts (might work for high-res 40x25 mode)
             ("Uni3-Terminus32x16", 16, 32),
             ("Uni3-TerminusBold32x16", 16, 32),
@@ -709,21 +703,16 @@ impl FontManager {
 
     /// Load an embedded font that best matches the requested dimensions
     /// This is the fallback when no system fonts are available
-    pub fn load_embedded_font(char_width: usize, char_height: usize) -> io::Result<Self> {
-        // Choose embedded font based on requested dimensions
-        // ter-v16n is 8x16, ter-v32n is 16x32
-        let use_large_font = char_width > 8 || char_height > 16;
-
-        if use_large_font {
-            Self::load_from_gzip_bytes(EMBEDDED_FONT_TER_V32N)
-        } else {
-            Self::load_from_gzip_bytes(EMBEDDED_FONT_TER_V16N)
-        }
+    /// Currently only Unifont 8x16 is embedded; larger sizes fall back to the same font
+    pub fn load_embedded_font(_char_width: usize, _char_height: usize) -> io::Result<Self> {
+        // Unifont 8x16 has comprehensive Unicode coverage including all box-drawing characters
+        // For larger text modes, the caller should scale or use system fonts if available
+        Self::load_from_gzip_bytes(EMBEDDED_FONT_UNIFONT_8X16)
     }
 
-    /// Load the default embedded font (ter-v16n, 8x16)
+    /// Load the default embedded font (Unifont 8x16)
     pub fn load_embedded_default() -> io::Result<Self> {
-        Self::load_from_gzip_bytes(EMBEDDED_FONT_TER_V16N)
+        Self::load_from_gzip_bytes(EMBEDDED_FONT_UNIFONT_8X16)
     }
 
     /// Get glyph bitmap for a character
@@ -805,7 +794,7 @@ impl FontManager {
     }
 
     /// List all available console fonts in the system
-    /// Includes embedded fonts (ter-v16n, ter-v32n) which are always available
+    /// Includes embedded font (Unifont-APL8x16) which is always available
     pub fn list_available_fonts() -> Vec<(String, usize, usize)> {
         use std::fs;
 
@@ -822,9 +811,8 @@ impl FontManager {
 
         let mut fonts = Vec::new();
 
-        // Add embedded fonts first (always available)
-        fonts.push(("[Embedded] ter-v16n".to_string(), 8, 16));
-        fonts.push(("[Embedded] ter-v32n".to_string(), 16, 32));
+        // Add embedded font first (always available)
+        fonts.push(("[Embedded] Unifont-APL8x16".to_string(), 8, 16));
 
         for base_path in &base_paths {
             if let Ok(entries) = fs::read_dir(base_path) {
@@ -880,10 +868,8 @@ impl FontManager {
     /// Load a font by name, supporting both system fonts and embedded fonts
     /// Embedded font names start with "[Embedded] "
     pub fn load_font_by_name(name: &str) -> io::Result<Self> {
-        if name == "[Embedded] ter-v16n" {
-            Self::load_from_gzip_bytes(EMBEDDED_FONT_TER_V16N)
-        } else if name == "[Embedded] ter-v32n" {
-            Self::load_from_gzip_bytes(EMBEDDED_FONT_TER_V32N)
+        if name == "[Embedded] Unifont-APL8x16" {
+            Self::load_from_gzip_bytes(EMBEDDED_FONT_UNIFONT_8X16)
         } else {
             Self::load_console_font(name)
         }
