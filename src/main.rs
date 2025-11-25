@@ -563,6 +563,9 @@ fn main() -> io::Result<()> {
             if gpm_evt.ctrl {
                 modifiers |= KeyModifiers::CONTROL;
             }
+            if gpm_evt.alt {
+                modifiers |= KeyModifiers::ALT;
+            }
 
             let mouse_event = match gpm_evt.event_type {
                 gpm_handler::GpmEventType::Down => {

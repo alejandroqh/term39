@@ -56,10 +56,18 @@ const GPM_UP: c_int = 8;
 const GPM_B_LEFT: c_int = 1;
 const GPM_B_MIDDLE: c_int = 2;
 const GPM_B_RIGHT: c_int = 4;
+const GPM_B_FOURTH: c_int = 16; // Scroll wheel up
+const GPM_B_FIFTH: c_int = 32; // Scroll wheel down
 
 // GPM modifier masks (from gpm.h)
 const GPM_MOD_SHIFT: u8 = 1;
 const GPM_MOD_CTRL: u8 = 4;
+const GPM_MOD_META: u8 = 8; // ALT key
+
+// GPM click type masks (from gpm.h) - combined with DOWN/UP events
+const GPM_SINGLE: c_int = 16;
+const GPM_DOUBLE: c_int = 32;
+const GPM_TRIPLE: c_int = 64;
 
 // Gpm_Event structure (from gpm.h)
 // IMPORTANT: This must match the C structure exactly to avoid memory corruption
@@ -121,8 +129,13 @@ unsafe impl Sync for GpmLibrary {}
 /// Try to dynamically load libgpm.so at runtime
 fn load_gpm_library() -> Option<GpmLibrary> {
     unsafe {
-        // Try to load libgpm.so (common library names)
-        let lib_names = ["libgpm.so.2", "libgpm.so.1", "libgpm.so"];
+        // Try to load libgpm.so (common library names across distros)
+        let lib_names = [
+            "libgpm.so.2",
+            "libgpm.so.1",
+            "libgpm.so",
+            "libgpm.so.2.1.0", // Some distros use full version
+        ];
 
         for lib_name in &lib_names {
             let lib_cstr = std::ffi::CString::new(*lib_name).ok()?;
@@ -180,8 +193,8 @@ fn get_gpm_lib() -> Option<&'static GpmLibrary> {
 
 /// GPM Connection handle
 pub struct GpmConnection {
+    /// File descriptor for GPM connection (-1 = not connected)
     fd: c_int,
-    connected: bool,
     /// Track last pressed button for UP events that don't report button state
     last_button: Option<GpmButton>,
 }
@@ -205,6 +218,15 @@ pub enum GpmButton {
     Right,
 }
 
+/// Click count for mouse events
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ClickCount {
+    #[default]
+    Single,
+    Double,
+    Triple,
+}
+
 /// Simplified GPM event for application use
 #[derive(Debug, Clone, Copy)]
 pub struct GpmMouseEvent {
@@ -212,8 +234,16 @@ pub struct GpmMouseEvent {
     pub y: u16,
     pub event_type: GpmEventType,
     pub button: Option<GpmButton>,
+    pub clicks: ClickCount,
     pub shift: bool,
     pub ctrl: bool,
+    pub alt: bool,
+}
+
+/// Convert GPM 1-based coordinates to 0-based screen coordinates
+#[inline]
+fn gpm_to_screen_coords(x: c_short, y: c_short) -> (u16, u16) {
+    ((x - 1).max(0) as u16, (y - 1).max(0) as u16)
 }
 
 impl GpmConnection {
@@ -233,28 +263,19 @@ impl GpmConnection {
             // - event_mask: events we want to receive (button presses, etc.)
             // - default_mask: events GPM handles itself (cursor drawing, selection)
             //
-            // For GPM to draw its cursor, it needs to handle MOVE events internally.
-            // We request button events for ourselves, but let GPM handle move/drag
-            // for cursor drawing when in terminal mode.
+            // For terminal mode (draw_cursor=true):
+            //   Request all events and set default_mask to !0 so GPM draws its cursor.
+            //   This matches the proven v0.10.3 configuration that works reliably.
             //
-            // In framebuffer mode, we capture everything since we draw our own cursor.
-            let (event_mask, default_mask) = if draw_cursor {
-                // Terminal mode: Let GPM draw cursor while we handle button events
-                //
-                // IMPORTANT: For GPM to draw its cursor, it must HANDLE (not just receive)
-                // the MOVE events. Events in event_mask are sent to us; events in default_mask
-                // are handled by GPM (including cursor drawing).
-                //
-                // We only request button events (DOWN/UP/DRAG) and let GPM handle MOVE
-                // entirely so it draws the cursor during normal mouse movement.
-                // We include DRAG in our event_mask so we can track drag operations,
-                // but also keep it in default_mask so GPM continues drawing cursor during drags.
-                let events = (GPM_DRAG | GPM_DOWN | GPM_UP) as c_ushort;
-                let defaults = (GPM_MOVE | GPM_DRAG) as c_ushort;
-                (events, defaults)
+            // For framebuffer mode (draw_cursor=false):
+            //   Capture all events with no defaults, we draw our own cursor.
+            let event_mask = (GPM_MOVE | GPM_DRAG | GPM_DOWN | GPM_UP) as c_ushort;
+            let default_mask = if draw_cursor {
+                // Terminal mode: GPM handles all events by default (draws cursor)
+                !0 as c_ushort
             } else {
-                // Framebuffer mode: Capture everything, we draw our own cursor
-                (!0 as c_ushort, 0 as c_ushort)
+                // Framebuffer mode: Application handles everything
+                0 as c_ushort
             };
 
             let mut conn = GpmConnect {
@@ -272,7 +293,6 @@ impl GpmConnection {
             } else {
                 Some(GpmConnection {
                     fd,
-                    connected: true,
                     last_button: None,
                 })
             }
@@ -288,7 +308,7 @@ impl GpmConnection {
 
     /// Check if there's an event available (non-blocking)
     pub fn has_event(&self) -> bool {
-        if !self.connected {
+        if self.fd < 0 {
             return false;
         }
 
@@ -305,11 +325,9 @@ impl GpmConnection {
         match poll(&mut poll_fds, 0u8) {
             Ok(n) if n > 0 => {
                 // Check if our fd has data available
-                if let Some(revents) = poll_fds[0].revents() {
-                    revents.contains(PollFlags::POLLIN)
-                } else {
-                    false
-                }
+                poll_fds[0]
+                    .revents()
+                    .is_some_and(|r| r.contains(PollFlags::POLLIN))
             }
             _ => false,
         }
@@ -318,7 +336,7 @@ impl GpmConnection {
     /// Read a GPM event (blocking)
     /// Returns None if no event is available or connection is closed
     pub fn get_event(&mut self) -> Option<GpmMouseEvent> {
-        if !self.connected {
+        if self.fd < 0 {
             return None;
         }
 
@@ -332,34 +350,41 @@ impl GpmConnection {
                 return None;
             }
 
+            let (x, y) = gpm_to_screen_coords(event.x, event.y);
+            let buttons = event.buttons as c_int;
+
             // Extract modifier keys
             let shift = (event.modifiers & GPM_MOD_SHIFT) != 0;
             let ctrl = (event.modifiers & GPM_MOD_CTRL) != 0;
+            let alt = (event.modifiers & GPM_MOD_META) != 0;
 
-            // Check for scroll wheel events first (wdy contains vertical scroll delta)
-            // Positive wdy = scroll up, negative wdy = scroll down
-            if event.wdy != 0 {
-                // Convert coordinates (GPM uses 1-based indexing)
-                let x = (event.x - 1).max(0) as u16;
-                let y = (event.y - 1).max(0) as u16;
-
-                let event_type = if event.wdy > 0 {
-                    GpmEventType::ScrollUp
-                } else {
-                    GpmEventType::ScrollDown
-                };
-
+            // Check for scroll wheel events first (GPM uses buttons 4 and 5)
+            if (buttons & GPM_B_FOURTH) != 0 {
                 return Some(GpmMouseEvent {
                     x,
                     y,
-                    event_type,
+                    event_type: GpmEventType::ScrollUp,
                     button: None,
+                    clicks: ClickCount::Single,
                     shift,
                     ctrl,
+                    alt,
+                });
+            }
+            if (buttons & GPM_B_FIFTH) != 0 {
+                return Some(GpmMouseEvent {
+                    x,
+                    y,
+                    event_type: GpmEventType::ScrollDown,
+                    button: None,
+                    clicks: ClickCount::Single,
+                    shift,
+                    ctrl,
+                    alt,
                 });
             }
 
-            // Convert GPM event to our simplified format
+            // Convert GPM event type to our simplified format
             let event_type = if (event.event_type & GPM_DOWN) != 0 {
                 GpmEventType::Down
             } else if (event.event_type & GPM_UP) != 0 {
@@ -372,13 +397,22 @@ impl GpmConnection {
                 return None;
             };
 
+            // Extract click count from event_type (GPM combines these with DOWN/UP)
+            let clicks = if (event.event_type & GPM_TRIPLE) != 0 {
+                ClickCount::Triple
+            } else if (event.event_type & GPM_DOUBLE) != 0 {
+                ClickCount::Double
+            } else {
+                ClickCount::Single
+            };
+
             // Determine which button (if any)
             // Use ONLY the buttons field - event_type has overlapping bit values!
-            let reported_button = if (event.buttons as c_int & GPM_B_LEFT) != 0 {
+            let reported_button = if (buttons & GPM_B_LEFT) != 0 {
                 Some(GpmButton::Left)
-            } else if (event.buttons as c_int & GPM_B_MIDDLE) != 0 {
+            } else if (buttons & GPM_B_MIDDLE) != 0 {
                 Some(GpmButton::Middle)
-            } else if (event.buttons as c_int & GPM_B_RIGHT) != 0 {
+            } else if (buttons & GPM_B_RIGHT) != 0 {
                 Some(GpmButton::Right)
             } else {
                 None
@@ -402,37 +436,35 @@ impl GpmConnection {
                 _ => reported_button,
             };
 
-            // Convert coordinates (GPM uses 1-based indexing)
-            let x = (event.x - 1).max(0) as u16;
-            let y = (event.y - 1).max(0) as u16;
-
             Some(GpmMouseEvent {
                 x,
                 y,
                 event_type,
                 button,
+                clicks,
                 shift,
                 ctrl,
+                alt,
             })
         }
     }
 
     /// Close the GPM connection
     pub fn close(&mut self) {
-        if self.connected {
+        if self.fd >= 0 {
             if let Some(gpm_lib) = get_gpm_lib() {
                 unsafe {
                     (gpm_lib.gpm_close)();
                 }
             }
-            self.connected = false;
+            self.fd = -1;
         }
     }
 
     /// Check if connected to GPM
     #[allow(dead_code)]
     pub fn is_connected(&self) -> bool {
-        self.connected
+        self.fd >= 0
     }
 }
 
