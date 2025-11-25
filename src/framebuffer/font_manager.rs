@@ -16,8 +16,17 @@ const PSF1_MAGIC: u16 = 0x0436;
 
 /// PSF1 mode flags
 const PSF1_MODE512: u8 = 0x01; // 512 glyphs instead of 256
-#[allow(dead_code)]
 const PSF1_MODEHASTAB: u8 = 0x02; // Has unicode table
+
+/// Embedded Terminus font ter-v16n (8x16) - gzip compressed
+/// Copyright (c) 2010-2020 Dimitar Toshkov Zhekov
+/// Licensed under SIL Open Font License 1.1 - see TERMINUS-FONT-LICENSE.txt
+const EMBEDDED_FONT_TER_V16N: &[u8] = include_bytes!("ter-v16n.psf.gz");
+
+/// Embedded Terminus font ter-v32n (16x32) - gzip compressed
+/// Copyright (c) 2010-2020 Dimitar Toshkov Zhekov
+/// Licensed under SIL Open Font License 1.1 - see TERMINUS-FONT-LICENSE.txt
+const EMBEDDED_FONT_TER_V32N: &[u8] = include_bytes!("ter-v32n.psf.gz");
 
 /// PSF1 font header structure (4 bytes)
 #[repr(C)]
@@ -105,6 +114,142 @@ impl Psf2Header {
     }
 }
 
+/// Parse PSF1 Unicode table from raw bytes
+/// PSF1 tables use 16-bit little-endian values with 0xFFFF as separator
+/// Returns a HashMap mapping Unicode codepoints to glyph indices
+fn parse_psf1_unicode_table(
+    data: &[u8],
+    glyph_count: usize,
+) -> std::collections::HashMap<u32, usize> {
+    use std::collections::HashMap;
+
+    let mut map = HashMap::new();
+    let mut pos = 0;
+    let mut glyph_idx = 0;
+
+    while pos + 1 < data.len() && glyph_idx < glyph_count {
+        let value = u16::from_le_bytes([data[pos], data[pos + 1]]);
+        pos += 2;
+
+        if value == 0xFFFF {
+            // End of this glyph's unicode list
+            glyph_idx += 1;
+        } else if value == 0xFFFE {
+            // Start of combining sequence - skip until 0xFFFF
+            while pos + 1 < data.len() {
+                let v = u16::from_le_bytes([data[pos], data[pos + 1]]);
+                pos += 2;
+                if v == 0xFFFF {
+                    glyph_idx += 1;
+                    break;
+                }
+            }
+        } else {
+            // Regular Unicode codepoint (16-bit, covers BMP which includes box-drawing)
+            map.insert(value as u32, glyph_idx);
+        }
+    }
+
+    map
+}
+
+/// Parse PSF2 Unicode table from raw bytes
+/// Returns a HashMap mapping Unicode codepoints to glyph indices
+fn parse_psf2_unicode_table(
+    data: &[u8],
+    glyph_count: usize,
+) -> std::collections::HashMap<u32, usize> {
+    use std::collections::HashMap;
+
+    let mut map = HashMap::new();
+    let mut pos = 0;
+    let mut glyph_idx = 0;
+
+    while pos < data.len() && glyph_idx < glyph_count {
+        // Read UTF-8 sequences until we hit 0xFF (end of glyph) or 0xFE (combining)
+        if data[pos] == 0xFF {
+            // End of this glyph's unicode list
+            glyph_idx += 1;
+            pos += 1;
+            continue;
+        }
+
+        if data[pos] == 0xFE {
+            // Start of combining sequence - skip until 0xFF
+            while pos < data.len() && data[pos] != 0xFF {
+                pos += 1;
+            }
+            continue;
+        }
+
+        // Decode UTF-8 sequence
+        let (codepoint, bytes_read) = decode_utf8(&data[pos..]);
+        if bytes_read > 0 {
+            map.insert(codepoint, glyph_idx);
+            pos += bytes_read;
+        } else {
+            // Invalid UTF-8, skip byte
+            pos += 1;
+        }
+    }
+
+    map
+}
+
+/// Decode a single UTF-8 character from bytes
+/// Returns (codepoint, bytes_consumed) or (0, 0) on error
+fn decode_utf8(data: &[u8]) -> (u32, usize) {
+    if data.is_empty() {
+        return (0, 0);
+    }
+
+    let b0 = data[0];
+
+    // Single byte (ASCII)
+    if b0 < 0x80 {
+        return (b0 as u32, 1);
+    }
+
+    // Multi-byte sequence
+    if b0 < 0xC0 {
+        // Invalid start byte
+        return (0, 0);
+    }
+
+    if b0 < 0xE0 {
+        // 2-byte sequence
+        if data.len() < 2 {
+            return (0, 0);
+        }
+        let cp = ((b0 as u32 & 0x1F) << 6) | (data[1] as u32 & 0x3F);
+        return (cp, 2);
+    }
+
+    if b0 < 0xF0 {
+        // 3-byte sequence
+        if data.len() < 3 {
+            return (0, 0);
+        }
+        let cp =
+            ((b0 as u32 & 0x0F) << 12) | ((data[1] as u32 & 0x3F) << 6) | (data[2] as u32 & 0x3F);
+        return (cp, 3);
+    }
+
+    if b0 < 0xF8 {
+        // 4-byte sequence
+        if data.len() < 4 {
+            return (0, 0);
+        }
+        let cp = ((b0 as u32 & 0x07) << 18)
+            | ((data[1] as u32 & 0x3F) << 12)
+            | ((data[2] as u32 & 0x3F) << 6)
+            | (data[3] as u32 & 0x3F);
+        return (cp, 4);
+    }
+
+    (0, 0)
+}
+
 /// Font manager for loading and accessing PSF2 bitmap fonts
 #[derive(Debug)]
 pub struct FontManager {
@@ -122,6 +267,8 @@ pub struct FontManager {
     pub bytes_per_row: usize,
     /// Fast path flag: true if font width is exactly 8 pixels (most common)
     pub is_width_8: bool,
+    /// Unicode to glyph index mapping (for characters > 127)
+    unicode_map: std::collections::HashMap<u32, usize>,
 }
 
 impl FontManager {
@@ -154,6 +301,15 @@ impl FontManager {
             let mut glyphs = vec![0u8; total_bytes];
             file.read_exact(&mut glyphs)?;
 
+            // Read unicode table if present (flags bit 0)
+            let unicode_map = if header.flags & 1 != 0 {
+                let mut unicode_data = Vec::new();
+                file.read_to_end(&mut unicode_data)?;
+                parse_psf2_unicode_table(&unicode_data, header.length as usize)
+            } else {
+                std::collections::HashMap::new()
+            };
+
             let width = header.width as usize;
             let bytes_per_row = width.div_ceil(8);
             let is_width_8 = width == 8;
@@ -166,6 +322,7 @@ impl FontManager {
                 glyphs,
                 bytes_per_row,
                 is_width_8,
+                unicode_map,
             });
         }
 
@@ -185,6 +342,15 @@ impl FontManager {
             let mut glyphs = vec![0u8; total_bytes];
             file.read_exact(&mut glyphs)?;
 
+            // Read unicode table if present (PSF1_MODEHASTAB flag)
+            let unicode_map = if header.mode & PSF1_MODEHASTAB != 0 {
+                let mut unicode_data = Vec::new();
+                file.read_to_end(&mut unicode_data)?;
+                parse_psf1_unicode_table(&unicode_data, glyph_count)
+            } else {
+                std::collections::HashMap::new()
+            };
+
             return Ok(FontManager {
                 width,
                 height,
@@ -193,6 +359,7 @@ impl FontManager {
                 glyphs,
                 bytes_per_row: 1, // PSF1 is always 8 pixels wide = 1 byte per row
                 is_width_8: true, // PSF1 is always 8 pixels wide
+                unicode_map,
             });
         }
 
@@ -312,6 +479,15 @@ impl FontManager {
             let mut glyphs = vec![0u8; total_bytes];
             gz_decoder.read_exact(&mut glyphs)?;
 
+            // Read unicode table if present (flags bit 0)
+            let unicode_map = if header.flags & 1 != 0 {
+                let mut unicode_data = Vec::new();
+                gz_decoder.read_to_end(&mut unicode_data)?;
+                parse_psf2_unicode_table(&unicode_data, header.length as usize)
+            } else {
+                std::collections::HashMap::new()
+            };
+
             let width = header.width as usize;
             let bytes_per_row = width.div_ceil(8);
             let is_width_8 = width == 8;
@@ -324,6 +500,7 @@ impl FontManager {
                 glyphs,
                 bytes_per_row,
                 is_width_8,
+                unicode_map,
             });
         }
 
@@ -343,6 +520,15 @@ impl FontManager {
             let mut glyphs = vec![0u8; total_bytes];
             gz_decoder.read_exact(&mut glyphs)?;
 
+            // Read unicode table if present (PSF1_MODEHASTAB flag)
+            let unicode_map = if header.mode & PSF1_MODEHASTAB != 0 {
+                let mut unicode_data = Vec::new();
+                gz_decoder.read_to_end(&mut unicode_data)?;
+                parse_psf1_unicode_table(&unicode_data, glyph_count)
+            } else {
+                std::collections::HashMap::new()
+            };
+
             return Ok(FontManager {
                 width,
                 height,
@@ -351,12 +537,117 @@ impl FontManager {
                 glyphs,
                 bytes_per_row: 1, // PSF1 is always 8 pixels wide = 1 byte per row
                 is_width_8: true, // PSF1 is always 8 pixels wide
+                unicode_map,
             });
         }
 
         Err(io::Error::new(
             io::ErrorKind::InvalidData,
             format!("Unknown font format in gzip. Magic: 0x{:08x}", magic32),
+        ))
+    }
+
+    /// Load a PSF font from gzip-compressed bytes (supports both PSF1 and PSF2)
+    /// Used for embedded fonts compiled into the binary
+    pub fn load_from_gzip_bytes(data: &[u8]) -> io::Result<Self> {
+        use std::io::Cursor;
+
+        let cursor = Cursor::new(data);
+        let mut gz_decoder = GzDecoder::new(cursor);
+
+        // Read first 4 bytes to detect format
+        let mut magic_bytes = [0u8; 4];
+        gz_decoder.read_exact(&mut magic_bytes)?;
+
+        // Check if it's PSF2 (magic is 4 bytes)
+        let magic32 = u32::from_le_bytes(magic_bytes);
+        if magic32 == PSF2_MAGIC {
+            // PSF2 format - read rest of header (32 bytes total)
+            let mut header_bytes = [0u8; 32];
+            header_bytes[0..4].copy_from_slice(&magic_bytes);
+            gz_decoder.read_exact(&mut header_bytes[4..])?;
+            let header = Psf2Header::from_bytes(&header_bytes)?;
+
+            // Skip to bitmap data
+            let skip_bytes = header.headersize as usize - 32;
+            if skip_bytes > 0 {
+                let mut skip_buf = vec![0u8; skip_bytes];
+                gz_decoder.read_exact(&mut skip_buf)?;
+            }
+
+            // Read all glyph bitmaps
+            let total_bytes = (header.length * header.charsize) as usize;
+            let mut glyphs = vec![0u8; total_bytes];
+            gz_decoder.read_exact(&mut glyphs)?;
+
+            // Read unicode table if present (flags bit 0)
+            let unicode_map = if header.flags & 1 != 0 {
+                let mut unicode_data = Vec::new();
+                gz_decoder.read_to_end(&mut unicode_data)?;
+                parse_psf2_unicode_table(&unicode_data, header.length as usize)
+            } else {
+                std::collections::HashMap::new()
+            };
+
+            let width = header.width as usize;
+            let bytes_per_row = width.div_ceil(8);
+            let is_width_8 = width == 8;
+
+            return Ok(FontManager {
+                width,
+                height: header.height as usize,
+                glyph_count: header.length as usize,
+                bytes_per_glyph: header.charsize as usize,
+                glyphs,
+                bytes_per_row,
+                is_width_8,
+                unicode_map,
+            });
+        }
+
+        // Check if it's PSF1 (magic is first 2 bytes)
+        let magic16 = u16::from_le_bytes([magic_bytes[0], magic_bytes[1]]);
+        if magic16 == PSF1_MAGIC {
+            // PSF1 format - header is only 4 bytes
+            let header = Psf1Header::from_bytes(&magic_bytes)?;
+
+            let width = 8; // PSF1 is always 8 pixels wide
+            let height = header.charsize as usize;
+            let glyph_count = header.glyph_count();
+            let bytes_per_glyph = height; // Each row is 1 byte (8 pixels)
+
+            // Read all glyph bitmaps
+            let total_bytes = glyph_count * bytes_per_glyph;
+            let mut glyphs = vec![0u8; total_bytes];
+            gz_decoder.read_exact(&mut glyphs)?;
+
+            // Read unicode table if present (PSF1_MODEHASTAB flag)
+            let unicode_map = if header.mode & PSF1_MODEHASTAB != 0 {
+                let mut unicode_data = Vec::new();
+                gz_decoder.read_to_end(&mut unicode_data)?;
+                parse_psf1_unicode_table(&unicode_data, glyph_count)
+            } else {
+                std::collections::HashMap::new()
+            };
+
+            return Ok(FontManager {
+                width,
+                height,
+                glyph_count,
+                bytes_per_glyph,
+                glyphs,
+                bytes_per_row: 1,
+                is_width_8: true,
+                unicode_map,
+            });
+        }
+
+        Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "Unknown font format in embedded gzip data. Magic: 0x{:08x}",
+                magic32
+            ),
         ))
     }
 
@@ -412,25 +703,70 @@ impl FontManager {
             }
         }
 
-        Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!(
-                "No suitable font found for {}x{} characters",
-                char_width, char_height
-            ),
-        ))
+        // Final fallback: use embedded fonts
+        Self::load_embedded_font(char_width, char_height)
+    }
+
+    /// Load an embedded font that best matches the requested dimensions
+    /// This is the fallback when no system fonts are available
+    pub fn load_embedded_font(char_width: usize, char_height: usize) -> io::Result<Self> {
+        // Choose embedded font based on requested dimensions
+        // ter-v16n is 8x16, ter-v32n is 16x32
+        let use_large_font = char_width > 8 || char_height > 16;
+
+        if use_large_font {
+            Self::load_from_gzip_bytes(EMBEDDED_FONT_TER_V32N)
+        } else {
+            Self::load_from_gzip_bytes(EMBEDDED_FONT_TER_V16N)
+        }
+    }
+
+    /// Load the default embedded font (ter-v16n, 8x16)
+    pub fn load_embedded_default() -> io::Result<Self> {
+        Self::load_from_gzip_bytes(EMBEDDED_FONT_TER_V16N)
     }
 
     /// Get glyph bitmap for a character
     /// Returns a slice of bytes where each byte represents one row of pixels
     pub fn get_glyph(&self, ch: char) -> &[u8] {
-        let code = ch as usize;
-        let glyph_index = if code < self.glyph_count { code } else { 0 };
+        let code = ch as u32;
+
+        // Determine glyph index:
+        // 1. For ASCII range (0-127), use direct mapping if within glyph count
+        // 2. For higher Unicode, look up in unicode_map
+        // 3. Fall back to glyph 0 (usually a placeholder/missing glyph)
+        let glyph_index = if code < 128 && (code as usize) < self.glyph_count {
+            code as usize
+        } else if let Some(&idx) = self.unicode_map.get(&code) {
+            idx
+        } else if (code as usize) < self.glyph_count {
+            // Direct mapping for codes within glyph range
+            code as usize
+        } else {
+            0
+        };
 
         let start = glyph_index * self.bytes_per_glyph;
         let end = start + self.bytes_per_glyph;
 
         &self.glyphs[start..end]
+    }
+
+    /// Debug: Print font info
+    pub fn debug_info(&self) -> String {
+        format!(
+            "Font: {}x{}, {} glyphs, {} bytes/glyph, {} total bytes",
+            self.width,
+            self.height,
+            self.glyph_count,
+            self.bytes_per_glyph,
+            self.glyphs.len()
+        )
+    }
+
+    /// Get the number of glyphs in the font
+    pub fn glyph_count(&self) -> usize {
+        self.glyph_count
     }
 
     /// Check if a pixel is set in a glyph at (x, y) position
@@ -469,6 +805,7 @@ impl FontManager {
     }
 
     /// List all available console fonts in the system
+    /// Includes embedded fonts (ter-v16n, ter-v32n) which are always available
     pub fn list_available_fonts() -> Vec<(String, usize, usize)> {
         use std::fs;
 
@@ -484,6 +821,10 @@ impl FontManager {
         ];
 
         let mut fonts = Vec::new();
+
+        // Add embedded fonts first (always available)
+        fonts.push(("[Embedded] ter-v16n".to_string(), 8, 16));
+        fonts.push(("[Embedded] ter-v32n".to_string(), 16, 32));
 
         for base_path in &base_paths {
             if let Ok(entries) = fs::read_dir(base_path) {
@@ -510,8 +851,18 @@ impl FontManager {
             }
         }
 
-        // Sort by dimensions, then by name
+        // Sort by dimensions, then by name (but keep embedded fonts at top)
         fonts.sort_by(|a, b| {
+            // Embedded fonts come first
+            let a_embedded = a.0.starts_with("[Embedded]");
+            let b_embedded = b.0.starts_with("[Embedded]");
+            if a_embedded && !b_embedded {
+                return std::cmp::Ordering::Less;
+            }
+            if !a_embedded && b_embedded {
+                return std::cmp::Ordering::Greater;
+            }
+
             let dim_cmp = (a.1, a.2).cmp(&(b.1, b.2));
             if dim_cmp == std::cmp::Ordering::Equal {
                 a.0.cmp(&b.0)
@@ -524,6 +875,18 @@ impl FontManager {
         fonts.dedup_by(|a, b| a.0 == b.0);
 
         fonts
+    }
+
+    /// Load a font by name, supporting both system fonts and embedded fonts
+    /// Embedded font names start with "[Embedded] "
+    pub fn load_font_by_name(name: &str) -> io::Result<Self> {
+        if name == "[Embedded] ter-v16n" {
+            Self::load_from_gzip_bytes(EMBEDDED_FONT_TER_V16N)
+        } else if name == "[Embedded] ter-v32n" {
+            Self::load_from_gzip_bytes(EMBEDDED_FONT_TER_V32N)
+        } else {
+            Self::load_console_font(name)
+        }
     }
 }
 

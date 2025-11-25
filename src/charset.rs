@@ -2,6 +2,7 @@
 #[derive(Clone, Copy, Debug)]
 pub enum CharsetMode {
     Unicode,
+    UnicodeSingleLine,
     Ascii,
 }
 
@@ -43,6 +44,25 @@ impl Charset {
             border_horizontal: '═',     // U+2550
             border_vertical: '║',       // U+2551
             border_vertical_right: '╠', // U+2560 T-junction
+            shadow: '▓',                // U+2593 dark shade
+            block: '█',                 // U+2588 full block
+            shade: '░',                 // U+2591 light shade
+        }
+    }
+
+    /// Create Unicode single-line charset (for fonts without double-line box drawing)
+    /// Uses single-line box drawing characters (U+250x) instead of double-line (U+255x)
+    pub fn unicode_single_line() -> Self {
+        Self {
+            mode: CharsetMode::UnicodeSingleLine,
+            background: '░',            // U+2591 light shade (DOS CP437 177)
+            border_top_left: '┌',       // U+250C (single-line corner)
+            border_top_right: '┐',      // U+2510
+            border_bottom_left: '└',    // U+2514
+            border_bottom_right: '┘',   // U+2518
+            border_horizontal: '─',     // U+2500 (single-line horizontal)
+            border_vertical: '│',       // U+2502 (single-line vertical)
+            border_vertical_right: '├', // U+251C T-junction
             shadow: '▓',                // U+2593 dark shade
             block: '█',                 // U+2588 full block
             shade: '░',                 // U+2591 light shade

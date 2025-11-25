@@ -128,22 +128,22 @@ impl FramebufferRenderer {
         let line_length = fix_screen_info.line_length as usize;
 
         // Load font: try specified font first, then auto-detect
+        // Supports both system fonts and embedded fonts (prefixed with "[Embedded] ")
         let font = if let Some(name) = font_name {
-            // Try to load the specified font
-            FontManager::load_console_font(name).or_else(|e| {
+            // Try to load the specified font (supports embedded fonts)
+            FontManager::load_font_by_name(name).or_else(|e| {
                 eprintln!("Warning: Failed to load font '{}': {}", name, e);
                 eprintln!("Falling back to auto-detection...");
-                // Fall back to auto-detection
+                // Fall back to auto-detection (which also falls back to embedded fonts)
                 FontManager::load_for_dimensions(mode.char_width, mode.char_height)
             })
         } else {
-            // Auto-detect font for text mode dimensions
+            // Auto-detect font for text mode dimensions (falls back to embedded fonts)
             FontManager::load_for_dimensions(mode.char_width, mode.char_height)
         }
         .or_else(|_| {
-            // Final fallback: try to load any 8x16 font
-            FontManager::load_console_font("Lat2-Terminus16")
-                .or_else(|_| FontManager::load_console_font("default8x16"))
+            // Final fallback: use embedded font
+            FontManager::load_embedded_default()
         })
         .map_err(|e| {
             io::Error::new(
@@ -186,9 +186,22 @@ impl FramebufferRenderer {
             "Framebuffer initialized: {}x{} pixels, {} bytes/pixel, mode: {} ({}x{} chars)",
             width_pixels, height_pixels, bytes_per_pixel, mode.kind, mode.cols, mode.rows
         );
+        // Write debug info to file since stdout may not be visible in framebuffer mode
+        if let Ok(mut f) = std::fs::File::create("/tmp/term39-font-debug.log") {
+            use std::io::Write;
+            let _ = writeln!(
+                f,
+                "Font loaded: {}x{} - {}",
+                font.width,
+                font.height,
+                font.debug_info()
+            );
+        }
         println!(
-            "Font loaded: {}x{} pixels per character",
-            font.width, font.height
+            "Font loaded: {}x{} pixels per character - {}",
+            font.width,
+            font.height,
+            font.debug_info()
         );
         println!(
             "Pixel scale: {}x (base: {}x{} → scaled: {}x{})",
@@ -347,6 +360,28 @@ impl FramebufferRenderer {
     pub fn render_char(&mut self, col: usize, row: usize, cell: &Cell) {
         if !self.mode.is_valid_position(col, row) {
             return;
+        }
+
+        // Debug: log first few characters rendered
+        static DEBUG_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let count = DEBUG_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if count < 20 {
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open("/tmp/term39-font-debug.log")
+            {
+                use std::io::Write;
+                let _ = writeln!(
+                    f,
+                    "render_char: col={}, row={}, char='{}' (code={}), glyph_count={}",
+                    col,
+                    row,
+                    cell.character,
+                    cell.character as usize,
+                    self.font.glyph_count()
+                );
+            }
         }
 
         let x_offset = col * self.font.width;

@@ -27,7 +27,7 @@ pub fn show_splash_screen(
 
     // Choose ASCII art based on charset mode
     let ascii_art = match charset.mode {
-        charset::CharsetMode::Unicode => vec![
+        charset::CharsetMode::Unicode | charset::CharsetMode::UnicodeSingleLine => vec![
             " ███████████ ██████████ ███████████   ██████   ██████  ████████   ████████ ",
             "░█░░░███░░░█░░███░░░░░█░░███░░░░░███ ░░██████ ██████  ███░░░░███ ███░░░░███",
             "░   ░███  ░  ░███  █ ░  ░███    ░███  ░███░█████░███ ░░░    ░███░███   ░███",

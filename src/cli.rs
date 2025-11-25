@@ -51,6 +51,14 @@ pub struct Cli {
     #[arg(long, help = "Use ASCII-compatible characters instead of Unicode")]
     pub ascii: bool,
 
+    /// Use single-line Unicode box drawing characters instead of double-line
+    ///
+    /// This mode uses thin single-line box characters (┌─┐│└┘) instead of
+    /// double-line characters (╔═╗║╚╝). Use this when the font doesn't have
+    /// double-line box drawing glyphs (like embedded ter-v16n/ter-v32n fonts).
+    #[arg(long, help = "Use single-line Unicode box drawing characters")]
+    pub single_line: bool,
+
     /// Set the color theme
     ///
     /// Available themes:

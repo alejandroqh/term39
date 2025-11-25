@@ -165,6 +165,8 @@ pub fn setup_terminal(stdout: &mut io::Stdout) -> io::Result<()> {
 pub fn initialize_charset(cli_args: &Cli, app_config: &AppConfig) -> Charset {
     let mut charset = if cli_args.ascii {
         Charset::ascii()
+    } else if cli_args.single_line {
+        Charset::unicode_single_line()
     } else {
         Charset::unicode()
     };
