@@ -133,7 +133,7 @@ impl RawMouseInput {
         // EVIOCGBIT ioctl to get device capabilities
         // _IOC(IOC_READ, 'E', 0x20 + ev_type, len)
         // For EV_REL (0x02): 0x20 + 0x02 = 0x22
-        const EVIOCGBIT_REL: libc::c_ulong = 0x80084522; // Get REL capability bits
+        const EVIOCGBIT_REL: u32 = 0x80084522; // Get REL capability bits
 
         for i in 0..16 {
             let path = format!("/dev/input/event{}", i);
@@ -146,7 +146,9 @@ impl RawMouseInput {
 
                 // Query REL capabilities (need at least 2 bytes for REL_WHEEL which is bit 8)
                 let mut rel_bits = [0u8; 2];
-                let ret = unsafe { libc::ioctl(fd, EVIOCGBIT_REL, rel_bits.as_mut_ptr()) };
+                // Note: ioctl request type varies by platform (c_ulong on glibc/BSD, c_int on musl)
+                #[allow(clippy::useless_conversion)]
+                let ret = unsafe { libc::ioctl(fd, EVIOCGBIT_REL.into(), rel_bits.as_mut_ptr()) };
 
                 if ret >= 0 {
                     // Check if device has REL_X (bit 0), REL_Y (bit 1), and REL_WHEEL (bit 8)
