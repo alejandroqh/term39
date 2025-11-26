@@ -289,6 +289,23 @@ pub struct Cli {
         help = "Mouse sensitivity for TTY mode (0.1-5.0, default: auto)"
     )]
     pub mouse_sensitivity: Option<f32>,
+
+    /// Disable exit functionality (for use as a window manager)
+    ///
+    /// When this flag is set, the application will not exit via:
+    ///   - 'q' key (from desktop)
+    ///   - ESC key (from desktop)
+    ///   - F10 key
+    ///   - Exit button in the top bar
+    ///
+    /// This is useful when using term39 as a persistent window manager that should
+    /// never exit. The only way to exit when this flag is set is to kill the process
+    /// externally (e.g., via SIGTERM or SIGKILL).
+    #[arg(
+        long,
+        help = "Disable exit functionality (for use as a window manager)"
+    )]
+    pub no_exit: bool,
 }
 
 impl Cli {

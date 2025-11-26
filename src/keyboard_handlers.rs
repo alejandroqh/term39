@@ -147,7 +147,8 @@ pub fn handle_desktop_keyboard(
     }
 
     // Handle F10 to exit application (classic DOS pattern)
-    if key_event.code == KeyCode::F(10) {
+    // Skip if --no-exit flag is set
+    if key_event.code == KeyCode::F(10) && !cli_args.no_exit {
         if current_focus == FocusState::Desktop {
             // Determine message based on window count
             let message = if window_manager.window_count() > 0 {
@@ -219,11 +220,11 @@ pub fn handle_desktop_keyboard(
     // Handle character keys based on focus
     match key_event.code {
         KeyCode::Esc => {
-            handle_esc_key(app_state, current_focus, window_manager, backend);
+            handle_esc_key(app_state, current_focus, window_manager, backend, cli_args);
             return true;
         }
         KeyCode::Char('q') => {
-            handle_q_key(app_state, current_focus, window_manager, backend);
+            handle_q_key(app_state, current_focus, window_manager, backend, cli_args);
             return true;
         }
         KeyCode::Char('h') if current_focus == FocusState::Desktop => {
@@ -455,8 +456,14 @@ fn handle_esc_key(
     current_focus: FocusState,
     window_manager: &mut WindowManager,
     backend: &dyn RenderBackend,
+    cli_args: &Cli,
 ) {
     if current_focus == FocusState::Desktop {
+        // Skip exit prompt if --no-exit flag is set
+        if cli_args.no_exit {
+            return;
+        }
+
         // Determine message based on window count
         let message = if window_manager.window_count() > 0 {
             "Exit with open windows?\nAll terminal sessions will be closed.".to_string()
@@ -492,8 +499,14 @@ fn handle_q_key(
     current_focus: FocusState,
     window_manager: &mut WindowManager,
     backend: &dyn RenderBackend,
+    cli_args: &Cli,
 ) {
     if current_focus == FocusState::Desktop {
+        // Skip exit prompt if --no-exit flag is set
+        if cli_args.no_exit {
+            return;
+        }
+
         // Determine message based on window count
         let message = if window_manager.window_count() > 0 {
             "Exit with open windows?\nAll terminal sessions will be closed.".to_string()

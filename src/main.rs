@@ -421,6 +421,11 @@ fn main() -> io::Result<()> {
         app_config.tint_terminal || cli_args.tint_terminal,
     );
 
+    // Disable exit button if --no-exit flag is set
+    if cli_args.no_exit {
+        app_state.exit_button.enabled = false;
+    }
+
     // Initialize autocomplete system (command indexer and history)
     let command_indexer = CommandIndexer::new();
     let mut command_history = CommandHistory::new();
@@ -1131,8 +1136,9 @@ fn main() -> io::Result<()> {
                         handled = true;
                     }
 
-                    // Check if click is on the Exit button in the top bar (only if no prompt)
+                    // Check if click is on the Exit button in the top bar (only if no prompt and exit is allowed)
                     if !handled
+                        && !cli_args.no_exit
                         && app_state.active_prompt.is_none()
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
                         && app_state
