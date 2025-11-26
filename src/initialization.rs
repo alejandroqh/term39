@@ -213,18 +213,6 @@ pub fn initialize_video_buffer(backend: &dyn RenderBackend) -> VideoBuffer {
     VideoBuffer::new(cols, rows)
 }
 
-/// Initializes GPM (General Purpose Mouse) connection on Linux
-///
-/// # Arguments
-/// * `is_framebuffer_mode` - If true, GPM won't draw cursor (app draws it).
-///   If false (terminal mode), GPM draws cursor.
-#[cfg(target_os = "linux")]
-pub fn initialize_gpm(is_framebuffer_mode: bool) -> Option<crate::gpm_handler::GpmConnection> {
-    // In terminal mode, GPM draws cursor. In framebuffer mode, app draws cursor.
-    let draw_cursor = !is_framebuffer_mode;
-    crate::gpm_handler::GpmConnection::open(draw_cursor)
-}
-
 /// Initializes the unified mouse input manager
 ///
 /// Returns a MouseInputManager and optionally a GpmConnection if GPM needed disabling
