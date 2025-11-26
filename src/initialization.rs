@@ -312,14 +312,34 @@ pub fn cleanup(stdout: &mut io::Stdout) -> io::Result<()> {
         execute!(stdout, event::DisableMouseCapture)?;
     }
 
-    // Clear screen
+    // Reset colors FIRST to ensure default colors are used for subsequent operations
+    execute!(stdout, style::ResetColor)?;
+
+    // Set explicit default attributes (important for TTY/Linux console)
+    // This ensures the terminal doesn't inherit any residual color state
+    execute!(
+        stdout,
+        style::SetAttribute(style::Attribute::Reset),
+        style::SetForegroundColor(style::Color::Reset),
+        style::SetBackgroundColor(style::Color::Reset)
+    )?;
+
+    // Clear screen with default colors
     execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
 
-    // Reset colors to default
-    execute!(stdout, style::ResetColor)?;
+    // Move cursor to home position and reset colors again
+    // This is important for TTY where color state can persist
+    execute!(
+        stdout,
+        cursor::MoveTo(0, 0),
+        style::ResetColor
+    )?;
 
     // Show cursor and leave alternate screen
     execute!(stdout, cursor::Show, terminal::LeaveAlternateScreen)?;
+
+    // Final color reset after leaving alternate screen (for TTY)
+    execute!(stdout, style::ResetColor)?;
 
     // Disable raw mode
     terminal::disable_raw_mode()?;

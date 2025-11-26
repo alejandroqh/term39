@@ -83,16 +83,30 @@ fn main() -> io::Result<()> {
 
         // Best-effort cleanup - ignore errors since we're already panicking
         let _ = crossterm::execute!(stdout, crossterm::event::DisableMouseCapture);
+        // Reset colors FIRST before clearing
+        let _ = crossterm::execute!(stdout, crossterm::style::ResetColor);
+        let _ = crossterm::execute!(
+            stdout,
+            crossterm::style::SetAttribute(crossterm::style::Attribute::Reset),
+            crossterm::style::SetForegroundColor(crossterm::style::Color::Reset),
+            crossterm::style::SetBackgroundColor(crossterm::style::Color::Reset)
+        );
         let _ = crossterm::execute!(
             stdout,
             crossterm::terminal::Clear(crossterm::terminal::ClearType::All)
         );
-        let _ = crossterm::execute!(stdout, crossterm::style::ResetColor);
+        let _ = crossterm::execute!(
+            stdout,
+            crossterm::cursor::MoveTo(0, 0),
+            crossterm::style::ResetColor
+        );
         let _ = crossterm::execute!(
             stdout,
             crossterm::cursor::Show,
             crossterm::terminal::LeaveAlternateScreen
         );
+        // Final color reset after leaving alternate screen
+        let _ = crossterm::execute!(stdout, crossterm::style::ResetColor);
         let _ = crossterm::terminal::disable_raw_mode();
 
         // Call the default panic handler to print the panic message
@@ -241,12 +255,27 @@ fn main() -> io::Result<()> {
             }
         }
 
-        // Cleanup terminal
+        // Cleanup terminal - reset colors properly to avoid color bleeding on TTY
+        execute!(stdout, crossterm::event::DisableMouseCapture)?;
+        execute!(stdout, crossterm::style::ResetColor)?;
         execute!(
             stdout,
-            crossterm::event::DisableMouseCapture,
+            crossterm::style::SetAttribute(crossterm::style::Attribute::Reset),
+            crossterm::style::SetForegroundColor(crossterm::style::Color::Reset),
+            crossterm::style::SetBackgroundColor(crossterm::style::Color::Reset)
+        )?;
+        execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
+        execute!(
+            stdout,
+            crossterm::cursor::MoveTo(0, 0),
+            crossterm::style::ResetColor
+        )?;
+        execute!(
+            stdout,
+            crossterm::cursor::Show,
             terminal::LeaveAlternateScreen
         )?;
+        execute!(stdout, crossterm::style::ResetColor)?;
         terminal::disable_raw_mode()?;
 
         // If user chose to launch, actually launch the application
