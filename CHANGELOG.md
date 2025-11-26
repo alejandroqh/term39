@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2025-11-26
+
+### Added
+
+- TTY/Framebuffer mouse wheel scroll support
+- Custom TTY cursor rendering (removes GPM dependency)
+
+### Changed
+
+- Improved TTY exit handling for clean terminal restoration
+- Enhanced mouse control in TTY/framebuffer modes
+
+### Fixed
+
+- Small screen new window positioning
+- Alt menu handling issues
+
 ## [0.13.0] - 2025-11-25
 
 ### Added
@@ -309,6 +326,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.14.0]: https://github.com/alejandroqh/term39/releases/tag/v0.14.0
 [0.13.0]: https://github.com/alejandroqh/term39/releases/tag/v0.13.0
 [0.12.0]: https://github.com/alejandroqh/term39/releases/tag/v0.12.0
 [0.11.3]: https://github.com/alejandroqh/term39/releases/tag/v0.11.3
