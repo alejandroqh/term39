@@ -52,20 +52,25 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
 
 ## Features
 
+**General**
 - **Retro DOS Aesthetic**: Classic blue-and-white color scheme with box-drawing characters, ~60fps rendering
 - **Multiple Terminal Windows**: Create, drag, resize, minimize, and maximize windows with mouse or keyboard
 - **Window Management**: Automatic tiling, snap to corners, focus management with ALT+TAB
+- **Session Persistence**: Auto-save/restore of window layouts and terminal content between sessions
+- **Command Launcher**: Quick command palette with `Ctrl+Space`
 - **Clipboard Support**: System clipboard integration with drag-to-select, Ctrl+Shift+C/V, right-click menu
-- **Customizable Themes**: Classic, Dark, Monochrome, Green Phosphor, Amber, Dracu, NDD, QBasic, TurboP, NCC, XT, WP, dB (via `--theme` flag)
+- **Customizable Themes**: Classic (default), Dark, Monochrome, Green Phosphor, Amber, Dracu, NDD, QBasic, TurboP, NCC, XT, WP, dB (via `--theme` flag)
 - **Battery Indicator**: Real-time battery status display in the top bar
 - **Cross-Platform**: Linux, macOS, Windows with full VT100/ANSI support and true color
-- **Linux Framebuffer Mode**: Direct `/dev/fb0` rendering with DOS text modes (40x25, 80x25, ... , 320x200),
-- **GPM Mouse Support**: Native mouse support on Linux console via GPM (General Purpose Mouse)
 - **ASCII Compatibility**: `--ascii` flag for maximum terminal compatibility
+
+**Linux Only**
+- **Framebuffer Mode**: Direct `/dev/fb0` rendering with DOS text modes (40x25, 80x25, ... , 320x200)
+- **Console Mouse**: Native mouse support on Linux TTY via raw `/dev/input` devices
 
 ## Installation
 
-### From crates.io
+### From crates.io (Recommended)
 
 ```bash
 # Standard installation
@@ -79,7 +84,7 @@ Requires Rust ([Install](https://rustup.rs/))
 
 ### Linux Packages
 
-**Homebrew** (Recommended):
+**Homebrew**:
 ```bash
 brew tap alejandroqh/term39
 brew install term39
@@ -196,14 +201,15 @@ cargo build --release --no-default-features
 | Key | Action | Key | Action |
 |-----|--------|-----|--------|
 | `t` / `T` | New window / Maximized window | `q` / `ESC` | Exit (desktop) |
-| `F1` / `h` | Show help | `s` | Settings |
+| `F1` / `?` / `h` | Show help | `s` | Settings |
 | `l` | License | `c` | Calendar |
+| `Ctrl+Space` | Command launcher | | |
 
 **Window & Session**
 | Key | Action | Key | Action |
 |-----|--------|-----|--------|
-| `F2` / `ALT+TAB` | Switch windows | `F3` | Save session |
-| `F4` / `Ctrl+L` | Clear terminal | | |
+| `F2` / `ALT+TAB` | Switch windows | `Ctrl+S` / `F3` | Save session |
+| `F4` / `Ctrl+L` | Clear terminal | `` ` `` / `F8` | Window Mode |
 
 **Copy & Paste**
 | Key | Action | Key | Action |
@@ -219,8 +225,97 @@ cargo build --release --no-default-features
 
 ### Mouse Controls
 
-- **Title bar**: Drag to move | **[X]/[+]/[_]**: Close/Maximize/Minimize | **╬ handle**: Resize
-- **Click window**: Focus | **Bottom bar**: Switch | **Drag/Right-click**: Select/Context menu
+- **Title bar**: Drag to move | **Ctrl+Drag**: Move without snap | **╬ handle**: Resize
+- **[X]/[+]/[_]**: Close/Maximize/Minimize | **Click window**: Focus
+- **Bottom bar**: Switch windows | **Drag text**: Select | **Right-click**: Context menu
+
+### Keyboard-Only Mode (Window Mode)
+
+Press **`` ` ``** (backtick) or **F8** to enter Window Mode for full keyboard control of windows. Press again to exit.
+
+**Navigation**
+| Key | Action |
+|-----|--------|
+| `h` / `←` | Focus window to left |
+| `j` / `↓` | Focus window below |
+| `k` / `↑` | Focus window above |
+| `l` / `→` | Focus window to right |
+| `Tab` | Cycle to next window |
+| `Shift+Tab` | Cycle to previous window |
+
+**Snap to Half Screen**
+| Key | Action |
+|-----|--------|
+| `H` (Shift+h) | Snap to left half |
+| `J` (Shift+j) | Snap to bottom half |
+| `K` (Shift+k) | Snap to top half |
+| `L` (Shift+l) | Snap to right half |
+
+**Numpad-Style Snap Positions (1-9)**
+```
+7 Top-Left     8 Top-Center     9 Top-Right
+4 Middle-Left  5 Center         6 Middle-Right
+1 Bottom-Left  2 Bottom-Center  3 Bottom-Right
+```
+
+**Window Actions**
+| Key | Action |
+|-----|--------|
+| `m` | Enter Move mode |
+| `r` | Enter Resize mode |
+| `z` / `+` / `Space` | Toggle maximize |
+| `-` / `_` | Toggle minimize |
+| `x` / `q` | Close focused window |
+| `?` | Show help overlay |
+
+**Move Mode** (press `m` to enter)
+| Key | Action |
+|-----|--------|
+| `h/j/k/l` or arrows | Move window (adaptive speed) |
+| `Shift+H/J/K/L` | Snap window to edge |
+| `Enter` / `Esc` / `m` | Exit Move mode |
+
+**Resize Mode** (press `r` to enter)
+| Key | Action |
+|-----|--------|
+| `h` / `l` | Shrink / Grow width |
+| `k` / `j` | Shrink / Grow height |
+| `Shift` + key | Invert resize direction |
+| `Enter` / `Esc` / `r` | Exit Resize mode |
+
+**Tip:** Double-press `` ` `` quickly to send a literal backtick to the terminal.
+
+## Command-Line Options
+
+### General Options
+
+| Option | Description |
+|--------|-------------|
+| `--ascii` | Use ASCII-compatible characters (`+-\|#`) instead of Unicode box-drawing |
+| `--single-line` | Use single-line Unicode box characters (`┌─┐│└┘`) instead of double-line |
+| `--theme <THEME>` | Set color theme (see [Themes](#themes) section) |
+| `--tint-terminal` | Apply theme-based color tinting to terminal content |
+| `--no-restore` | Don't restore previous session on startup |
+| `--no-save` | Don't save session (disables auto-save and manual save) |
+| `--no-exit` | Disable exit functionality (for use as a window manager) |
+
+### Linux Console Options
+
+| Option | Description |
+|--------|-------------|
+| `-f`, `--framebuffer` | Enable framebuffer mode (requires `/dev/fb0` access) |
+| `--fb-mode <MODE>` | Text mode: `40x25`, `80x25`, `80x43`, `80x50`, `160x50`, `160x100`, `320x100`, `320x200` |
+| `--fb-scale <SCALE>` | Pixel scale factor (`1`, `2`, `3`, `4`, or `auto`) |
+| `--fb-font <FONT>` | Console font name (e.g., `Unifont-APL8x16`) |
+| `--fb-list-fonts` | List available console fonts and exit |
+| `--fb-setup` | Launch interactive framebuffer setup wizard |
+| `--mouse-device <DEVICE>` | Mouse input device (e.g., `/dev/input/event2`) |
+| `--mouse-sensitivity <VALUE>` | Mouse sensitivity for TTY mode (`0.1`-`5.0`, default: auto) |
+| `--swap-mouse-buttons` | Swap left/right mouse buttons |
+| `--invert-mouse-x` | Invert mouse X-axis movement |
+| `--invert-mouse-y` | Invert mouse Y-axis movement |
+
+**Note:** Linux console options require `--features framebuffer-backend` at compile time and running on a physical console (TTY1-6), not in terminal emulators or SSH.
 
 ## Themes
 
@@ -295,9 +390,20 @@ cargo run -- --ascii                      # Run in ASCII mode
 cargo test && cargo clippy && cargo fmt   # Test, lint, format
 ```
 
+## Configuration
+
+Configuration files are stored in `~/.config/term39/`:
+
+| File | Description |
+|------|-------------|
+| `session.toml` | Saved session (window layouts, terminal content) |
+| `fb.toml` | Framebuffer settings (Linux only) |
+
+Available themes: `classic` (default), `dark`, `monochrome`, `green_phosphor`, `amber`, `dracu`, `ndd`, `qbasic`, `turbo`, `nc`, `xt`, `wp`, `db`
+
 ## Contributing
 
-Fork, create branch, test with `cargo test && cargo clippy`, commit, push, open PR. Follow Rust best practices, run `cargo fmt`, keep commits atomic.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to this project.
 
 ## Dependencies
 
