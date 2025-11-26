@@ -63,6 +63,7 @@ struct ResizeState {
     start_width: u16,
     start_height: u16,
     start_window_x: u16,
+    start_window_y: u16,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -96,6 +97,20 @@ impl WindowManager {
         }
     }
 
+    /// Calculate dynamic window size based on screen dimensions
+    /// Returns (width, height) sized to ~2/3 of usable screen area
+    /// with minimum constraints for usability
+    pub fn calculate_window_size(buffer_width: u16, buffer_height: u16) -> (u16, u16) {
+        // Usable height excludes topbar (1) and bottom bar (1)
+        let usable_height = buffer_height.saturating_sub(2);
+
+        // Target ~2/3 of screen size, with min/max constraints
+        let width = ((buffer_width * 2) / 3).clamp(40, 200);
+        let height = ((usable_height * 2) / 3).clamp(10, 60);
+
+        (width, height)
+    }
+
     /// Calculate next cascading window position
     /// Returns (x, y) for the next window, offsetting by 2 from the last position
     /// Resets to centered position if it would go off-screen
@@ -106,24 +121,27 @@ impl WindowManager {
         buffer_width: u16,
         buffer_height: u16,
     ) -> (u16, u16) {
-        // Default centered position
+        // Minimum y position (below topbar at y=0)
+        const MIN_Y: u16 = 1;
+
+        // Default centered position (ensuring y is below topbar)
         let default_x = (buffer_width.saturating_sub(width)) / 2;
-        let default_y = ((buffer_height.saturating_sub(height)) / 2).max(1);
+        let default_y = ((buffer_height.saturating_sub(height)) / 2).max(MIN_Y);
 
         // If we have a last position, cascade from it
         if let (Some(last_x), Some(last_y)) = (self.last_window_x, self.last_window_y) {
             let new_x = last_x.saturating_add(2);
-            let new_y = last_y.saturating_add(2);
+            let new_y = last_y.saturating_add(2).max(MIN_Y); // Ensure y is below topbar
 
             // Check if the new position would go off-screen
             // Window needs to have at least some visible area (not completely off-screen)
             let max_x = buffer_width.saturating_sub(width);
             let max_y = buffer_height.saturating_sub(height);
 
-            if new_x <= max_x && new_y <= max_y {
+            if new_x <= max_x && new_y <= max_y && new_y >= MIN_Y {
                 (new_x, new_y)
             } else {
-                // Reset to centered position if we'd go off-screen
+                // Reset to centered position if we'd go off-screen or above topbar
                 (default_x, default_y)
             }
         } else {
@@ -236,9 +254,8 @@ impl WindowManager {
 
         match count {
             1 => {
-                // Center position
-                let width = 150.min(buffer_width.saturating_sub(10));
-                let height = 50.min(usable_height.saturating_sub(10));
+                // Center position with dynamic size
+                let (width, height) = Self::calculate_window_size(buffer_width, buffer_height);
                 let x = (buffer_width.saturating_sub(width)) / 2;
                 let y = 1 + (usable_height.saturating_sub(height)) / 2;
                 vec![(x, y, width, height)]
@@ -278,8 +295,7 @@ impl WindowManager {
 
                 // Add center positions for remaining windows (with slight offset)
                 for i in 4..count {
-                    let width = 150.min(buffer_width.saturating_sub(10));
-                    let height = 50.min(usable_height.saturating_sub(10));
+                    let (width, height) = Self::calculate_window_size(buffer_width, buffer_height);
                     let offset = ((i - 4) * 2) as u16; // Slight offset for each additional window
                     let x = ((buffer_width.saturating_sub(width)) / 2).saturating_add(offset);
                     let y = 1 + ((usable_height.saturating_sub(height)) / 2).saturating_add(offset);
@@ -551,6 +567,7 @@ impl WindowManager {
                             start_width: window.width,
                             start_height: window.height,
                             start_window_x: window.x,
+                            start_window_y: window.y,
                         });
                         return false;
                     }
@@ -732,7 +749,7 @@ impl WindowManager {
                         let new_width = (resize.start_width as i16 - delta_x).max(24) as u16;
                         let new_height = (resize.start_height as i16 - delta_y).max(5) as u16;
                         let new_x = (resize.start_window_x as i16 + delta_x).max(0) as u16;
-                        let new_y = (resize.start_y as i16 + delta_y).max(1) as u16; // min y=1 (below top bar)
+                        let new_y = (resize.start_window_y as i16 + delta_y).max(1) as u16; // min y=1 (below top bar)
 
                         terminal_window.window.x = new_x;
                         terminal_window.window.y = new_y;
@@ -745,7 +762,7 @@ impl WindowManager {
                         // delta_y > 0 (down) = decrease height, move down
                         let new_width = (resize.start_width as i16 + delta_x).max(24) as u16;
                         let new_height = (resize.start_height as i16 - delta_y).max(5) as u16;
-                        let new_y = (resize.start_y as i16 + delta_y).max(1) as u16; // min y=1 (below top bar)
+                        let new_y = (resize.start_window_y as i16 + delta_y).max(1) as u16; // min y=1 (below top bar)
 
                         terminal_window.window.y = new_y;
                         terminal_window.window.width = new_width;

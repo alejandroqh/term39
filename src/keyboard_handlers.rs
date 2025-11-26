@@ -532,15 +532,15 @@ fn create_terminal_window(
 ) {
     let (cols, rows) = backend.dimensions();
 
-    // Window size: 2.5x larger (60*2.5=150, 20*2.5=50)
-    let width = 150;
-    let height = 50;
+    // Calculate dynamic window size based on screen dimensions
+    let (width, height) = WindowManager::calculate_window_size(cols, rows);
 
     // Get position: cascade if auto-tiling is off, center otherwise
+    // Minimum y=1 to avoid overlapping with topbar at y=0
     let (x, y) = if app_state.auto_tiling_enabled {
         let x = (cols.saturating_sub(width)) / 2;
-        let y = ((rows.saturating_sub(height)) / 2).max(1);
-        (x, y)
+        let y = 1 + (rows.saturating_sub(2).saturating_sub(height)) / 2;
+        (x, y.max(1))
     } else {
         window_manager.get_cascade_position(width, height, cols, rows)
     };
