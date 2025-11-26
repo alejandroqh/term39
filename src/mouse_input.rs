@@ -298,6 +298,25 @@ impl RawMouseInput {
     }
 }
 
+/// Calculate adaptive mouse sensitivity based on screen size
+/// Larger screens need higher sensitivity to traverse quickly
+/// Smaller screens need lower sensitivity for precision
+fn calculate_sensitivity(cols: usize, rows: usize) -> f32 {
+    // Reference: 80x25 = 2000 cells, feels good at ~0.35 sensitivity
+    let reference_cells = 80.0 * 25.0; // 2000 cells
+    let current_cells = (cols * rows) as f32;
+
+    // Base sensitivity for reference screen
+    let base_sensitivity = 0.35;
+
+    // Scale: larger screens get proportionally higher sensitivity
+    // Use sqrt to prevent extreme values
+    let scale = (current_cells / reference_cells).sqrt();
+
+    // Clamp to reasonable range (0.2 minimum for precision, 1.0 maximum)
+    (base_sensitivity * scale).clamp(0.2, 1.0)
+}
+
 /// Cursor position tracker
 /// Uses usize for pixel coordinates (compatible with framebuffer renderer)
 pub struct CursorTracker {
@@ -308,18 +327,25 @@ pub struct CursorTracker {
     sensitivity: f32,
     invert_x: bool,
     invert_y: bool,
+    // Accumulators for fractional movement (prevents jumpy behavior)
+    accum_x: f32,
+    accum_y: f32,
 }
 
 impl CursorTracker {
     pub fn new(max_x: usize, max_y: usize, invert_x: bool, invert_y: bool) -> Self {
+        // Calculate adaptive sensitivity based on screen size
+        let sensitivity = calculate_sensitivity(max_x, max_y);
         Self {
             x: max_x / 2,
             y: max_y / 2,
             max_x,
             max_y,
-            sensitivity: 1.0,
+            sensitivity,
             invert_x,
             invert_y,
+            accum_x: 0.0,
+            accum_y: 0.0,
         }
     }
 
@@ -329,12 +355,21 @@ impl CursorTracker {
         // So we invert by default, and the invert_y flag un-inverts it
         let dy = if self.invert_y { dy } else { -dy };
 
-        let new_x = (self.x as i32 + (dx as f32 * self.sensitivity) as i32)
-            .max(0)
-            .min(self.max_x as i32 - 1);
-        let new_y = (self.y as i32 + (dy as f32 * self.sensitivity) as i32)
-            .max(0)
-            .min(self.max_y as i32 - 1);
+        // Accumulate fractional movement
+        self.accum_x += dx as f32 * self.sensitivity;
+        self.accum_y += dy as f32 * self.sensitivity;
+
+        // Only move when accumulator reaches a full cell (±1.0)
+        let move_x = self.accum_x.trunc() as i32;
+        let move_y = self.accum_y.trunc() as i32;
+
+        // Keep the fractional part for next update
+        self.accum_x -= move_x as f32;
+        self.accum_y -= move_y as f32;
+
+        // Apply movement
+        let new_x = (self.x as i32 + move_x).max(0).min(self.max_x as i32 - 1);
+        let new_y = (self.y as i32 + move_y).max(0).min(self.max_y as i32 - 1);
 
         self.x = new_x as usize;
         self.y = new_y as usize;
