@@ -7,9 +7,15 @@
 
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use std::collections::VecDeque;
+use std::io;
+
+#[cfg(unix)]
 use std::fs::File;
-use std::io::{self, Read};
+#[cfg(unix)]
+use std::io::Read;
+#[cfg(unix)]
 use std::os::unix::io::AsRawFd;
+#[cfg(unix)]
 use std::path::Path;
 
 /// Mouse input mode
@@ -64,34 +70,45 @@ pub struct RawMouseEvent {
     pub scroll_h: i8,
 }
 
-// Event types
+// Event types (Unix only)
+#[cfg(unix)]
 const EV_REL: u16 = 0x02;
+#[cfg(unix)]
 const EV_KEY: u16 = 0x01;
 
-// Relative axis codes
+// Relative axis codes (Unix only)
+#[cfg(unix)]
 const REL_X: u16 = 0x00;
+#[cfg(unix)]
 const REL_Y: u16 = 0x01;
+#[cfg(unix)]
 const REL_WHEEL: u16 = 0x08;
+#[cfg(unix)]
 const REL_HWHEEL: u16 = 0x06;
 
-// Button codes
+// Button codes (Unix only)
+#[cfg(unix)]
 const BTN_LEFT: u16 = 0x110;
+#[cfg(unix)]
 const BTN_RIGHT: u16 = 0x111;
+#[cfg(unix)]
 const BTN_MIDDLE: u16 = 0x112;
 
-#[cfg(target_pointer_width = "64")]
+#[cfg(all(unix, target_pointer_width = "64"))]
 const INPUT_EVENT_SIZE: usize = 24;
-#[cfg(target_pointer_width = "32")]
+#[cfg(all(unix, target_pointer_width = "32"))]
 const INPUT_EVENT_SIZE: usize = 16;
 
 /// Mouse input protocol type
+#[cfg(unix)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Protocol {
     Ps2,
     InputEvent,
 }
 
-/// Raw mouse input reader
+/// Raw mouse input reader (Unix only)
+#[cfg(unix)]
 pub struct RawMouseInput {
     file: File,
     protocol: Protocol,
@@ -103,6 +120,7 @@ pub struct RawMouseInput {
     button_changed: bool,
 }
 
+#[cfg(unix)]
 impl RawMouseInput {
     /// Open the mouse input device
     pub fn new(device_path: Option<&str>) -> io::Result<Self> {
@@ -448,6 +466,7 @@ impl CursorTracker {
 /// and converts raw events to crossterm MouseEvent format.
 pub struct MouseInputManager {
     mode: MouseInputMode,
+    #[cfg(unix)]
     raw_input: Option<RawMouseInput>,
     cursor: CursorTracker,
     prev_buttons: MouseButtons,
@@ -458,6 +477,7 @@ pub struct MouseInputManager {
 impl MouseInputManager {
     /// Create a new mouse input manager
     #[allow(clippy::too_many_arguments)]
+    #[allow(unused_variables)] // device_path unused on non-Unix
     pub fn new(
         mode: MouseInputMode,
         cols: u16,
@@ -468,6 +488,7 @@ impl MouseInputManager {
         swap_buttons: bool,
         sensitivity_override: Option<f32>,
     ) -> io::Result<Self> {
+        #[cfg(unix)]
         let raw_input = if mode.uses_raw_input() {
             match RawMouseInput::new(device_path) {
                 Ok(input) => Some(input),
@@ -489,6 +510,7 @@ impl MouseInputManager {
 
         Ok(Self {
             mode,
+            #[cfg(unix)]
             raw_input,
             cursor,
             prev_buttons: MouseButtons::default(),
@@ -505,7 +527,14 @@ impl MouseInputManager {
 
     /// Returns true if using raw mouse input (not crossterm)
     pub fn uses_raw_input(&self) -> bool {
-        self.mode.uses_raw_input() && self.raw_input.is_some()
+        #[cfg(unix)]
+        {
+            self.mode.uses_raw_input() && self.raw_input.is_some()
+        }
+        #[cfg(not(unix))]
+        {
+            false
+        }
     }
 
     /// Get current cursor position
@@ -527,30 +556,39 @@ impl MouseInputManager {
             return Ok(Some(event));
         }
 
-        // Only poll raw input for TTY/Framebuffer modes
-        let raw_input = match &mut self.raw_input {
-            Some(input) => input,
-            None => return Ok(None),
-        };
+        // Only poll raw input for TTY/Framebuffer modes (Unix only)
+        #[cfg(unix)]
+        {
+            let raw_input = match &mut self.raw_input {
+                Some(input) => input,
+                None => return Ok(None),
+            };
 
-        // Read raw event
-        let raw_event = match raw_input.read_event()? {
-            Some(e) => e,
-            None => return Ok(None),
-        };
+            // Read raw event
+            let raw_event = match raw_input.read_event()? {
+                Some(e) => e,
+                None => return Ok(None),
+            };
 
-        // Update cursor position
-        self.cursor.update(raw_event.dx, raw_event.dy);
-        let (col, row) = self.cursor.position_u16();
+            // Update cursor position
+            self.cursor.update(raw_event.dx, raw_event.dy);
+            let (col, row) = self.cursor.position_u16();
 
-        // Convert to crossterm events
-        self.generate_events(raw_event, col, row);
+            // Convert to crossterm events
+            self.generate_events(raw_event, col, row);
 
-        // Return first event from queue
-        Ok(self.event_queue.pop_front())
+            // Return first event from queue
+            Ok(self.event_queue.pop_front())
+        }
+
+        #[cfg(not(unix))]
+        {
+            Ok(None)
+        }
     }
 
-    /// Generate crossterm MouseEvents from a raw event
+    /// Generate crossterm MouseEvents from a raw event (Unix only)
+    #[cfg(unix)]
     fn generate_events(&mut self, raw: RawMouseEvent, col: u16, row: u16) {
         let buttons = if self.swap_buttons {
             MouseButtons {
@@ -678,11 +716,13 @@ impl MouseInputManager {
 // Re-export for backward compatibility with framebuffer module
 #[allow(unused_imports)]
 pub use CursorTracker as MouseCursorTracker;
+#[cfg(unix)]
 #[allow(unused_imports)]
 pub use RawMouseInput as MouseInput;
 
 /// Backward compatible MouseEvent type for framebuffer module
 /// This mirrors the old framebuffer::mouse_input::MouseEvent
+#[cfg(unix)]
 #[derive(Debug, Clone, Copy)]
 #[allow(dead_code)] // Used by framebuffer backend on Linux only
 pub struct FramebufferMouseEvent {
@@ -693,6 +733,7 @@ pub struct FramebufferMouseEvent {
     pub scroll_h: i8,
 }
 
+#[cfg(unix)]
 impl From<RawMouseEvent> for FramebufferMouseEvent {
     fn from(raw: RawMouseEvent) -> Self {
         Self {
@@ -705,6 +746,7 @@ impl From<RawMouseEvent> for FramebufferMouseEvent {
     }
 }
 
+#[cfg(unix)]
 impl RawMouseInput {
     /// Backward compatible read_event that returns FramebufferMouseEvent
     /// This is used by the framebuffer backend
