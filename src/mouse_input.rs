@@ -264,7 +264,10 @@ impl RawMouseInput {
                     match type_ {
                         EV_REL => match code {
                             REL_X => self.dx_accumulator += value,
-                            REL_Y => self.dy_accumulator += value,
+                            // evdev REL_Y: positive = down (screen direction)
+                            // PS/2 dy: positive = up (toward user)
+                            // Negate to match PS/2 convention used by CursorTracker
+                            REL_Y => self.dy_accumulator -= value,
                             REL_WHEEL => self.scroll_accumulator += value,
                             REL_HWHEEL => self.scroll_h_accumulator += value,
                             _ => {}
