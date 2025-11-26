@@ -268,6 +268,27 @@ pub struct Cli {
         help = "Swap left/right mouse buttons (use if clicks are reversed)"
     )]
     pub swap_mouse_buttons: bool,
+
+    /// Mouse sensitivity for TTY mode (Linux console only)
+    ///
+    /// Adjust cursor movement speed for raw mouse input in TTY mode.
+    /// Values:
+    ///   - 0.1 to 0.3: Very slow (for precision)
+    ///   - 0.3 to 0.5: Slow (default auto-calculated range)
+    ///   - 0.5 to 1.0: Normal
+    ///   - 1.0 to 2.0: Fast
+    ///   - 2.0 to 5.0: Very fast
+    ///
+    /// If not specified, sensitivity is automatically calculated based on screen size.
+    ///
+    /// Note: Only affects TTY mode (Linux console without framebuffer).
+    #[cfg(target_os = "linux")]
+    #[arg(
+        long,
+        value_name = "SENSITIVITY",
+        help = "Mouse sensitivity for TTY mode (0.1-5.0, default: auto)"
+    )]
+    pub mouse_sensitivity: Option<f32>,
 }
 
 impl Cli {

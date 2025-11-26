@@ -444,25 +444,24 @@ fn main() -> io::Result<()> {
 
         // Poll unified mouse input manager for raw input events (TTY mode only)
         // Skip this for framebuffer mode - it has its own native mouse input
-        let raw_mouse_event = if mouse_input_manager.uses_raw_input()
-            && !backend.has_native_mouse_input()
-        {
-            if let Ok(Some(event)) = mouse_input_manager.poll_event() {
-                // Update TTY cursor position for display
-                let (cursor_col, cursor_row) = mouse_input_manager.cursor_position();
-                backend.set_tty_cursor(cursor_col, cursor_row);
-                Some(Event::Mouse(event))
-            } else {
+        let raw_mouse_event =
+            if mouse_input_manager.uses_raw_input() && !backend.has_native_mouse_input() {
+                if let Ok(Some(event)) = mouse_input_manager.poll_event() {
+                    // Update TTY cursor position for display
+                    let (cursor_col, cursor_row) = mouse_input_manager.cursor_position();
+                    backend.set_tty_cursor(cursor_col, cursor_row);
+                    Some(Event::Mouse(event))
+                } else {
+                    None
+                }
+            } else if !backend.has_native_mouse_input() {
+                // In terminal emulator mode, clear any TTY cursor
+                backend.clear_tty_cursor();
                 None
-            }
-        } else if !backend.has_native_mouse_input() {
-            // In terminal emulator mode, clear any TTY cursor
-            backend.clear_tty_cursor();
-            None
-        } else {
-            // Framebuffer mode handles mouse input natively
-            None
-        };
+            } else {
+                // Framebuffer mode handles mouse input natively
+                None
+            };
 
         // Process raw mouse event if available (from MouseInputManager)
         #[cfg(target_os = "linux")]

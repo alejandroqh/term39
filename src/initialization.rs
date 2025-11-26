@@ -243,6 +243,7 @@ pub fn initialize_mouse_input(
     let invert_x = cli_args.invert_mouse_x;
     let invert_y = cli_args.invert_mouse_y;
     let swap_buttons = cli_args.swap_mouse_buttons;
+    let sensitivity = cli_args.mouse_sensitivity;
 
     // Create the mouse input manager
     let manager = MouseInputManager::new(
@@ -253,6 +254,7 @@ pub fn initialize_mouse_input(
         invert_x,
         invert_y,
         swap_buttons,
+        sensitivity,
     )
     .unwrap_or_else(|e| {
         eprintln!("Warning: Failed to initialize mouse input: {}", e);
@@ -265,6 +267,7 @@ pub fn initialize_mouse_input(
             false,
             false,
             false,
+            None,
         )
         .expect("Terminal emulator mode should always succeed")
     });
@@ -290,6 +293,7 @@ pub fn initialize_mouse_input(
         false,
         false,
         false,
+        None,
     )
     .expect("Terminal emulator mode should always succeed");
 

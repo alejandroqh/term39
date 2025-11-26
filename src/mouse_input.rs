@@ -399,9 +399,8 @@ impl CursorTracker {
         self.y = y.min(self.max_y.saturating_sub(1));
     }
 
-    #[allow(dead_code)]
     pub fn set_sensitivity(&mut self, sensitivity: f32) {
-        self.sensitivity = sensitivity.clamp(0.1, 10.0);
+        self.sensitivity = sensitivity.clamp(0.1, 5.0);
     }
 }
 
@@ -420,6 +419,7 @@ pub struct MouseInputManager {
 
 impl MouseInputManager {
     /// Create a new mouse input manager
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         mode: MouseInputMode,
         cols: u16,
@@ -428,6 +428,7 @@ impl MouseInputManager {
         invert_x: bool,
         invert_y: bool,
         swap_buttons: bool,
+        sensitivity_override: Option<f32>,
     ) -> io::Result<Self> {
         let raw_input = if mode.uses_raw_input() {
             match RawMouseInput::new(device_path) {
@@ -441,10 +442,17 @@ impl MouseInputManager {
             None
         };
 
+        let mut cursor = CursorTracker::new(cols as usize, rows as usize, invert_x, invert_y);
+
+        // Apply sensitivity override if provided
+        if let Some(sens) = sensitivity_override {
+            cursor.set_sensitivity(sens);
+        }
+
         Ok(Self {
             mode,
             raw_input,
-            cursor: CursorTracker::new(cols as usize, rows as usize, invert_x, invert_y),
+            cursor,
             prev_buttons: MouseButtons::default(),
             event_queue: VecDeque::new(),
             swap_buttons,
