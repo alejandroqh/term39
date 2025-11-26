@@ -23,11 +23,14 @@ mod fb_setup_window;
 mod framebuffer;
 mod fuzzy_matcher;
 #[cfg(target_os = "linux")]
+mod gpm_control;
+#[cfg(target_os = "linux")]
 mod gpm_handler;
 mod info_window;
 mod initialization;
 mod keyboard_handlers;
 mod keyboard_mode;
+mod mouse_input;
 mod prompt;
 mod render_backend;
 mod render_frame;
@@ -448,6 +451,20 @@ fn main() -> io::Result<()> {
     #[cfg(all(target_os = "linux", not(feature = "framebuffer-backend")))]
     let mut gpm_connection = initialization::initialize_gpm(false);
 
+    // Initialize unified mouse input manager (will try to disable GPM cursor if needed)
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
+    let is_framebuffer_mode = cli_args.framebuffer;
+    #[cfg(not(all(target_os = "linux", feature = "framebuffer-backend")))]
+    let is_framebuffer_mode = false;
+
+    let (cols_for_mouse, rows_for_mouse) = backend.dimensions();
+    let (mut mouse_input_manager, _gpm_disable_connection) = initialization::initialize_mouse_input(
+        &cli_args,
+        cols_for_mouse,
+        rows_for_mouse,
+        is_framebuffer_mode,
+    );
+
     // Initialize video buffer and window manager
     let mut video_buffer = initialization::initialize_video_buffer(backend.as_ref());
     let mut window_manager = initialization::initialize_window_manager(&cli_args, &mut app_config)?;
@@ -511,117 +528,142 @@ fn main() -> io::Result<()> {
             window_manager.auto_position_windows(cols, rows);
         }
 
+        // Poll unified mouse input manager for raw input events (TTY/Framebuffer modes)
+        // This provides mouse input without GPM when using raw /dev/input access
+        let raw_mouse_event = if mouse_input_manager.uses_raw_input() {
+            if let Ok(Some(event)) = mouse_input_manager.poll_event() {
+                // Update TTY cursor position for display
+                let (cursor_col, cursor_row) = mouse_input_manager.cursor_position();
+                backend.set_tty_cursor(cursor_col, cursor_row);
+                Some(Event::Mouse(event))
+            } else {
+                None
+            }
+        } else {
+            // In terminal emulator mode, clear any TTY cursor
+            backend.clear_tty_cursor();
+            None
+        };
+
         // Check for GPM events first (Linux console mouse support)
-        // Skip GPM when backend has native mouse input to avoid duplicate events
+        // Skip GPM when backend has native mouse input OR when using raw mouse input
         #[cfg(target_os = "linux")]
-        let gpm_event = if !backend.has_native_mouse_input() {
-            if let Some(ref mut gpm) = gpm_connection {
-                if gpm.has_event() {
-                    gpm.get_event()
+        let gpm_event =
+            if !backend.has_native_mouse_input() && !mouse_input_manager.uses_raw_input() {
+                if let Some(ref mut gpm) = gpm_connection {
+                    if gpm.has_event() {
+                        gpm.get_event()
+                    } else {
+                        None
+                    }
                 } else {
                     None
                 }
             } else {
                 None
-            }
-        } else {
-            None
-        };
+            };
+
+        // Process raw mouse event if available (from MouseInputManager)
+        #[cfg(target_os = "linux")]
+        let mut injected_event: Option<Event> = raw_mouse_event;
+        #[cfg(not(target_os = "linux"))]
+        let _injected_event: Option<Event> = raw_mouse_event;
 
         // Process GPM event if available - convert to Event::Mouse and fall through
         #[cfg(target_os = "linux")]
-        #[cfg_attr(not(feature = "framebuffer-backend"), allow(unused_mut))]
-        let mut injected_event = if let Some(gpm_evt) = gpm_event {
-            // Convert GPM event to crossterm MouseEvent format
-            use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
+        if injected_event.is_none() {
+            injected_event = if let Some(gpm_evt) = gpm_event {
+                // Convert GPM event to crossterm MouseEvent format
+                use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 
-            // Scale mouse coordinates from TTY space to backend space
-            let (scaled_col, scaled_row) = backend.scale_mouse_coords(gpm_evt.x, gpm_evt.y);
+                // Scale mouse coordinates from TTY space to backend space
+                let (scaled_col, scaled_row) = backend.scale_mouse_coords(gpm_evt.x, gpm_evt.y);
 
-            // Convert GpmButton to crossterm MouseButton, with optional swap
-            let convert_button = |gpm_button: Option<gpm_handler::GpmButton>| -> MouseButton {
-                let button = match gpm_button {
-                    Some(gpm_handler::GpmButton::Left) => MouseButton::Left,
-                    Some(gpm_handler::GpmButton::Middle) => MouseButton::Middle,
-                    Some(gpm_handler::GpmButton::Right) => MouseButton::Right,
-                    None => MouseButton::Left,
+                // Convert GpmButton to crossterm MouseButton, with optional swap
+                let convert_button = |gpm_button: Option<gpm_handler::GpmButton>| -> MouseButton {
+                    let button = match gpm_button {
+                        Some(gpm_handler::GpmButton::Left) => MouseButton::Left,
+                        Some(gpm_handler::GpmButton::Middle) => MouseButton::Middle,
+                        Some(gpm_handler::GpmButton::Right) => MouseButton::Right,
+                        None => MouseButton::Left,
+                    };
+                    // Swap left/right if --swap-mouse-buttons flag is set
+                    if cli_args.swap_mouse_buttons {
+                        match button {
+                            MouseButton::Left => MouseButton::Right,
+                            MouseButton::Right => MouseButton::Left,
+                            other => other,
+                        }
+                    } else {
+                        button
+                    }
                 };
-                // Swap left/right if --swap-mouse-buttons flag is set
-                if cli_args.swap_mouse_buttons {
-                    match button {
-                        MouseButton::Left => MouseButton::Right,
-                        MouseButton::Right => MouseButton::Left,
-                        other => other,
-                    }
-                } else {
-                    button
+
+                // Convert GPM modifiers to crossterm KeyModifiers
+                let mut modifiers = KeyModifiers::empty();
+                if gpm_evt.shift {
+                    modifiers |= KeyModifiers::SHIFT;
                 }
+                if gpm_evt.ctrl {
+                    modifiers |= KeyModifiers::CONTROL;
+                }
+                if gpm_evt.alt {
+                    modifiers |= KeyModifiers::ALT;
+                }
+
+                let mouse_event = match gpm_evt.event_type {
+                    gpm_handler::GpmEventType::Down => {
+                        let button = convert_button(gpm_evt.button);
+                        MouseEvent {
+                            kind: MouseEventKind::Down(button),
+                            column: scaled_col,
+                            row: scaled_row,
+                            modifiers,
+                        }
+                    }
+                    gpm_handler::GpmEventType::Up => {
+                        let button = convert_button(gpm_evt.button);
+                        MouseEvent {
+                            kind: MouseEventKind::Up(button),
+                            column: scaled_col,
+                            row: scaled_row,
+                            modifiers,
+                        }
+                    }
+                    gpm_handler::GpmEventType::Drag => {
+                        let button = convert_button(gpm_evt.button);
+                        MouseEvent {
+                            kind: MouseEventKind::Drag(button),
+                            column: scaled_col,
+                            row: scaled_row,
+                            modifiers,
+                        }
+                    }
+                    gpm_handler::GpmEventType::Move => MouseEvent {
+                        kind: MouseEventKind::Moved,
+                        column: scaled_col,
+                        row: scaled_row,
+                        modifiers,
+                    },
+                    gpm_handler::GpmEventType::ScrollUp => MouseEvent {
+                        kind: MouseEventKind::ScrollUp,
+                        column: scaled_col,
+                        row: scaled_row,
+                        modifiers,
+                    },
+                    gpm_handler::GpmEventType::ScrollDown => MouseEvent {
+                        kind: MouseEventKind::ScrollDown,
+                        column: scaled_col,
+                        row: scaled_row,
+                        modifiers,
+                    },
+                };
+
+                Some(Event::Mouse(mouse_event))
+            } else {
+                None
             };
-
-            // Convert GPM modifiers to crossterm KeyModifiers
-            let mut modifiers = KeyModifiers::empty();
-            if gpm_evt.shift {
-                modifiers |= KeyModifiers::SHIFT;
-            }
-            if gpm_evt.ctrl {
-                modifiers |= KeyModifiers::CONTROL;
-            }
-            if gpm_evt.alt {
-                modifiers |= KeyModifiers::ALT;
-            }
-
-            let mouse_event = match gpm_evt.event_type {
-                gpm_handler::GpmEventType::Down => {
-                    let button = convert_button(gpm_evt.button);
-                    MouseEvent {
-                        kind: MouseEventKind::Down(button),
-                        column: scaled_col,
-                        row: scaled_row,
-                        modifiers,
-                    }
-                }
-                gpm_handler::GpmEventType::Up => {
-                    let button = convert_button(gpm_evt.button);
-                    MouseEvent {
-                        kind: MouseEventKind::Up(button),
-                        column: scaled_col,
-                        row: scaled_row,
-                        modifiers,
-                    }
-                }
-                gpm_handler::GpmEventType::Drag => {
-                    let button = convert_button(gpm_evt.button);
-                    MouseEvent {
-                        kind: MouseEventKind::Drag(button),
-                        column: scaled_col,
-                        row: scaled_row,
-                        modifiers,
-                    }
-                }
-                gpm_handler::GpmEventType::Move => MouseEvent {
-                    kind: MouseEventKind::Moved,
-                    column: scaled_col,
-                    row: scaled_row,
-                    modifiers,
-                },
-                gpm_handler::GpmEventType::ScrollUp => MouseEvent {
-                    kind: MouseEventKind::ScrollUp,
-                    column: scaled_col,
-                    row: scaled_row,
-                    modifiers,
-                },
-                gpm_handler::GpmEventType::ScrollDown => MouseEvent {
-                    kind: MouseEventKind::ScrollDown,
-                    column: scaled_col,
-                    row: scaled_row,
-                    modifiers,
-                },
-            };
-
-            Some(Event::Mouse(mouse_event))
-        } else {
-            None
-        };
+        }
 
         // Process framebuffer mouse event if available (when GPM is not active)
         #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]

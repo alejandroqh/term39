@@ -56,6 +56,17 @@ pub trait RenderBackend {
     fn has_native_mouse_input(&self) -> bool {
         false // Default: no native mouse input
     }
+
+    /// Set TTY cursor position (for raw mouse input mode in terminal backend)
+    /// This inverts the cell colors at the cursor position
+    fn set_tty_cursor(&mut self, _col: u16, _row: u16) {
+        // Default: no-op (framebuffer uses sprite cursor)
+    }
+
+    /// Clear TTY cursor
+    fn clear_tty_cursor(&mut self) {
+        // Default: no-op
+    }
 }
 
 /// Terminal-based rendering backend (using crossterm)
@@ -63,6 +74,8 @@ pub struct TerminalBackend {
     cols: u16,
     rows: u16,
     stdout: io::Stdout,
+    /// TTY cursor position for raw mouse input mode
+    tty_cursor: Option<(u16, u16)>,
 }
 
 impl TerminalBackend {
@@ -73,13 +86,32 @@ impl TerminalBackend {
         let (cols, rows) = terminal::size()?;
         let stdout = io::stdout();
 
-        Ok(Self { cols, rows, stdout })
+        Ok(Self {
+            cols,
+            rows,
+            stdout,
+            tty_cursor: None,
+        })
     }
 }
 
 impl RenderBackend for TerminalBackend {
     fn present(&mut self, buffer: &mut VideoBuffer) -> io::Result<()> {
+        // Apply TTY cursor to buffer before presenting
+        if let Some((col, row)) = self.tty_cursor {
+            buffer.set_tty_cursor(col, row);
+        } else {
+            buffer.clear_tty_cursor();
+        }
         buffer.present(&mut self.stdout)
+    }
+
+    fn set_tty_cursor(&mut self, col: u16, row: u16) {
+        self.tty_cursor = Some((col, row));
+    }
+
+    fn clear_tty_cursor(&mut self) {
+        self.tty_cursor = None;
     }
 
     fn dimensions(&self) -> (u16, u16) {

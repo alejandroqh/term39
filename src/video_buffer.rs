@@ -67,6 +67,9 @@ pub struct VideoBuffer {
     height: u16,
     front_buffer: Vec<Cell>,
     back_buffer: Vec<Cell>,
+    /// TTY cursor position (for raw mouse input mode)
+    /// When set, the cell at this position will be rendered with inverted colors
+    tty_cursor: Option<(u16, u16)>,
 }
 
 impl VideoBuffer {
@@ -80,6 +83,7 @@ impl VideoBuffer {
             height,
             front_buffer: vec![default_cell; size],
             back_buffer: vec![default_cell; size],
+            tty_cursor: None,
         }
     }
 
@@ -125,6 +129,23 @@ impl VideoBuffer {
         (self.width, self.height)
     }
 
+    /// Set TTY cursor position for raw mouse input mode
+    /// The cell at this position will be rendered with inverted colors
+    pub fn set_tty_cursor(&mut self, col: u16, row: u16) {
+        self.tty_cursor = Some((col, row));
+    }
+
+    /// Clear TTY cursor (hide it)
+    pub fn clear_tty_cursor(&mut self) {
+        self.tty_cursor = None;
+    }
+
+    /// Get current TTY cursor position
+    #[allow(dead_code)]
+    pub fn get_tty_cursor(&self) -> Option<(u16, u16)> {
+        self.tty_cursor
+    }
+
     /// Apply shadow overlay to all cells in the back buffer
     /// This is an optimized version that directly modifies the buffer
     /// without the overhead of get/set methods
@@ -165,19 +186,27 @@ impl VideoBuffer {
                 let front_cell = &self.front_buffer[idx];
                 let back_cell = &self.back_buffer[idx];
 
-                // Only update if cell changed
-                if front_cell != back_cell {
+                // Check if this cell is under the TTY cursor - if so, invert colors
+                let is_cursor = self.tty_cursor.is_some_and(|(cx, cy)| cx == x && cy == y);
+                let display_cell = if is_cursor {
+                    back_cell.inverted()
+                } else {
+                    *back_cell
+                };
+
+                // Only update if cell changed (compare with inverted if cursor)
+                if front_cell != &display_cell {
                     // Check if we can extend the current run
                     // Cell must be immediately adjacent (same row, next column) with same colors
                     let can_extend = in_run
                         && y == run_y
                         && x == run_start_x + run_char_count
-                        && back_cell.fg_color == current_fg
-                        && back_cell.bg_color == current_bg;
+                        && display_cell.fg_color == current_fg
+                        && display_cell.bg_color == current_bg;
 
                     if can_extend {
                         // Extend the current run
-                        run_buffer.push(back_cell.character);
+                        run_buffer.push(display_cell.character);
                         run_char_count += 1;
                     } else {
                         // Flush previous run if any
@@ -188,19 +217,19 @@ impl VideoBuffer {
                         }
 
                         // Update colors if needed
-                        if back_cell.fg_color != current_fg {
-                            stdout.queue(SetForegroundColor(back_cell.fg_color))?;
-                            current_fg = back_cell.fg_color;
+                        if display_cell.fg_color != current_fg {
+                            stdout.queue(SetForegroundColor(display_cell.fg_color))?;
+                            current_fg = display_cell.fg_color;
                         }
-                        if back_cell.bg_color != current_bg {
-                            stdout.queue(SetBackgroundColor(back_cell.bg_color))?;
-                            current_bg = back_cell.bg_color;
+                        if display_cell.bg_color != current_bg {
+                            stdout.queue(SetBackgroundColor(display_cell.bg_color))?;
+                            current_bg = display_cell.bg_color;
                         }
 
                         // Start new run
                         run_start_x = x;
                         run_y = y;
-                        run_buffer.push(back_cell.character);
+                        run_buffer.push(display_cell.character);
                         run_char_count = 1;
                         in_run = true;
                     }
@@ -217,9 +246,19 @@ impl VideoBuffer {
             }
         }
 
-        // Swap buffers by copying back to front
-        // This preserves the back buffer for next frame comparison
-        self.front_buffer.copy_from_slice(&self.back_buffer);
+        // Update front buffer to reflect what's actually displayed
+        // We need to handle cursor separately since it's rendered with inverted colors
+        for (idx, back_cell) in self.back_buffer.iter().enumerate() {
+            let x = (idx % self.width as usize) as u16;
+            let y = (idx / self.width as usize) as u16;
+
+            let is_cursor = self.tty_cursor.is_some_and(|(cx, cy)| cx == x && cy == y);
+            self.front_buffer[idx] = if is_cursor {
+                back_cell.inverted()
+            } else {
+                *back_cell
+            };
+        }
 
         // Hide cursor after rendering to prevent it from being visible or affecting PTY output
         // Even hidden cursors have a position, so we also move it to (0, 0)

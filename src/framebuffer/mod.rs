@@ -14,13 +14,15 @@ pub mod fb_renderer;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 pub mod font_manager;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
-pub mod mouse_input;
-#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 pub mod text_modes;
 
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 pub use fb_renderer::FramebufferRenderer;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
-pub use mouse_input::{CursorTracker, MouseInput};
-#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 pub use text_modes::TextMode;
+
+// Re-export mouse input types from top-level module
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
+pub use crate::mouse_input::{
+    CursorTracker, MouseButtons, MouseInput, RawMouseEvent, RawMouseInput,
+};

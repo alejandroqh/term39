@@ -225,6 +225,89 @@ pub fn initialize_gpm(is_framebuffer_mode: bool) -> Option<crate::gpm_handler::G
     crate::gpm_handler::GpmConnection::open(draw_cursor)
 }
 
+/// Initializes the unified mouse input manager
+///
+/// Returns a MouseInputManager and optionally a GpmConnection if GPM needed disabling
+#[cfg(target_os = "linux")]
+pub fn initialize_mouse_input(
+    cli_args: &Cli,
+    cols: u16,
+    rows: u16,
+    is_framebuffer_mode: bool,
+) -> (
+    crate::mouse_input::MouseInputManager,
+    Option<crate::gpm_control::GpmConnection>,
+) {
+    use crate::mouse_input::{MouseInputManager, MouseInputMode};
+
+    // Detect the mouse input mode
+    let mode = MouseInputMode::detect(is_framebuffer_mode);
+
+    // Try to disable GPM if it's running and we're using raw input
+    let gpm_connection = if mode.uses_raw_input() {
+        crate::gpm_control::try_disable_gpm()
+    } else {
+        None
+    };
+
+    // Get mouse configuration
+    let device_path = cli_args.mouse_device.as_deref();
+    let invert_x = cli_args.invert_mouse_x;
+    let invert_y = cli_args.invert_mouse_y;
+    let swap_buttons = cli_args.swap_mouse_buttons;
+
+    // Create the mouse input manager
+    let manager = MouseInputManager::new(
+        mode,
+        cols,
+        rows,
+        device_path,
+        invert_x,
+        invert_y,
+        swap_buttons,
+    )
+    .unwrap_or_else(|e| {
+        eprintln!("Warning: Failed to initialize mouse input: {}", e);
+        // Return a fallback manager with no raw input
+        MouseInputManager::new(
+            MouseInputMode::TerminalEmulator,
+            cols,
+            rows,
+            None,
+            false,
+            false,
+            false,
+        )
+        .expect("Terminal emulator mode should always succeed")
+    });
+
+    (manager, gpm_connection)
+}
+
+/// Initializes the unified mouse input manager (non-Linux version)
+#[cfg(not(target_os = "linux"))]
+pub fn initialize_mouse_input(
+    _cli_args: &Cli,
+    cols: u16,
+    rows: u16,
+    _is_framebuffer_mode: bool,
+) -> (crate::mouse_input::MouseInputManager, Option<()>) {
+    use crate::mouse_input::{MouseInputManager, MouseInputMode};
+
+    let manager = MouseInputManager::new(
+        MouseInputMode::TerminalEmulator,
+        cols,
+        rows,
+        None,
+        false,
+        false,
+        false,
+    )
+    .expect("Terminal emulator mode should always succeed");
+
+    (manager, None)
+}
+
 /// Cleanup function to restore terminal state
 pub fn cleanup(stdout: &mut io::Stdout) -> io::Result<()> {
     // Disable mouse capture (only if not on Linux console)

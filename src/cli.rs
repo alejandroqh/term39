@@ -255,17 +255,17 @@ pub struct Cli {
     #[arg(long, help = "Launch framebuffer setup wizard")]
     pub fb_setup: bool,
 
-    /// Swap left and right mouse buttons for GPM (Linux console only)
+    /// Swap left and right mouse buttons (Linux console only)
     ///
-    /// By default, GPM button mapping is corrected for most hardware (where GPM
-    /// reports buttons swapped). Use this flag to swap them back if your hardware
-    /// reports buttons correctly and you experience reversed left/right clicks.
+    /// By default, button mapping is corrected for most hardware. Use this flag
+    /// to swap left/right buttons if your hardware reports them correctly but
+    /// clicks appear reversed on screen.
     ///
-    /// Note: Only affects GPM mouse input on Linux console.
+    /// Note: Only affects mouse input on Linux console (TTY and framebuffer modes).
     #[cfg(target_os = "linux")]
     #[arg(
         long,
-        help = "Swap left/right mouse buttons for GPM (use if clicks are reversed)"
+        help = "Swap left/right mouse buttons (use if clicks are reversed)"
     )]
     pub swap_mouse_buttons: bool,
 }
