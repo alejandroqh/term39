@@ -457,7 +457,7 @@ pub fn render_button_bar(
     current_x += 2;
 
     // Render help text on the right side
-    let help_text = " > F1 Help | 's' Settings | F10 Exit < ";
+    let help_text = " > '?' Help | 's' Settings | ` Window mode < ";
     let help_text_len = help_text.len() as u16;
     let help_x = if cols > help_text_len {
         let hx = cols - help_text_len - 1;

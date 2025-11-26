@@ -17,7 +17,7 @@ KEYBOARD SHORTCUTS:
   't'         - Create new terminal window
   'T'         - Create new maximized terminal window
   'q' / ESC   - Exit application (from desktop)
-  'h'         - Show help screen
+  '?'         - Show help screen
   's'         - Show settings/configuration window
   'c'         - Show calendar
   CTRL+Space  - Command launcher (Slight)

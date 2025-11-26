@@ -227,7 +227,7 @@ pub fn handle_desktop_keyboard(
             handle_q_key(app_state, current_focus, window_manager, backend, cli_args);
             return true;
         }
-        KeyCode::Char('h') if current_focus == FocusState::Desktop => {
+        KeyCode::Char('h') | KeyCode::Char('?') if current_focus == FocusState::Desktop => {
             show_help_window(app_state, backend);
             return true;
         }
@@ -369,7 +369,7 @@ fn show_help_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
         {{Y}}'t'{{W}}       - Create new terminal window\n\
         {{Y}}'T'{{W}}       - Create new maximized terminal window\n\
         {{Y}}'q'/ESC/F10{{W}} - Exit application (from desktop)\n\
-        {{Y}}F1{{W}} or {{Y}}'h'{{W}} - Show this help screen\n\
+        {{Y}}F1{{W}} or {{Y}}'?'{{W}} - Show this help screen\n\
         {{Y}}'l'{{W}}       - Show license and about information\n\
         {{Y}}'s'{{W}}       - Show settings/configuration window\n\
         {{Y}}'c'{{W}}       - Show calendar ({{Y}}\u{2190}\u{2192}{{W}} months, {{Y}}\u{2191}\u{2193}{{W}} years, {{Y}}t{{W}} today)\n\
