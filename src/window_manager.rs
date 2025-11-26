@@ -1186,6 +1186,13 @@ impl WindowManager {
         }
     }
 
+    /// Select all content in a window
+    pub fn select_all(&mut self, window_id: u32) {
+        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+            window.select_all();
+        }
+    }
+
     /// Check if the focused window has a selection
     #[allow(dead_code)]
     pub fn focused_window_has_selection(&self) -> bool {

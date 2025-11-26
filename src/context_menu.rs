@@ -9,7 +9,6 @@ pub enum MenuAction {
     Copy,
     Paste,
     SelectAll,
-    CopyWindow,
     #[allow(dead_code)]
     Close,
 }
@@ -33,6 +32,7 @@ impl MenuItem {
         }
     }
 
+    #[allow(dead_code)]
     pub fn separator() -> Self {
         Self {
             label: String::new(),
@@ -56,11 +56,9 @@ impl ContextMenu {
     /// Create a new context menu at position
     pub fn new(x: u16, y: u16) -> Self {
         let items = vec![
-            MenuItem::new("Copy", Some('C'), MenuAction::Copy),
-            MenuItem::new("Paste", Some('V'), MenuAction::Paste),
-            MenuItem::new("Select All", Some('A'), MenuAction::SelectAll),
-            MenuItem::separator(),
-            MenuItem::new("Copy Window", Some('W'), MenuAction::CopyWindow),
+            MenuItem::new("Copy", None, MenuAction::Copy),
+            MenuItem::new("Paste", None, MenuAction::Paste),
+            MenuItem::new("Select All", None, MenuAction::SelectAll),
         ];
 
         Self {
@@ -126,6 +124,35 @@ impl ContextMenu {
         let height = self.items.len() as u16 + 2; // +2 for borders
 
         x >= self.x && x < self.x + width && y >= self.y && y < self.y + height
+    }
+
+    /// Update selection based on mouse position, returns true if selection changed
+    pub fn update_selection_from_mouse(&mut self, x: u16, y: u16) -> bool {
+        if !self.visible {
+            return false;
+        }
+
+        let width = self.calculate_width();
+
+        // Check if within menu bounds (excluding borders)
+        if x <= self.x || x >= self.x + width - 1 {
+            return false;
+        }
+
+        // Calculate which item row the mouse is on (accounting for top border)
+        if y <= self.y || y > self.y + self.items.len() as u16 {
+            return false;
+        }
+
+        let item_index = (y - self.y - 1) as usize;
+        if item_index < self.items.len() && !self.items[item_index].is_separator {
+            if self.selected_index != item_index {
+                self.selected_index = item_index;
+                return true;
+            }
+        }
+
+        false
     }
 
     /// Calculate menu width based on content

@@ -859,6 +859,23 @@ impl TerminalWindow {
         }
     }
 
+    /// Select all content in the terminal
+    pub fn select_all(&mut self) {
+        let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
+        let content_height = self.window.height.saturating_sub(3); // -1 title, -1 top border, -1 bottom border
+
+        let start = Position::new(0, 0);
+        let end = Position::new(
+            content_width.saturating_sub(1),
+            content_height.saturating_sub(1),
+        );
+
+        let mut selection = Selection::new(start, SelectionType::Character);
+        selection.update_end(end);
+        selection.complete();
+        self.selection = Some(selection);
+    }
+
     /// Get selected text
     pub fn get_selected_text(&self) -> Option<String> {
         let selection = self.selection.as_ref()?;

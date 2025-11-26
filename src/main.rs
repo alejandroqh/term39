@@ -1231,6 +1231,11 @@ fn main() -> io::Result<()> {
                                 .context_menu
                                 .contains_point(mouse_event.column, mouse_event.row)
                             {
+                                // Update selection to clicked item before getting action
+                                app_state.context_menu.update_selection_from_mouse(
+                                    mouse_event.column,
+                                    mouse_event.row,
+                                );
                                 if let Some(action) = app_state.context_menu.get_selected_action() {
                                     if let FocusState::Window(window_id) =
                                         window_manager.get_focus()
@@ -1252,10 +1257,7 @@ fn main() -> io::Result<()> {
                                                 }
                                             }
                                             MenuAction::SelectAll => {
-                                                // TODO: Implement select all
-                                            }
-                                            MenuAction::CopyWindow => {
-                                                // TODO: Implement copy window
+                                                window_manager.select_all(window_id);
                                             }
                                             MenuAction::Close => {}
                                         }
@@ -1269,12 +1271,9 @@ fn main() -> io::Result<()> {
                             }
                         } else if mouse_event.kind == MouseEventKind::Moved {
                             // Update menu selection on hover
-                            if app_state
+                            app_state
                                 .context_menu
-                                .contains_point(mouse_event.column, mouse_event.row)
-                            {
-                                // TODO: Update hover state if needed
-                            }
+                                .update_selection_from_mouse(mouse_event.column, mouse_event.row);
                         }
                     }
 
