@@ -145,8 +145,7 @@ fn handle_navigation_mode(
             true
         }
         KeyCode::BackTab | KeyCode::Tab if has_shift => {
-            // TODO: cycle_to_previous_window when implemented
-            window_manager.cycle_to_next_window();
+            window_manager.cycle_to_previous_window();
             true
         }
 

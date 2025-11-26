@@ -329,11 +329,7 @@ pub fn cleanup(stdout: &mut io::Stdout) -> io::Result<()> {
 
     // Move cursor to home position and reset colors again
     // This is important for TTY where color state can persist
-    execute!(
-        stdout,
-        cursor::MoveTo(0, 0),
-        style::ResetColor
-    )?;
+    execute!(stdout, cursor::MoveTo(0, 0), style::ResetColor)?;
 
     // Show cursor and leave alternate screen
     execute!(stdout, cursor::Show, terminal::LeaveAlternateScreen)?;

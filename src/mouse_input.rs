@@ -114,27 +114,58 @@ impl RawMouseInput {
                 Protocol::InputEvent
             };
             Self::setup_device(file, protocol)
+        } else if let Ok(input) = Self::find_mouse_event_device() {
+            // Prefer evdev for better scroll wheel support
+            Ok(input)
         } else if let Ok(file) = File::open("/dev/input/mice") {
+            // Fallback to PS/2 multiplexer (may not have scroll wheel)
             Self::setup_device(file, Protocol::Ps2)
         } else {
-            Self::find_event_device()
+            Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "No mouse input device found",
+            ))
         }
     }
 
-    fn find_event_device() -> io::Result<Self> {
+    /// Find a mouse event device that supports scroll wheel (REL_WHEEL)
+    fn find_mouse_event_device() -> io::Result<Self> {
+        // EVIOCGBIT ioctl to get device capabilities
+        // _IOC(IOC_READ, 'E', 0x20 + ev_type, len)
+        // For EV_REL (0x02): 0x20 + 0x02 = 0x22
+        const EVIOCGBIT_REL: libc::c_ulong = 0x80084522; // Get REL capability bits
+
         for i in 0..16 {
             let path = format!("/dev/input/event{}", i);
-            if Path::new(&path).exists() {
-                if let Ok(file) = File::open(&path) {
-                    if let Ok(input) = Self::setup_device(file, Protocol::InputEvent) {
-                        return Ok(input);
+            if !Path::new(&path).exists() {
+                continue;
+            }
+
+            if let Ok(file) = File::open(&path) {
+                let fd = file.as_raw_fd();
+
+                // Query REL capabilities (need at least 2 bytes for REL_WHEEL which is bit 8)
+                let mut rel_bits = [0u8; 2];
+                let ret = unsafe { libc::ioctl(fd, EVIOCGBIT_REL, rel_bits.as_mut_ptr()) };
+
+                if ret >= 0 {
+                    // Check if device has REL_X (bit 0), REL_Y (bit 1), and REL_WHEEL (bit 8)
+                    let has_rel_x = (rel_bits[0] & (1 << REL_X)) != 0;
+                    let has_rel_y = (rel_bits[0] & (1 << REL_Y)) != 0;
+                    let has_rel_wheel = (rel_bits[1] & (1 << (REL_WHEEL - 8))) != 0;
+
+                    if has_rel_x && has_rel_y && has_rel_wheel {
+                        if let Ok(input) = Self::setup_device(file, Protocol::InputEvent) {
+                            return Ok(input);
+                        }
                     }
                 }
             }
         }
+
         Err(io::Error::new(
             io::ErrorKind::NotFound,
-            "No mouse input device found",
+            "No mouse event device with scroll wheel found",
         ))
     }
 

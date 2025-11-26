@@ -50,6 +50,13 @@ pub trait RenderBackend {
         None // Default: no mouse events (event_type, button_id, col, row)
     }
 
+    /// Get mouse scroll event (framebuffer mode only)
+    /// Returns (scroll_direction, col, row) where scroll_direction: 0=up, 1=down
+    #[allow(dead_code)]
+    fn get_mouse_scroll_event(&mut self) -> Option<(u8, u16, u16)> {
+        None // Default: no scroll events
+    }
+
     /// Check if the backend has native mouse input (e.g., framebuffer with /dev/input/mice)
     /// When true, GPM should be skipped to avoid duplicate/conflicting events
     #[allow(dead_code)] // Used on Linux for GPM conflict resolution
@@ -151,6 +158,9 @@ pub struct FramebufferBackend {
     // Queue of pending mouse events (event_type, button_id, col, row)
     // event_type: 0=Down, 1=Up, 2=Drag
     button_event_queue: VecDeque<(u8, u8, u16, u16)>,
+    // Queue of pending scroll events (scroll_direction, col, row)
+    // scroll_direction: 0=up, 1=down
+    scroll_event_queue: VecDeque<(u8, u16, u16)>,
 }
 
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
@@ -223,6 +233,7 @@ impl FramebufferBackend {
             prev_col: initial_col,
             prev_row: initial_row,
             button_event_queue: VecDeque::new(),
+            scroll_event_queue: VecDeque::new(),
         })
     }
 
@@ -397,6 +408,19 @@ impl RenderBackend for FramebufferBackend {
                     self.current_middle = false;
                 }
 
+                // 4. Check for scroll events
+                if event.scroll > 0 {
+                    // Scroll up (positive = scroll wheel away from user)
+                    for _ in 0..event.scroll {
+                        self.scroll_event_queue.push_back((0, col, row));
+                    }
+                } else if event.scroll < 0 {
+                    // Scroll down (negative = scroll wheel toward user)
+                    for _ in 0..(-event.scroll) {
+                        self.scroll_event_queue.push_back((1, col, row));
+                    }
+                }
+
                 // Always update previous position to track cursor
                 self.prev_col = col;
                 self.prev_row = row;
@@ -415,6 +439,12 @@ impl RenderBackend for FramebufferBackend {
         // event_type: 0=Down, 1=Up, 2=Drag
         // Using pop_front() for O(1) dequeue instead of remove(0) which is O(n)
         self.button_event_queue.pop_front()
+    }
+
+    fn get_mouse_scroll_event(&mut self) -> Option<(u8, u16, u16)> {
+        // Return the next queued scroll event (scroll_direction, col, row)
+        // scroll_direction: 0=up, 1=down
+        self.scroll_event_queue.pop_front()
     }
 
     fn has_native_mouse_input(&self) -> bool {

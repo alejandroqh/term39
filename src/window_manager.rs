@@ -1139,6 +1139,50 @@ impl WindowManager {
         self.focus_window(next_window_id);
     }
 
+    /// Cycle to the previous window (for Shift+Tab)
+    /// If the previous window is minimized, restore it
+    pub fn cycle_to_previous_window(&mut self) {
+        if self.windows.is_empty() {
+            return;
+        }
+
+        // Get sorted list of windows by creation order (ID)
+        let mut sorted_windows: Vec<u32> = self.windows.iter().map(|w| w.id()).collect();
+        sorted_windows.sort();
+
+        // Find current window index
+        let current_index = if let FocusState::Window(id) = self.focus {
+            sorted_windows.iter().position(|&w_id| w_id == id)
+        } else {
+            None
+        };
+
+        // Calculate previous window index (wrapping around)
+        let prev_index = match current_index {
+            Some(idx) => {
+                if idx == 0 {
+                    sorted_windows.len() - 1
+                } else {
+                    idx - 1
+                }
+            }
+            None => sorted_windows.len() - 1, // If desktop is focused, go to last window
+        };
+
+        let prev_window_id = sorted_windows[prev_index];
+
+        // If the window is minimized, restore it
+        #[allow(clippy::collapsible_if)]
+        if let Some(win) = self.windows.iter_mut().find(|w| w.id() == prev_window_id) {
+            if win.window.is_minimized {
+                win.window.restore_from_minimize();
+            }
+        }
+
+        // Focus the previous window
+        self.focus_window(prev_window_id);
+    }
+
     /// Get selected text from a window
     pub fn get_selected_text(&self, window_id: u32) -> Option<String> {
         self.windows

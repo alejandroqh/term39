@@ -544,6 +544,28 @@ fn main() -> io::Result<()> {
             }
         }
 
+        // Process framebuffer scroll event if available (and no button event pending)
+        #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
+        if injected_event.is_none() {
+            if let Some((scroll_direction, col, row)) = backend.get_mouse_scroll_event() {
+                use crossterm::event::{MouseEvent, MouseEventKind};
+
+                let kind = match scroll_direction {
+                    0 => MouseEventKind::ScrollUp,
+                    _ => MouseEventKind::ScrollDown,
+                };
+
+                let mouse_event = MouseEvent {
+                    kind,
+                    column: col,
+                    row,
+                    modifiers: KeyModifiers::empty(),
+                };
+
+                injected_event = Some(Event::Mouse(mouse_event));
+            }
+        }
+
         // Process injected event (raw/FB) or poll for crossterm event
         // Don't wait if we have an injected event
         #[cfg(target_os = "linux")]
