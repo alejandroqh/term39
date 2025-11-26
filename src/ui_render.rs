@@ -7,80 +7,88 @@ use crate::video_buffer::{Cell, VideoBuffer};
 use crate::window_manager::{FocusState, WindowManager};
 use chrono::{Datelike, Local, NaiveDate};
 use crossterm::style::Color;
-use starship_battery::{Manager, State};
-use std::cell::RefCell;
-use std::time::{Duration, Instant};
 
-/// Battery information including percentage and charging state
-#[derive(Clone)]
-struct BatteryInfo {
-    percentage: u8,
-    is_charging: bool,
-}
+#[cfg(feature = "battery")]
+mod battery_support {
+    use crossterm::style::Color;
+    use starship_battery::{Manager, State};
+    use std::cell::RefCell;
+    use std::time::{Duration, Instant};
 
-/// Cached battery info with last update time
-struct BatteryCache {
-    info: Option<BatteryInfo>,
-    last_update: Instant,
-}
+    /// Battery information including percentage and charging state
+    #[derive(Clone)]
+    pub struct BatteryInfo {
+        pub percentage: u8,
+        pub is_charging: bool,
+    }
 
-thread_local! {
-    static BATTERY_CACHE: RefCell<BatteryCache> = RefCell::new(BatteryCache {
-        info: None,
-        last_update: Instant::now() - Duration::from_secs(2), // Force initial fetch
-    });
-}
+    /// Cached battery info with last update time
+    struct BatteryCache {
+        info: Option<BatteryInfo>,
+        last_update: Instant,
+    }
 
-/// Get the current battery info or None if no battery is available (cached for 1 second)
-fn get_battery_info() -> Option<BatteryInfo> {
-    BATTERY_CACHE.with(|cache| {
-        let mut cache = cache.borrow_mut();
+    thread_local! {
+        static BATTERY_CACHE: RefCell<BatteryCache> = RefCell::new(BatteryCache {
+            info: None,
+            last_update: Instant::now() - Duration::from_secs(2), // Force initial fetch
+        });
+    }
 
-        // Refresh if more than 1 second has passed
-        if cache.last_update.elapsed() >= Duration::from_secs(1) {
-            cache.info = fetch_battery_info();
-            cache.last_update = Instant::now();
-        }
+    /// Get the current battery info or None if no battery is available (cached for 1 second)
+    pub fn get_battery_info() -> Option<BatteryInfo> {
+        BATTERY_CACHE.with(|cache| {
+            let mut cache = cache.borrow_mut();
 
-        cache.info.clone()
-    })
-}
+            // Refresh if more than 1 second has passed
+            if cache.last_update.elapsed() >= Duration::from_secs(1) {
+                cache.info = fetch_battery_info();
+                cache.last_update = Instant::now();
+            }
 
-/// Actually fetch battery info from the system
-fn fetch_battery_info() -> Option<BatteryInfo> {
-    let manager = Manager::new().ok()?;
-    let mut batteries = manager.batteries().ok()?;
-    let battery = batteries.next()?.ok()?;
+            cache.info.clone()
+        })
+    }
 
-    let percentage = (battery.state_of_charge().value * 100.0).round() as u8;
-    // Show charging icon when plugged in (Charging or Full state)
-    let is_charging = matches!(battery.state(), State::Charging | State::Full);
+    /// Actually fetch battery info from the system
+    fn fetch_battery_info() -> Option<BatteryInfo> {
+        let manager = Manager::new().ok()?;
+        let mut batteries = manager.batteries().ok()?;
+        let battery = batteries.next()?.ok()?;
 
-    Some(BatteryInfo {
-        percentage,
-        is_charging,
-    })
-}
+        let percentage = (battery.state_of_charge().value * 100.0).round() as u8;
+        // Show charging icon when plugged in (Charging or Full state)
+        let is_charging = matches!(battery.state(), State::Charging | State::Full);
 
-/// Get the color for the battery indicator based on charge level and charging state
-fn get_battery_color(percentage: u8, is_charging: bool) -> Color {
-    if percentage < 15 {
-        Color::Red
-    } else if percentage <= 40 {
-        if is_charging {
-            Color::Yellow
+        Some(BatteryInfo {
+            percentage,
+            is_charging,
+        })
+    }
+
+    /// Get the color for the battery indicator based on charge level and charging state
+    pub fn get_battery_color(percentage: u8, is_charging: bool) -> Color {
+        if percentage < 15 {
+            Color::Red
+        } else if percentage <= 40 {
+            if is_charging {
+                Color::Yellow
+            } else {
+                Color::White
+            }
         } else {
-            Color::White
-        }
-    } else {
-        // >40%
-        if is_charging {
-            Color::Green
-        } else {
-            Color::White
+            // >40%
+            if is_charging {
+                Color::Green
+            } else {
+                Color::White
+            }
         }
     }
 }
+
+#[cfg(feature = "battery")]
+use battery_support::{get_battery_color, get_battery_info};
 
 // Calendar state structure
 pub struct CalendarState {
@@ -183,7 +191,8 @@ pub fn render_top_bar(
     exit_button: &Button,
     app_config: &AppConfig,
     theme: &Theme,
-    battery_hovered: bool,
+    #[cfg(feature = "battery")] battery_hovered: bool,
+    #[cfg(not(feature = "battery"))] _battery_hovered: bool,
 ) {
     let (cols, _rows) = buffer.dimensions();
 
@@ -232,14 +241,19 @@ pub fn render_top_bar(
     let clock_width = clock_with_separator.len() as u16;
 
     // Get battery info and create block bar indicator
+    #[cfg(feature = "battery")]
     let battery_info = get_battery_info();
+    #[cfg(feature = "battery")]
     let battery_width = if battery_info.is_some() { 10u16 } else { 0u16 }; // "| [█████] " or "| [████⚡] " when charging
+    #[cfg(not(feature = "battery"))]
+    let battery_width = 0u16;
 
     // Calculate positions (battery comes before clock)
     let total_width = battery_width + clock_width;
     let start_pos = cols.saturating_sub(total_width);
 
     // Render battery indicator (block bar or percentage text on hover)
+    #[cfg(feature = "battery")]
     if let Some(info) = battery_info {
         let pct = info.percentage;
         let is_charging = info.is_charging;
