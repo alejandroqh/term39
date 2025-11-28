@@ -151,10 +151,12 @@ impl RawMouseInput {
         // EVIOCGBIT ioctl to get device capabilities
         // _IOC(IOC_READ, 'E', 0x20 + ev_type, len)
         // For EV_REL (0x02): 0x20 + 0x02 = 0x22
-        // Note: ioctl request type varies by platform (c_ulong on glibc/BSD, c_int on musl)
-        #[cfg(target_env = "musl")]
+        // Note: ioctl request type varies by platform:
+        // - c_int on musl and Android (Bionic)
+        // - c_ulong on glibc/BSD
+        #[cfg(any(target_env = "musl", target_os = "android"))]
         const EVIOCGBIT_REL: libc::c_int = 0x80084522u32 as libc::c_int;
-        #[cfg(not(target_env = "musl"))]
+        #[cfg(not(any(target_env = "musl", target_os = "android")))]
         const EVIOCGBIT_REL: libc::c_ulong = 0x80084522;
 
         for i in 0..16 {
