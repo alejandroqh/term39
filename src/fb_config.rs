@@ -70,6 +70,9 @@ pub struct MouseConfig {
     /// Swap left and right mouse buttons
     #[serde(default)]
     pub swap_buttons: bool,
+    /// Mouse sensitivity (0.1-5.0, None = auto-calculate based on screen size)
+    #[serde(default)]
+    pub sensitivity: Option<f32>,
 }
 
 /// Main framebuffer configuration structure

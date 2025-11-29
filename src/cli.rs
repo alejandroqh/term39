@@ -269,9 +269,9 @@ pub struct Cli {
     )]
     pub swap_mouse_buttons: bool,
 
-    /// Mouse sensitivity for TTY mode (Linux console only)
+    /// Mouse sensitivity for Linux console modes (TTY and framebuffer)
     ///
-    /// Adjust cursor movement speed for raw mouse input in TTY mode.
+    /// Adjust cursor movement speed for raw mouse input.
     /// Values:
     ///   - 0.1 to 0.3: Very slow (for precision)
     ///   - 0.3 to 0.5: Slow (default auto-calculated range)
@@ -281,12 +281,12 @@ pub struct Cli {
     ///
     /// If not specified, sensitivity is automatically calculated based on screen size.
     ///
-    /// Note: Only affects TTY mode (Linux console without framebuffer).
+    /// Note: Affects both TTY mode and framebuffer mode on Linux console.
     #[cfg(target_os = "linux")]
     #[arg(
         long,
         value_name = "SENSITIVITY",
-        help = "Mouse sensitivity for TTY mode (0.1-5.0, default: auto)"
+        help = "Mouse sensitivity for Linux console (0.1-5.0, default: auto)"
     )]
     pub mouse_sensitivity: Option<f32>,
 

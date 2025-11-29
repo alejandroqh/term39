@@ -85,6 +85,9 @@ pub fn initialize_backend(
         let invert_x = cli_args.invert_mouse_x || fb_config.mouse.invert_x;
         let invert_y = cli_args.invert_mouse_y || fb_config.mouse.invert_y;
 
+        // Resolve mouse sensitivity: CLI arg takes precedence, then config file
+        let sensitivity = cli_args.mouse_sensitivity.or(fb_config.mouse.sensitivity);
+
         // Try to initialize framebuffer backend
         match FramebufferBackend::new(
             mode,
@@ -93,6 +96,7 @@ pub fn initialize_backend(
             mouse_device.as_deref(),
             invert_x,
             invert_y,
+            sensitivity,
         ) {
             Ok(fb_backend) => {
                 println!("Framebuffer backend initialized: {}", mode_kind);

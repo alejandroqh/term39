@@ -165,7 +165,7 @@ pub struct FramebufferBackend {
 
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 impl FramebufferBackend {
-    /// Create a new framebuffer backend with specified text mode, optional scale, optional font, optional mouse device, and axis inversions
+    /// Create a new framebuffer backend with specified text mode, optional scale, optional font, optional mouse device, axis inversions, and sensitivity
     pub fn new(
         mode: crate::framebuffer::TextMode,
         scale: Option<usize>,
@@ -173,6 +173,7 @@ impl FramebufferBackend {
         mouse_device: Option<&str>,
         invert_x: bool,
         invert_y: bool,
+        sensitivity: Option<f32>,
     ) -> io::Result<Self> {
         use crossterm::terminal;
 
@@ -194,8 +195,13 @@ impl FramebufferBackend {
 
         // Get pixel dimensions for cursor tracker
         let (pixel_width, pixel_height) = renderer.pixel_dimensions();
-        let cursor_tracker =
+        let mut cursor_tracker =
             crate::framebuffer::CursorTracker::new(pixel_width, pixel_height, invert_x, invert_y);
+
+        // Apply sensitivity override if provided
+        if let Some(sens) = sensitivity {
+            cursor_tracker.set_sensitivity(sens);
+        }
 
         // Calculate initial cell position from cursor tracker's pixel position
         // This fixes incorrect position_changed detection on first mouse movement
