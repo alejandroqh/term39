@@ -1,4 +1,4 @@
-use crate::term_grid::{Color, CursorShape, NamedColor, TerminalGrid};
+use crate::term_grid::{CharacterSet, Color, CursorShape, NamedColor, TerminalGrid};
 use vte::{Params, Perform};
 
 /// ANSI escape sequence handler that implements the VTE Perform trait
@@ -167,6 +167,8 @@ impl Perform for AnsiHandler<'_> {
                 self.grid.clear_screen();
                 self.grid.goto(0, 0);
             }
+            b'\x0e' => self.grid.shift_out(), // SO - Shift Out (select G1)
+            b'\x0f' => self.grid.shift_in(),  // SI - Shift In (select G0)
             _ => {}
         }
     }
@@ -352,7 +354,7 @@ impl Perform for AnsiHandler<'_> {
                 for param in params.iter() {
                     match param[0] {
                         1 => self.grid.application_cursor_keys = true, // DECCKM
-                        6 => self.grid.origin_mode = true,             // DECOM
+                        6 => self.grid.set_origin_mode(true),          // DECOM
                         7 => self.grid.auto_wrap_mode = true,          // DECAWM
                         25 => self.grid.cursor.visible = true,         // Show cursor
                         1000 => self.grid.mouse_normal_tracking = true, // Normal mouse tracking
@@ -387,7 +389,7 @@ impl Perform for AnsiHandler<'_> {
                 for param in params.iter() {
                     match param[0] {
                         1 => self.grid.application_cursor_keys = false, // DECCKM
-                        6 => self.grid.origin_mode = false,             // DECOM
+                        6 => self.grid.set_origin_mode(false),          // DECOM
                         7 => self.grid.auto_wrap_mode = false,          // DECAWM
                         25 => self.grid.cursor.visible = false,         // Hide cursor
                         1000 => self.grid.mouse_normal_tracking = false, // Normal mouse tracking
@@ -594,6 +596,32 @@ impl Perform for AnsiHandler<'_> {
             // ESC \ - String Terminator (ST)
             (b'\\', []) => {
                 // Terminates OSC, DCS, APC sequences - nothing to do here
+            }
+
+            // Character set designation sequences
+            // ESC ( 0 - Set G0 to DEC Special Graphics (line drawing)
+            (b'0', [b'(']) => {
+                self.grid.set_charset_g0(CharacterSet::DecSpecialGraphics);
+            }
+            // ESC ( B - Set G0 to ASCII
+            (b'B', [b'(']) => {
+                self.grid.set_charset_g0(CharacterSet::Ascii);
+            }
+            // ESC ( A - Set G0 to UK (treat as ASCII)
+            (b'A', [b'(']) => {
+                self.grid.set_charset_g0(CharacterSet::Ascii);
+            }
+            // ESC ) 0 - Set G1 to DEC Special Graphics (line drawing)
+            (b'0', [b')']) => {
+                self.grid.set_charset_g1(CharacterSet::DecSpecialGraphics);
+            }
+            // ESC ) B - Set G1 to ASCII
+            (b'B', [b')']) => {
+                self.grid.set_charset_g1(CharacterSet::Ascii);
+            }
+            // ESC ) A - Set G1 to UK (treat as ASCII)
+            (b'A', [b')']) => {
+                self.grid.set_charset_g1(CharacterSet::Ascii);
             }
 
             _ => {

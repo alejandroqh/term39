@@ -106,6 +106,17 @@ pub enum CursorShape {
     Bar,
 }
 
+/// VT100 Character Set designation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CharacterSet {
+    /// Standard ASCII character set
+    #[default]
+    Ascii,
+    /// DEC Special Graphics (line drawing characters)
+    /// Maps ASCII 0x5f-0x7e to box-drawing characters
+    DecSpecialGraphics,
+}
+
 impl Default for Cursor {
     fn default() -> Self {
         Self {
@@ -177,6 +188,12 @@ pub struct TerminalGrid {
     pub origin_mode: bool,
     /// Response queue for DSR and other queries that need to send data back
     response_queue: Vec<String>,
+    /// G0 character set (selected by ESC ( X)
+    pub charset_g0: CharacterSet,
+    /// G1 character set (selected by ESC ) X)
+    pub charset_g1: CharacterSet,
+    /// Active character set: true = G0, false = G1 (toggled by SI/SO)
+    pub charset_use_g0: bool,
 }
 
 impl TerminalGrid {
@@ -218,6 +235,9 @@ impl TerminalGrid {
             insert_mode: false,   // Default: replace mode
             origin_mode: false,   // Default: absolute positioning
             response_queue: Vec::new(),
+            charset_g0: CharacterSet::Ascii,
+            charset_g1: CharacterSet::Ascii,
+            charset_use_g0: true, // Default: use G0
         }
     }
 
@@ -240,6 +260,82 @@ impl TerminalGrid {
     #[allow(dead_code)]
     pub fn scrollback_len(&self) -> usize {
         self.scrollback.len()
+    }
+
+    /// Get the currently active character set
+    pub fn active_charset(&self) -> CharacterSet {
+        if self.charset_use_g0 {
+            self.charset_g0
+        } else {
+            self.charset_g1
+        }
+    }
+
+    /// Map a character through the active character set
+    /// DEC Special Graphics maps ASCII characters to box-drawing characters
+    pub fn map_char(&self, c: char) -> char {
+        match self.active_charset() {
+            CharacterSet::Ascii => c,
+            CharacterSet::DecSpecialGraphics => {
+                // DEC Special Graphics character mapping
+                // Maps ASCII 0x5f-0x7e to box-drawing characters
+                match c {
+                    '_' => ' ', // 0x5f -> blank
+                    '`' => '◆', // 0x60 -> diamond
+                    'a' => '▒', // 0x61 -> checkerboard
+                    'b' => '␉', // 0x62 -> HT symbol
+                    'c' => '␌', // 0x63 -> FF symbol
+                    'd' => '␍', // 0x64 -> CR symbol
+                    'e' => '␊', // 0x65 -> LF symbol
+                    'f' => '°', // 0x66 -> degree symbol
+                    'g' => '±', // 0x67 -> plus/minus
+                    'h' => '␤', // 0x68 -> NL symbol
+                    'i' => '␋', // 0x69 -> VT symbol
+                    'j' => '┘', // 0x6a -> lower right corner
+                    'k' => '┐', // 0x6b -> upper right corner
+                    'l' => '┌', // 0x6c -> upper left corner
+                    'm' => '└', // 0x6d -> lower left corner
+                    'n' => '┼', // 0x6e -> crossing lines
+                    'o' => '⎺', // 0x6f -> horizontal line - scan 1
+                    'p' => '⎻', // 0x70 -> horizontal line - scan 3
+                    'q' => '─', // 0x71 -> horizontal line - scan 5
+                    'r' => '⎼', // 0x72 -> horizontal line - scan 7
+                    's' => '⎽', // 0x73 -> horizontal line - scan 9
+                    't' => '├', // 0x74 -> left tee
+                    'u' => '┤', // 0x75 -> right tee
+                    'v' => '┴', // 0x76 -> bottom tee
+                    'w' => '┬', // 0x77 -> top tee
+                    'x' => '│', // 0x78 -> vertical line
+                    'y' => '≤', // 0x79 -> less than or equal
+                    'z' => '≥', // 0x7a -> greater than or equal
+                    '{' => 'π', // 0x7b -> pi
+                    '|' => '≠', // 0x7c -> not equal
+                    '}' => '£', // 0x7d -> UK pound
+                    '~' => '·', // 0x7e -> bullet/centered dot
+                    _ => c,     // Other characters pass through unchanged
+                }
+            }
+        }
+    }
+
+    /// Set G0 character set (ESC ( X)
+    pub fn set_charset_g0(&mut self, charset: CharacterSet) {
+        self.charset_g0 = charset;
+    }
+
+    /// Set G1 character set (ESC ) X)
+    pub fn set_charset_g1(&mut self, charset: CharacterSet) {
+        self.charset_g1 = charset;
+    }
+
+    /// Shift In (SI / Ctrl+O / 0x0F) - Select G0 character set
+    pub fn shift_in(&mut self) {
+        self.charset_use_g0 = true;
+    }
+
+    /// Shift Out (SO / Ctrl+N / 0x0E) - Select G1 character set
+    pub fn shift_out(&mut self) {
+        self.charset_use_g0 = false;
     }
 
     /// Queue a response to be sent back to the PTY (for DSR and other queries)
@@ -373,6 +469,9 @@ impl TerminalGrid {
                 // Ignore other control characters
             }
             c => {
+                // Map character through active character set (for line drawing, etc.)
+                let c = self.map_char(c);
+
                 // Get character width (0 for combining marks, 1 for normal, 2 for wide/fullwidth)
                 let char_width = c.width().unwrap_or(0);
 
@@ -461,19 +560,6 @@ impl TerminalGrid {
     /// Move cursor to the next line, scrolling if necessary
     /// If LNM (Line Feed/New Line Mode) is set, also performs carriage return
     fn linefeed(&mut self) {
-        // Special case: if cursor is at row 0 and column 0, and row 0 is empty,
-        // don't move down. This prevents the shell init newline from creating a blank line.
-        if self.cursor.y == 0 && self.cursor.x == 0 {
-            // Check if row 0 is empty (all spaces)
-            if let Some(row) = self.rows.first() {
-                let is_empty = row.iter().all(|cell| cell.c == ' ');
-                if is_empty {
-                    // Don't move cursor, just ignore this linefeed
-                    return;
-                }
-            }
-        }
-
         // If LNM is set, linefeed also performs carriage return
         if self.lnm_mode {
             self.cursor.x = 0;
@@ -556,6 +642,11 @@ impl TerminalGrid {
         self.auto_wrap_mode = true;
         self.insert_mode = false;
         self.origin_mode = false;
+
+        // Reset character sets
+        self.charset_g0 = CharacterSet::Ascii;
+        self.charset_g1 = CharacterSet::Ascii;
+        self.charset_use_g0 = true;
 
         // Clear response queue
         self.response_queue.clear();
@@ -816,6 +907,22 @@ impl TerminalGrid {
         self.goto(new_x, new_y);
     }
 
+    /// Set origin mode (DECOM - CSI ?6h)
+    /// Per VT100 spec: When origin mode is set, cursor moves to home (top of scroll region)
+    pub fn set_origin_mode(&mut self, enabled: bool) {
+        self.origin_mode = enabled;
+        // Per VT100 spec: cursor moves to home when origin mode changes
+        if enabled {
+            // In origin mode, home is top-left of scroll region
+            self.cursor.x = 0;
+            self.cursor.y = self.scroll_region_top;
+        } else {
+            // In normal mode, home is top-left of screen
+            self.cursor.x = 0;
+            self.cursor.y = 0;
+        }
+    }
+
     /// Save cursor position only (CSI s - SCP)
     pub fn save_cursor_position(&mut self) {
         self.saved_cursor = Some(SavedCursorState {
@@ -877,10 +984,33 @@ impl TerminalGrid {
         }
     }
 
-    /// Set scroll region
+    /// Set scroll region (DECSTBM)
+    /// Per VT100/VT510 spec: After setting margins, cursor moves to home position
+    /// In origin mode: home is top of scroll region; otherwise: top-left of screen
     pub fn set_scroll_region(&mut self, top: usize, bottom: usize) {
-        self.scroll_region_top = top.min(self.rows_count.saturating_sub(1));
-        self.scroll_region_bottom = bottom.min(self.rows_count.saturating_sub(1));
+        // Validate: top must be less than bottom, minimum 2 lines
+        let top = top.min(self.rows_count.saturating_sub(2));
+        let bottom = bottom.min(self.rows_count.saturating_sub(1));
+
+        if top < bottom {
+            self.scroll_region_top = top;
+            self.scroll_region_bottom = bottom;
+        } else {
+            // Invalid region, reset to full screen
+            self.scroll_region_top = 0;
+            self.scroll_region_bottom = self.rows_count.saturating_sub(1);
+        }
+
+        // Per VT510 spec: DECSTBM moves cursor to home position
+        // In origin mode, home is column 1, line 1 of scroll region
+        // In normal mode, home is column 1, line 1 of screen (0,0)
+        if self.origin_mode {
+            self.cursor.x = 0;
+            self.cursor.y = self.scroll_region_top;
+        } else {
+            self.cursor.x = 0;
+            self.cursor.y = 0;
+        }
     }
 
     /// Reset scroll region to full screen
