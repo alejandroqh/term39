@@ -8,11 +8,12 @@ use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use std::io;
 use std::time::Instant;
 
-/// Focus state - either desktop or a specific window
+/// Focus state - desktop, a specific window, or the topbar
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum FocusState {
     Desktop,
     Window(u32),
+    Topbar,
 }
 
 /// Window manager handles z-order, focus, and interactions
@@ -332,6 +333,14 @@ impl WindowManager {
             w.set_focused(false);
         }
         self.focus = FocusState::Desktop;
+    }
+
+    /// Focus the topbar (unfocus all windows)
+    pub fn focus_topbar(&mut self) {
+        for w in &mut self.windows {
+            w.set_focused(false);
+        }
+        self.focus = FocusState::Topbar;
     }
 
     /// Get the current focus state
@@ -1102,9 +1111,16 @@ impl WindowManager {
     }
 
     /// Cycle to the next window (for ALT+TAB)
+    /// Cycle order: Windows → Topbar → Windows
     /// If the next window is minimized, restore it
     pub fn cycle_to_next_window(&mut self) {
         if self.windows.is_empty() {
+            // No windows: cycle between Desktop and Topbar
+            match self.focus {
+                FocusState::Desktop => self.focus_topbar(),
+                FocusState::Topbar => self.focus_desktop(),
+                FocusState::Window(_) => self.focus_topbar(),
+            }
             return;
         }
 
@@ -1112,37 +1128,57 @@ impl WindowManager {
         let mut sorted_windows: Vec<u32> = self.windows.iter().map(|w| w.id()).collect();
         sorted_windows.sort();
 
-        // Find current window index
-        let current_index = if let FocusState::Window(id) = self.focus {
-            sorted_windows.iter().position(|&w_id| w_id == id)
-        } else {
-            None
-        };
+        match self.focus {
+            FocusState::Desktop | FocusState::Topbar => {
+                // From Desktop or Topbar, go to first window
+                let next_window_id = sorted_windows[0];
+                self.restore_and_focus_window(next_window_id);
+            }
+            FocusState::Window(id) => {
+                // Find current window index
+                let current_index = sorted_windows.iter().position(|&w_id| w_id == id);
 
-        // Calculate next window index
-        let next_index = match current_index {
-            Some(idx) => (idx + 1) % sorted_windows.len(),
-            None => 0, // If desktop is focused, go to first window
-        };
+                match current_index {
+                    Some(idx) if idx + 1 < sorted_windows.len() => {
+                        // Not at last window: go to next window
+                        let next_window_id = sorted_windows[idx + 1];
+                        self.restore_and_focus_window(next_window_id);
+                    }
+                    Some(_) => {
+                        // At last window: go to Topbar (unfocus current window)
+                        self.focus_topbar();
+                    }
+                    None => {
+                        // Window not found: go to first window
+                        let next_window_id = sorted_windows[0];
+                        self.restore_and_focus_window(next_window_id);
+                    }
+                }
+            }
+        }
+    }
 
-        let next_window_id = sorted_windows[next_index];
-
-        // If the window is minimized, restore it
-        #[allow(clippy::collapsible_if)]
-        if let Some(win) = self.windows.iter_mut().find(|w| w.id() == next_window_id) {
+    /// Helper to restore minimized window and focus it
+    fn restore_and_focus_window(&mut self, window_id: u32) {
+        if let Some(win) = self.windows.iter_mut().find(|w| w.id() == window_id) {
             if win.window.is_minimized {
                 win.window.restore_from_minimize();
             }
         }
-
-        // Focus the next window
-        self.focus_window(next_window_id);
+        self.focus_window(window_id);
     }
 
     /// Cycle to the previous window (for Shift+Tab)
+    /// Cycle order: Windows ← Topbar ← Windows
     /// If the previous window is minimized, restore it
     pub fn cycle_to_previous_window(&mut self) {
         if self.windows.is_empty() {
+            // No windows: cycle between Desktop and Topbar
+            match self.focus {
+                FocusState::Desktop => self.focus_topbar(),
+                FocusState::Topbar => self.focus_desktop(),
+                FocusState::Window(_) => self.focus_topbar(),
+            }
             return;
         }
 
@@ -1150,37 +1186,38 @@ impl WindowManager {
         let mut sorted_windows: Vec<u32> = self.windows.iter().map(|w| w.id()).collect();
         sorted_windows.sort();
 
-        // Find current window index
-        let current_index = if let FocusState::Window(id) = self.focus {
-            sorted_windows.iter().position(|&w_id| w_id == id)
-        } else {
-            None
-        };
+        match self.focus {
+            FocusState::Desktop => {
+                // From Desktop, go to Topbar
+                self.focus_topbar();
+            }
+            FocusState::Topbar => {
+                // From Topbar, go to last window
+                let prev_window_id = sorted_windows[sorted_windows.len() - 1];
+                self.restore_and_focus_window(prev_window_id);
+            }
+            FocusState::Window(id) => {
+                // Find current window index
+                let current_index = sorted_windows.iter().position(|&w_id| w_id == id);
 
-        // Calculate previous window index (wrapping around)
-        let prev_index = match current_index {
-            Some(idx) => {
-                if idx == 0 {
-                    sorted_windows.len() - 1
-                } else {
-                    idx - 1
+                match current_index {
+                    Some(0) => {
+                        // At first window: go to Topbar (unfocus current window)
+                        self.focus_topbar();
+                    }
+                    Some(idx) => {
+                        // Not at first window: go to previous window
+                        let prev_window_id = sorted_windows[idx - 1];
+                        self.restore_and_focus_window(prev_window_id);
+                    }
+                    None => {
+                        // Window not found: go to last window
+                        let prev_window_id = sorted_windows[sorted_windows.len() - 1];
+                        self.restore_and_focus_window(prev_window_id);
+                    }
                 }
             }
-            None => sorted_windows.len() - 1, // If desktop is focused, go to last window
-        };
-
-        let prev_window_id = sorted_windows[prev_index];
-
-        // If the window is minimized, restore it
-        #[allow(clippy::collapsible_if)]
-        if let Some(win) = self.windows.iter_mut().find(|w| w.id() == prev_window_id) {
-            if win.window.is_minimized {
-                win.window.restore_from_minimize();
-            }
         }
-
-        // Focus the previous window
-        self.focus_window(prev_window_id);
     }
 
     /// Get selected text from a window
@@ -1457,7 +1494,7 @@ impl WindowManager {
     pub fn focus_window_in_direction(&mut self, direction: u8) -> bool {
         let current_id = match self.focus {
             FocusState::Window(id) => id,
-            FocusState::Desktop => return false,
+            FocusState::Desktop | FocusState::Topbar => return false,
         };
 
         // Get current window center
@@ -1568,10 +1605,10 @@ impl WindowManager {
         let mut state = SessionState::new();
         state.next_id = self.next_id;
 
-        // Extract focused window ID
+        // Extract focused window ID (Topbar focus treated as no window focused)
         state.focused_window_id = match self.focus {
             FocusState::Window(id) => Some(id),
-            FocusState::Desktop => None,
+            FocusState::Desktop | FocusState::Topbar => None,
         };
 
         // Extract window snapshots (in z-order)

@@ -4,6 +4,7 @@
 //! allowing full keyboard-only control of windows.
 
 use crate::app_state::AppState;
+use crate::config_manager::AppConfig;
 use crate::info_window::InfoWindow;
 use crate::keyboard_mode::{KeyboardMode, ResizeDirection, SnapPosition, WindowSubMode};
 use crate::render_backend::RenderBackend;
@@ -24,6 +25,7 @@ pub const DIR_RIGHT: u8 = 3;
 /// Returns true if event was consumed
 pub fn handle_window_mode_keyboard(
     app_state: &mut AppState,
+    app_config: &mut AppConfig,
     key_event: KeyEvent,
     window_manager: &mut WindowManager,
     backend: &dyn RenderBackend,
@@ -38,9 +40,15 @@ pub fn handle_window_mode_keyboard(
     let top_y: u16 = 1; // Top bar is row 0
 
     match sub_mode {
-        WindowSubMode::Navigation => {
-            handle_navigation_mode(app_state, key_event, window_manager, cols, rows, top_y)
-        }
+        WindowSubMode::Navigation => handle_navigation_mode(
+            app_state,
+            app_config,
+            key_event,
+            window_manager,
+            cols,
+            rows,
+            top_y,
+        ),
         WindowSubMode::Move => {
             handle_move_mode(app_state, key_event, window_manager, cols, rows, top_y)
         }
@@ -53,6 +61,7 @@ pub fn handle_window_mode_keyboard(
 /// Handle keyboard in Navigation sub-mode (default Window Mode)
 fn handle_navigation_mode(
     app_state: &mut AppState,
+    app_config: &mut AppConfig,
     key_event: KeyEvent,
     window_manager: &mut WindowManager,
     cols: u16,
@@ -243,6 +252,28 @@ fn handle_navigation_mode(
             true
         }
 
+        // Toggle auto-tiling
+        KeyCode::Char('a') => {
+            // Toggle config and persist
+            app_config.toggle_auto_tiling_on_startup();
+            // Update runtime state to match config
+            app_state.auto_tiling_enabled = app_config.auto_tiling_on_startup;
+            // Update button (recreate with new label at bottom bar position)
+            let auto_tiling_text = if app_state.auto_tiling_enabled {
+                "█ on] Auto Tiling"
+            } else {
+                "off ░] Auto Tiling"
+            };
+            let bar_y = rows - 1;
+            app_state.auto_tiling_button =
+                crate::button::Button::new(1, bar_y, auto_tiling_text.to_string());
+            // Auto-position windows if enabling
+            if app_state.auto_tiling_enabled {
+                window_manager.auto_position_windows(cols, rows);
+            }
+            true
+        }
+
         // Help overlay
         KeyCode::Char('?') => {
             show_winmode_help_window(app_state, cols, rows);
@@ -424,55 +455,58 @@ fn handle_resize_mode(
         }
 
         // Incremental resize (with adaptive step)
-        // Without Shift: normal resize behavior
-        // With Shift: inverted behavior (grow <-> shrink)
+        // Without Shift: normal resize behavior (right/bottom edge)
+        // With Shift: resize from left/top edge
 
-        // h/Left = shrink width, Shift+h = GROW width (inverted)
-        KeyCode::Char('h') | KeyCode::Left => {
+        // h/Left = shrink width from right edge
+        KeyCode::Char('h') | KeyCode::Left if !has_shift => {
             let step = app_state.resize_state.get_step() as i16;
-            if has_shift {
-                // Inverted: grow width from left edge
-                window_manager.resize_focused_window_from_left(step);
-            } else {
-                // Normal: shrink width from right edge
-                window_manager.resize_focused_window_by(-step, 0);
-            }
+            window_manager.resize_focused_window_by(-step, 0);
             true
         }
-        // l/Right = grow width, Shift+l = SHRINK width (inverted)
-        KeyCode::Char('l') | KeyCode::Right => {
+        // Shift+H = grow width from left edge
+        KeyCode::Char('H') | KeyCode::Left if has_shift => {
             let step = app_state.resize_state.get_step() as i16;
-            if has_shift {
-                // Inverted: shrink width from left edge
-                window_manager.resize_focused_window_from_left(-step);
-            } else {
-                // Normal: grow width from right edge
-                window_manager.resize_focused_window_by(step, 0);
-            }
+            window_manager.resize_focused_window_from_left(step);
             true
         }
-        // k/Up = shrink height, Shift+k = GROW height (inverted)
-        KeyCode::Char('k') | KeyCode::Up => {
+
+        // l/Right = grow width from right edge
+        KeyCode::Char('l') | KeyCode::Right if !has_shift => {
             let step = app_state.resize_state.get_step() as i16;
-            if has_shift {
-                // Inverted: grow height from top edge
-                window_manager.resize_focused_window_from_top(step);
-            } else {
-                // Normal: shrink height from bottom edge
-                window_manager.resize_focused_window_by(0, -step);
-            }
+            window_manager.resize_focused_window_by(step, 0);
             true
         }
-        // j/Down = grow height, Shift+j = SHRINK height (inverted)
-        KeyCode::Char('j') | KeyCode::Down => {
+        // Shift+L = shrink width from left edge
+        KeyCode::Char('L') | KeyCode::Right if has_shift => {
             let step = app_state.resize_state.get_step() as i16;
-            if has_shift {
-                // Inverted: shrink height from top edge
-                window_manager.resize_focused_window_from_top(-step);
-            } else {
-                // Normal: grow height from bottom edge
-                window_manager.resize_focused_window_by(0, step);
-            }
+            window_manager.resize_focused_window_from_left(-step);
+            true
+        }
+
+        // k/Up = shrink height from bottom edge
+        KeyCode::Char('k') | KeyCode::Up if !has_shift => {
+            let step = app_state.resize_state.get_step() as i16;
+            window_manager.resize_focused_window_by(0, -step);
+            true
+        }
+        // Shift+K = grow height from top edge
+        KeyCode::Char('K') | KeyCode::Up if has_shift => {
+            let step = app_state.resize_state.get_step() as i16;
+            window_manager.resize_focused_window_from_top(step);
+            true
+        }
+
+        // j/Down = grow height from bottom edge
+        KeyCode::Char('j') | KeyCode::Down if !has_shift => {
+            let step = app_state.resize_state.get_step() as i16;
+            window_manager.resize_focused_window_by(0, step);
+            true
+        }
+        // Shift+J = shrink height from top edge
+        KeyCode::Char('J') | KeyCode::Down if has_shift => {
+            let step = app_state.resize_state.get_step() as i16;
+            window_manager.resize_focused_window_from_top(-step);
             true
         }
 
@@ -517,6 +551,7 @@ Press {Y}`{W} or {Y}F8{W} to toggle Window Mode
 {Y}z{W}/{Y}+{W}/{Y}Space{W}   Toggle maximize
 {Y}-{W}/{Y}_{W}         Toggle minimize
 {Y}x{W}/{Y}q{W}         Close focused window
+{Y}a{W}           Toggle auto-tiling
 
 {C}MOVE MODE (after 'm'){W}
 

@@ -35,7 +35,9 @@ pub fn handle_desktop_keyboard(
     cli_args: &Cli,
 ) -> bool {
     // Handle F1 to show help (universal help key)
-    if key_event.code == KeyCode::F(1) && current_focus == FocusState::Desktop {
+    if key_event.code == KeyCode::F(1)
+        && matches!(current_focus, FocusState::Desktop | FocusState::Topbar)
+    {
         show_help_window(app_state, backend);
         return true;
     }
@@ -97,7 +99,7 @@ pub fn handle_desktop_keyboard(
     }
 
     // Handle F4 to clear the terminal (alternative to CTRL+L)
-    if key_event.code == KeyCode::F(4) && current_focus != FocusState::Desktop {
+    if key_event.code == KeyCode::F(4) && matches!(current_focus, FocusState::Window(_)) {
         let _ = window_manager.send_to_focused("\x0c");
         return true;
     }
@@ -105,7 +107,7 @@ pub fn handle_desktop_keyboard(
     // Handle CTRL+L to clear the terminal (like 'clear' command)
     if key_event.code == KeyCode::Char('l')
         && key_event.modifiers.contains(KeyModifiers::CONTROL)
-        && current_focus != FocusState::Desktop
+        && matches!(current_focus, FocusState::Window(_))
     {
         let _ = window_manager.send_to_focused("\x0c");
         return true;
@@ -149,7 +151,7 @@ pub fn handle_desktop_keyboard(
     // Handle F10 to exit application (classic DOS pattern)
     // Skip if --no-exit flag is set
     if key_event.code == KeyCode::F(10) && !cli_args.no_exit {
-        if current_focus == FocusState::Desktop {
+        if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) {
             // Determine message based on window count
             let message = if window_manager.window_count() > 0 {
                 "Exit with open windows?\nAll terminal sessions will be closed.".to_string()
@@ -227,28 +229,30 @@ pub fn handle_desktop_keyboard(
             handle_q_key(app_state, current_focus, window_manager, backend, cli_args);
             return true;
         }
-        KeyCode::Char('h') | KeyCode::Char('?') if current_focus == FocusState::Desktop => {
+        KeyCode::Char('h') | KeyCode::Char('?')
+            if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) =>
+        {
             show_help_window(app_state, backend);
             return true;
         }
-        KeyCode::Char('l') if current_focus == FocusState::Desktop => {
+        KeyCode::Char('l') if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) => {
             show_about_window(app_state, backend);
             return true;
         }
-        KeyCode::Char('c') if current_focus == FocusState::Desktop => {
+        KeyCode::Char('c') if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) => {
             app_state.active_calendar = Some(CalendarState::new());
             return true;
         }
-        KeyCode::Char('s') if current_focus == FocusState::Desktop => {
+        KeyCode::Char('s') if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) => {
             let (cols, rows) = backend.dimensions();
             app_state.active_config_window = Some(ConfigWindow::new(cols, rows));
             return true;
         }
-        KeyCode::Char('t') if current_focus == FocusState::Desktop => {
+        KeyCode::Char('t') if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) => {
             create_terminal_window(app_state, window_manager, backend, false);
             return true;
         }
-        KeyCode::Char('T') if current_focus == FocusState::Desktop => {
+        KeyCode::Char('T') if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) => {
             create_terminal_window(app_state, window_manager, backend, true);
             return true;
         }
@@ -458,7 +462,7 @@ fn handle_esc_key(
     backend: &dyn RenderBackend,
     cli_args: &Cli,
 ) {
-    if current_focus == FocusState::Desktop {
+    if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) {
         // Skip exit prompt if --no-exit flag is set
         if cli_args.no_exit {
             return;
@@ -501,7 +505,7 @@ fn handle_q_key(
     backend: &dyn RenderBackend,
     cli_args: &Cli,
 ) {
-    if current_focus == FocusState::Desktop {
+    if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) {
         // Skip exit prompt if --no-exit flag is set
         if cli_args.no_exit {
             return;

@@ -678,6 +678,7 @@ fn main() -> io::Result<()> {
                     // Handle Window Mode keyboard events (vim-like window control)
                     if window_mode_handlers::handle_window_mode_keyboard(
                         &mut app_state,
+                        &mut app_config,
                         key_event,
                         &mut window_manager,
                         backend.as_ref(),
@@ -720,8 +721,8 @@ fn main() -> io::Result<()> {
                         continue;
                     }
 
-                    // Forward input to terminal window if not Desktop
-                    if current_focus != FocusState::Desktop {
+                    // Forward input to terminal window if a window is focused
+                    if matches!(current_focus, FocusState::Window(_)) {
                         keyboard_handlers::forward_to_terminal(key_event, &mut window_manager);
                     }
                 }

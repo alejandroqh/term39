@@ -197,10 +197,12 @@ pub fn render_top_bar(
     let (cols, _rows) = buffer.dimensions();
 
     // Change background and foreground colors based on focus
-    // When desktop has focus, topbar is "focused" (active/bright)
-    // When a window has focus, topbar is "unfocused" (inactive/dimmed)
+    // Desktop/Topbar: focused colors (same appearance)
+    // Window: unfocused (dimmed) colors
     let (bg_color, fg_color) = match focus {
-        FocusState::Desktop => (theme.topbar_bg_focused, theme.topbar_fg_focused),
+        FocusState::Desktop | FocusState::Topbar => {
+            (theme.topbar_bg_focused, theme.topbar_fg_focused)
+        }
         FocusState::Window(_) => (theme.topbar_bg_unfocused, theme.topbar_fg_unfocused),
     };
 
