@@ -1,5 +1,6 @@
 use crate::charset::Charset;
 use crate::session::{self, SessionState, WindowSnapshot};
+use crate::terminal_emulator::ShellConfig;
 use crate::terminal_window::TerminalWindow;
 use crate::theme::Theme;
 use crate::video_buffer::VideoBuffer;
@@ -32,6 +33,9 @@ pub struct WindowManager {
     // Cascading window position tracking
     last_window_x: Option<u16>,
     last_window_y: Option<u16>,
+
+    // Shell configuration for new terminal windows
+    shell_config: ShellConfig,
 }
 
 /// Snap zones for window positioning
@@ -95,7 +99,27 @@ impl WindowManager {
             current_snap_zone: None,
             last_window_x: None,
             last_window_y: None,
+            shell_config: ShellConfig::default(),
         }
+    }
+
+    /// Create a new WindowManager with a custom shell configuration
+    pub fn with_shell_config(shell_config: ShellConfig) -> Self {
+        let mut manager = Self::new();
+        manager.shell_config = shell_config;
+        manager
+    }
+
+    /// Set the shell configuration
+    #[allow(dead_code)]
+    pub fn set_shell_config(&mut self, shell_config: ShellConfig) {
+        self.shell_config = shell_config;
+    }
+
+    /// Get the current shell configuration
+    #[allow(dead_code)]
+    pub fn shell_config(&self) -> &ShellConfig {
+        &self.shell_config
     }
 
     /// Calculate dynamic window size based on screen dimensions
@@ -182,6 +206,7 @@ impl WindowManager {
             height,
             title.clone(),
             initial_command.clone(),
+            &self.shell_config,
         ) {
             Ok(mut terminal_window) => {
                 terminal_window.set_focused(true);
@@ -1684,19 +1709,19 @@ impl WindowManager {
     }
 
     /// Restore session from file
-    pub fn restore_session_from_file() -> io::Result<Self> {
+    pub fn restore_session_from_file(shell_config: ShellConfig) -> io::Result<Self> {
         let path = session::get_session_path()?;
 
         // Try to load session
         let state = match session::load_session(&path)? {
             Some(s) => s,
             None => {
-                // No session file found, return default
-                return Ok(Self::new());
+                // No session file found, return default with shell config
+                return Ok(Self::with_shell_config(shell_config));
             }
         };
 
-        let mut manager = Self::new();
+        let mut manager = Self::with_shell_config(shell_config);
         manager.next_id = state.next_id;
 
         // Restore windows
@@ -1710,6 +1735,7 @@ impl WindowManager {
                 snapshot.height,
                 snapshot.title.clone(),
                 None, // No initial command for restored windows
+                &manager.shell_config,
             ) {
                 // Restore window state
                 terminal_window.set_focused(snapshot.is_focused);

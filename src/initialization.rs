@@ -8,6 +8,7 @@ use crate::framebuffer::text_modes::{TextMode, TextModeKind};
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 use crate::render_backend::FramebufferBackend;
 use crate::render_backend::{RenderBackend, TerminalBackend};
+use crate::terminal_emulator::ShellConfig;
 use crate::theme::Theme;
 use crate::video_buffer::VideoBuffer;
 use crate::window_manager::WindowManager;
@@ -188,15 +189,37 @@ pub fn initialize_theme(cli_args: &Cli, app_config: &AppConfig) -> Theme {
     Theme::from_name(theme_name)
 }
 
+/// Validate shell configuration early (before terminal setup)
+/// This allows the warning to be visible to the user
+/// Returns the validated ShellConfig
+pub fn validate_shell_config(cli_args: &Cli) -> ShellConfig {
+    if let Some(ref shell_path) = cli_args.shell {
+        let config = ShellConfig::custom_shell(shell_path.clone());
+        // Validate shell path exists and is executable
+        if let Err(msg) = config.validate() {
+            eprintln!("Warning: {}, using system default shell", msg);
+            // Give user time to see the warning
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            ShellConfig::default()
+        } else {
+            config
+        }
+    } else {
+        ShellConfig::default()
+    }
+}
+
 /// Initializes or restores window manager
 pub fn initialize_window_manager(
     cli_args: &Cli,
     app_config: &mut AppConfig,
+    shell_config: ShellConfig,
 ) -> io::Result<WindowManager> {
+
     let window_manager = if !cli_args.no_restore {
         // Try to restore session, fall back to new if it fails
-        let manager =
-            WindowManager::restore_session_from_file().unwrap_or_else(|_| WindowManager::new());
+        let manager = WindowManager::restore_session_from_file(shell_config.clone())
+            .unwrap_or_else(|_| WindowManager::with_shell_config(shell_config));
 
         // If auto-save is disabled, clear session after loading (one-time load)
         if !app_config.auto_save {
@@ -205,7 +228,7 @@ pub fn initialize_window_manager(
 
         manager
     } else {
-        WindowManager::new()
+        WindowManager::with_shell_config(shell_config)
     };
 
     Ok(window_manager)

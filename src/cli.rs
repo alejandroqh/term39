@@ -306,6 +306,24 @@ pub struct Cli {
         help = "Disable exit functionality (for use as a window manager)"
     )]
     pub no_exit: bool,
+
+    /// Path to shell executable for terminal windows
+    ///
+    /// Specify a custom shell to use instead of the system default.
+    /// The shell will be used for all new terminal windows during this session.
+    /// If the specified shell doesn't exist or fails to launch, the system
+    /// default shell will be used as a fallback.
+    ///
+    /// Examples:
+    ///   --shell /bin/bash
+    ///   --shell /usr/bin/zsh
+    ///   --shell /usr/local/bin/fish
+    #[arg(
+        long,
+        value_name = "PATH",
+        help = "Path to shell executable for terminal windows"
+    )]
+    pub shell: Option<String>,
 }
 
 impl Cli {

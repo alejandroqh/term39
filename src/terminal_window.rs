@@ -1,7 +1,7 @@
 use crate::charset::{Charset, CharsetMode};
 use crate::selection::{Position, Selection, SelectionType};
 use crate::term_grid::{Color as TermColor, NamedColor, TerminalCell};
-use crate::terminal_emulator::TerminalEmulator;
+use crate::terminal_emulator::{ShellConfig, TerminalEmulator};
 use crate::theme::Theme;
 use crate::video_buffer::{self, Cell, VideoBuffer};
 use crate::window::Window;
@@ -41,6 +41,7 @@ pub struct TerminalWindow {
 
 impl TerminalWindow {
     /// Create a new terminal window
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: u32,
         x: u16,
@@ -49,6 +50,7 @@ impl TerminalWindow {
         height: u16,
         title: String,
         initial_command: Option<String>,
+        shell_config: &ShellConfig,
     ) -> std::io::Result<Self> {
         // Calculate content area (excluding 2-char borders and title bar)
         let content_width = width.saturating_sub(4).max(1); // -2 left, -2 right
@@ -64,6 +66,7 @@ impl TerminalWindow {
             content_height as usize,
             1000, // 1000 lines of scrollback
             parsed_command,
+            shell_config,
         )?;
 
         Ok(Self {

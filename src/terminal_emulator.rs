@@ -13,6 +13,43 @@ use vte::Parser;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::process::Command;
 
+/// Shell configuration for terminal emulator
+#[derive(Clone, Debug, Default)]
+pub struct ShellConfig {
+    /// Path to shell executable, None means use OS default
+    pub shell_path: Option<String>,
+}
+
+impl ShellConfig {
+    /// Create a shell config with a custom shell path
+    pub fn custom_shell(path: String) -> Self {
+        Self {
+            shell_path: Some(path),
+        }
+    }
+
+    /// Validate the shell configuration
+    /// Returns Ok(()) if valid, Err with message if invalid
+    pub fn validate(&self) -> Result<(), String> {
+        if let Some(ref path) = self.shell_path {
+            if !std::path::Path::new(path).exists() {
+                return Err(format!("Shell '{}' not found", path));
+            }
+            // Check if file is executable on Unix
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                if let Ok(metadata) = std::fs::metadata(path) {
+                    if metadata.permissions().mode() & 0o111 == 0 {
+                        return Err(format!("Shell '{}' is not executable", path));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Terminal emulator that manages PTY, parser, and terminal grid
 pub struct TerminalEmulator {
     /// Terminal grid (screen buffer)
@@ -36,13 +73,15 @@ impl TerminalEmulator {
     /// * `cols` - Number of columns
     /// * `rows` - Number of rows
     /// * `max_scrollback` - Maximum scrollback lines
-    /// * `command` - Optional command to run directly. If None, spawns default shell.
+    /// * `command` - Optional command to run directly. If None, spawns shell based on shell_config.
     ///   Format: Some(("program", vec!["arg1", "arg2"]))
+    /// * `shell_config` - Configuration for which shell to use when command is None
     pub fn new(
         cols: usize,
         rows: usize,
         max_scrollback: usize,
         command: Option<(String, Vec<String>)>,
+        shell_config: &ShellConfig,
     ) -> std::io::Result<Self> {
         let pty_system = native_pty_system();
 
@@ -56,14 +95,22 @@ impl TerminalEmulator {
             })
             .map_err(std::io::Error::other)?;
 
-        // Spawn process (either command or default shell)
+        // Spawn process (either command, custom shell, or default shell)
         let mut cmd = if let Some((program, args)) = command {
-            // Launch specific command directly
+            // Launch specific command directly (e.g., from Slight launcher)
             let mut cmd = CommandBuilder::new(program);
             for arg in args {
                 cmd.arg(arg);
             }
             cmd
+        } else if let Some(ref shell_path) = shell_config.shell_path {
+            // Use custom shell if specified and valid
+            if std::path::Path::new(shell_path).exists() {
+                CommandBuilder::new(shell_path)
+            } else {
+                // Shell doesn't exist, fall back to default (validation should catch this earlier)
+                CommandBuilder::new_default_prog()
+            }
         } else {
             // Spawn default shell
             CommandBuilder::new_default_prog()

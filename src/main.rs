@@ -386,6 +386,9 @@ fn main() -> io::Result<()> {
     let mut charset = initialization::initialize_charset(&cli_args, &app_config);
     let mut theme = initialization::initialize_theme(&cli_args, &app_config);
 
+    // Validate shell configuration early (before terminal setup) so warnings are visible
+    let shell_config = initialization::validate_shell_config(&cli_args);
+
     // Initialize rendering backend (framebuffer or terminal)
     let mut backend = initialization::initialize_backend(&cli_args)?;
 
@@ -410,7 +413,8 @@ fn main() -> io::Result<()> {
 
     // Initialize video buffer and window manager
     let mut video_buffer = initialization::initialize_video_buffer(backend.as_ref());
-    let mut window_manager = initialization::initialize_window_manager(&cli_args, &mut app_config)?;
+    let mut window_manager =
+        initialization::initialize_window_manager(&cli_args, &mut app_config, shell_config)?;
 
     // Initialize application state
     let (cols, rows) = backend.dimensions();
