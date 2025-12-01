@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.3] - 2025-12-01
+
+### Added
+
+- VT100 line-drawing charset support for better terminal compatibility
+- `--mouse-sensitivity` flag for framebuffer mode (values 0.1-5.0)
+
+### Fixed
+
+- Window repositioning on terminal resize (windows now clamp to new bounds)
+- Scroll region and origin mode handling for proper terminal emulation
+- Mouse input bounds update on terminal resize
+
 ## [0.15.0] - 2025-11-29
 
 ### Fixed
@@ -350,6 +363,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.15.3]: https://github.com/alejandroqh/term39/releases/tag/v0.15.3
 [0.15.0]: https://github.com/alejandroqh/term39/releases/tag/v0.15.0
 [0.14.5]: https://github.com/alejandroqh/term39/releases/tag/v0.14.5
 [0.14.0]: https://github.com/alejandroqh/term39/releases/tag/v0.14.0

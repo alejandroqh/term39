@@ -442,12 +442,23 @@ fn main() -> io::Result<()> {
     // Main loop
     loop {
         // Check if backend was resized and recreate buffer if needed
-        if let Some((_new_cols, new_rows)) = backend.check_resize()? {
+        if let Some((new_cols, new_rows)) = backend.check_resize()? {
             // Clear the terminal screen to remove artifacts
             use crossterm::execute;
             execute!(stdout, terminal::Clear(ClearType::All))?;
             video_buffer = initialization::initialize_video_buffer(backend.as_ref());
             app_state.update_auto_tiling_button_position(new_rows);
+
+            // Update mouse input manager bounds for the new size
+            mouse_input_manager.set_bounds(new_cols, new_rows);
+
+            // Reposition windows to fit the new screen dimensions
+            if app_state.auto_tiling_enabled {
+                window_manager.auto_position_windows(new_cols, new_rows);
+            } else {
+                // Clamp windows to new screen bounds
+                window_manager.clamp_windows_to_bounds(new_cols, new_rows);
+            }
         }
 
         // Get current dimensions from backend

@@ -308,6 +308,47 @@ impl WindowManager {
         }
     }
 
+    /// Clamp all windows to fit within the new screen bounds
+    /// This is used when the terminal is resized and auto-tiling is disabled
+    pub fn clamp_windows_to_bounds(&mut self, buffer_width: u16, buffer_height: u16) {
+        let usable_height = buffer_height.saturating_sub(2); // -1 for top bar, -1 for button bar
+        let min_visible_width = 10u16; // Minimum visible portion of window
+
+        for win in &mut self.windows {
+            // Skip minimized windows
+            if win.window.is_minimized {
+                continue;
+            }
+
+            // Clamp width and height to fit screen
+            let max_width = buffer_width;
+            let max_height = usable_height;
+            if win.window.width > max_width {
+                win.window.width = max_width;
+            }
+            if win.window.height > max_height {
+                win.window.height = max_height;
+            }
+
+            // Clamp x position to keep window partially visible
+            if win.window.x + min_visible_width > buffer_width {
+                win.window.x = buffer_width.saturating_sub(min_visible_width);
+            }
+
+            // Clamp y position to keep window partially visible (min y=1 for topbar)
+            if win.window.y < 1 {
+                win.window.y = 1;
+            }
+            if win.window.y + 3 > buffer_height.saturating_sub(1) {
+                // Keep at least title bar visible (3 rows: border + title + border)
+                win.window.y = buffer_height.saturating_sub(4).max(1);
+            }
+
+            // Resize the terminal PTY to match new window dimensions
+            let _ = win.resize(win.window.width, win.window.height);
+        }
+    }
+
     /// Bring window to front and focus it
     pub fn focus_window(&mut self, id: u32) {
         // Find window
