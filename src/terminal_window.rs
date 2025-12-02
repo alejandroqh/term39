@@ -950,7 +950,12 @@ impl TerminalWindow {
 
     /// Handle mouse click for close confirmation dialog
     /// Returns Some(true) if should close, Some(false) if canceled, None if not in dialog
-    pub fn handle_close_confirmation_click(&mut self, x: u16, y: u16) -> Option<bool> {
+    pub fn handle_close_confirmation_click(
+        &mut self,
+        x: u16,
+        y: u16,
+        charset: &Charset,
+    ) -> Option<bool> {
         let confirmation = self.pending_close_confirmation.as_ref()?;
 
         // Check if click is within dialog bounds
@@ -959,7 +964,7 @@ impl TerminalWindow {
         }
 
         // Check if click is on a button
-        if let Some(action) = confirmation.prompt.handle_click(x, y) {
+        if let Some(action) = confirmation.prompt.handle_click(x, y, charset) {
             self.pending_close_confirmation = None;
             Some(matches!(action, PromptAction::Confirm))
         } else {

@@ -41,6 +41,7 @@ mod term_grid;
 mod terminal_emulator;
 mod terminal_window;
 mod theme;
+mod toast;
 mod ui_render;
 mod video_buffer;
 mod window;
@@ -682,14 +683,30 @@ fn main() -> io::Result<()> {
             }
         }
 
-        // Process injected event (raw/FB) or poll for crossterm event
-        // Don't wait if we have an injected event
-        #[cfg(target_os = "linux")]
-        let has_event = injected_event.is_some() || event::poll(Duration::from_millis(16))?;
-        #[cfg(not(target_os = "linux"))]
-        let has_event = event::poll(Duration::from_millis(16))?;
+        // Process all available events before next frame (batch processing for responsiveness)
+        // This prevents input lag on Windows where events can queue up between frames
+        const MAX_EVENTS_PER_FRAME: usize = 50;
+        let mut events_processed = 0;
+        let mut should_break_main_loop = false;
 
-        if has_event {
+        while events_processed < MAX_EVENTS_PER_FRAME {
+            // Check for available events (non-blocking after first iteration)
+            let poll_timeout = if events_processed == 0 {
+                Duration::from_millis(16) // First poll: wait up to 16ms
+            } else {
+                Duration::from_millis(0) // Subsequent: non-blocking
+            };
+
+            #[cfg(target_os = "linux")]
+            let has_event = injected_event.is_some() || event::poll(poll_timeout)?;
+            #[cfg(not(target_os = "linux"))]
+            let has_event = event::poll(poll_timeout)?;
+
+            if !has_event {
+                break; // No more events available
+            }
+
+            events_processed += 1;
             // Track whether this event is injected (raw/FB) to avoid double-scaling
             #[cfg(target_os = "linux")]
             let is_injected = injected_event.is_some();
@@ -719,11 +736,34 @@ fn main() -> io::Result<()> {
                         continue;
                     }
 
+                    // F12 - Global lockscreen shortcut (works from anywhere, even in terminal)
+                    if key_event.code == KeyCode::F(12) {
+                        if app_config.lockscreen_enabled && app_state.lockscreen.is_available() {
+                            app_state.lockscreen.lock();
+                        } else {
+                            // Show toast: "To lock the screen, configure in Settings"
+                            app_state.active_toast = Some(toast::Toast::new(
+                                "To lock the screen, configure in Settings",
+                            ));
+                        }
+                        continue;
+                    }
+
+                    // Dismiss toast on any key press (if active and not just created)
+                    // Check if toast was created more than 100ms ago to avoid dismissing
+                    // toasts that were just created by the same key press
+                    if let Some(ref toast) = app_state.active_toast {
+                        if toast.created_at.elapsed() > std::time::Duration::from_millis(100) {
+                            app_state.active_toast = None;
+                        }
+                    }
+
                     // Handle prompt keyboard navigation
                     if let Some(should_exit) =
                         dialog_handlers::handle_prompt_keyboard(&mut app_state, key_event)
                     {
                         if should_exit {
+                            should_break_main_loop = true;
                             break;
                         }
                         continue;
@@ -850,6 +890,7 @@ fn main() -> io::Result<()> {
                     ) {
                         // Check if exit was requested
                         if app_state.should_exit {
+                            should_break_main_loop = true;
                             break;
                         }
                         continue;
@@ -881,11 +922,12 @@ fn main() -> io::Result<()> {
                     if let Some(ref prompt) = app_state.active_prompt {
                         if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
                             if let Some(action) =
-                                prompt.handle_click(mouse_event.column, mouse_event.row)
+                                prompt.handle_click(mouse_event.column, mouse_event.row, &charset)
                             {
                                 match action {
                                     PromptAction::Confirm => {
                                         // Exit confirmed
+                                        should_break_main_loop = true;
                                         break;
                                     }
                                     PromptAction::Cancel => {
@@ -1609,8 +1651,11 @@ fn main() -> io::Result<()> {
                         && app_state.active_prompt.is_none()
                         && !app_state.context_menu.visible
                     {
-                        let window_closed =
-                            window_manager.handle_mouse_event(&mut video_buffer, mouse_event);
+                        let window_closed = window_manager.handle_mouse_event(
+                            &mut video_buffer,
+                            mouse_event,
+                            &charset,
+                        );
                         // Auto-reposition remaining windows if a window was closed
                         if window_closed && app_state.auto_tiling_enabled {
                             let (cols, rows) = backend.dimensions();
@@ -1620,11 +1665,17 @@ fn main() -> io::Result<()> {
 
                     // Check if exit was requested (from Exit button)
                     if app_state.should_exit {
+                        should_break_main_loop = true;
                         break;
                     }
                 }
                 _ => {}
             }
+        } // End of while events loop
+
+        // Check if we need to exit the main loop
+        if should_break_main_loop {
+            break;
         }
     }
 

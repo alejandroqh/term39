@@ -129,6 +129,19 @@ pub fn render_frame(
         error_dialog.render(video_buffer, charset, theme);
     }
 
+    // Render toast notification (if any, auto-expires)
+    // Check expiration first, then render if still valid
+    let toast_expired = app_state
+        .active_toast
+        .as_ref()
+        .is_some_and(|t| t.is_expired());
+    if toast_expired {
+        app_state.active_toast = None;
+    }
+    if let Some(ref toast) = app_state.active_toast {
+        toast.render(video_buffer, charset, theme);
+    }
+
     // Render context menu (if visible)
     if app_state.context_menu.visible {
         app_state.context_menu.render(video_buffer, charset, theme);

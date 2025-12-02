@@ -234,8 +234,12 @@ pub fn handle_desktop_keyboard(
             // Check if lockscreen is enabled in config
             if app_config.lockscreen_enabled && app_state.lockscreen.is_available() {
                 app_state.lockscreen.lock();
+            } else {
+                // Show toast: "To lock the screen, configure in Settings"
+                app_state.active_toast = Some(crate::toast::Toast::new(
+                    "To lock the screen, configure in Settings",
+                ));
             }
-            // If disabled or unavailable, silently ignore
             return true;
         }
         KeyCode::Char('q') => {
@@ -391,6 +395,8 @@ fn show_help_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
         {{Y}}'s'{{W}}       - Show settings/configuration window\n\
         {{Y}}'c'{{W}}       - Show calendar ({{Y}}\u{2190}\u{2192}{{W}} months, {{Y}}\u{2191}\u{2193}{{W}} years, {{Y}}t{{W}} today)\n\
         {{Y}}CTRL+Space{{W}} - Command launcher (Slight)\n\
+        {{Y}}F12{{W}}      - Lock screen (global, works in terminal)\n\
+        {{Y}}Shift+Q{{W}}  - Lock screen (from desktop/topbar)\n\
         \n\
         {{C}}WINDOW & SESSION{{W}}\n\
         \n\

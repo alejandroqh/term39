@@ -500,7 +500,12 @@ impl WindowManager {
 
     /// Handle mouse event
     /// Returns true if a window was closed (so caller can reposition)
-    pub fn handle_mouse_event(&mut self, buffer: &mut VideoBuffer, event: MouseEvent) -> bool {
+    pub fn handle_mouse_event(
+        &mut self,
+        buffer: &mut VideoBuffer,
+        event: MouseEvent,
+        charset: &Charset,
+    ) -> bool {
         // Validate mouse coordinates are within buffer bounds
         let (buffer_width, buffer_height) = buffer.dimensions();
         let x = event.column;
@@ -531,7 +536,7 @@ impl WindowManager {
                         .find(|w| w.id() == clicked_window_id)
                     {
                         if let Some(should_close) =
-                            window.handle_close_confirmation_click(event.column, event.row)
+                            window.handle_close_confirmation_click(event.column, event.row, charset)
                         {
                             if should_close {
                                 return self.close_window(clicked_window_id);

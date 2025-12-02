@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fmt;
 use unicode_width::UnicodeWidthChar;
 
@@ -133,7 +134,8 @@ pub struct TerminalGrid {
     /// Screen rows (visible portion)
     rows: Vec<Vec<TerminalCell>>,
     /// Scrollback buffer (lines that have scrolled off the top)
-    scrollback: Vec<Vec<TerminalCell>>,
+    /// Uses VecDeque for O(1) removal from front when exceeding max_scrollback
+    scrollback: VecDeque<Vec<TerminalCell>>,
     /// Maximum scrollback lines
     max_scrollback: usize,
     /// Terminal dimensions
@@ -205,7 +207,7 @@ impl TerminalGrid {
 
         Self {
             rows: vec![vec![TerminalCell::default(); cols]; rows],
-            scrollback: Vec::new(),
+            scrollback: VecDeque::new(),
             max_scrollback,
             cols,
             rows_count: rows,
@@ -679,11 +681,11 @@ impl TerminalGrid {
 
                 // Only add to scrollback if NOT in alternate screen
                 if self.alt_screen.is_none() {
-                    self.scrollback.push(line);
+                    self.scrollback.push_back(line);
 
-                    // Limit scrollback size
+                    // Limit scrollback size (O(1) with VecDeque)
                     if self.scrollback.len() > self.max_scrollback {
-                        self.scrollback.remove(0);
+                        self.scrollback.pop_front();
                     }
                 }
 
@@ -1043,7 +1045,7 @@ impl TerminalGrid {
         } else {
             // Some lines go into scrollback
             let scrollback_count = total_lines - self.rows_count;
-            self.scrollback = lines[..scrollback_count].to_vec();
+            self.scrollback = lines[..scrollback_count].to_vec().into();
             self.rows = lines[scrollback_count..].to_vec();
         }
 

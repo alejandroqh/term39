@@ -8,6 +8,7 @@ use crate::keyboard_mode::{KeyboardMode, MovementState};
 use crate::lockscreen::{LockScreen, PinSetupDialog};
 use crate::prompt::Prompt;
 use crate::slight_input::SlightInput;
+use crate::toast::Toast;
 use crate::ui_render::CalendarState;
 use std::time::Instant;
 
@@ -22,6 +23,7 @@ pub struct AppState {
     pub active_winmode_help_window: Option<InfoWindow>,
     pub active_slight_input: Option<SlightInput>,
     pub active_error_dialog: Option<ErrorDialog>,
+    pub active_toast: Option<Toast>,
     pub context_menu: ContextMenu,
 
     // Top Bar Buttons
@@ -114,6 +116,7 @@ impl AppState {
             active_winmode_help_window: None,
             active_slight_input: None,
             active_error_dialog: None,
+            active_toast: None,
             context_menu,
 
             // Top Bar Buttons

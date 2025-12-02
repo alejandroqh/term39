@@ -520,28 +520,46 @@ impl Prompt {
     }
 
     /// Check if a click is on a button, return the action if so
-    pub fn handle_click(&self, x: u16, y: u16) -> Option<PromptAction> {
-        let button_y = self.y + self.height - 2;
+    pub fn handle_click(&self, x: u16, y: u16, charset: &Charset) -> Option<PromptAction> {
+        // Must match rendering: buttons rendered at height - 3 (line 405)
+        let button_y = self.y + self.height - 3;
 
         // Only process clicks on the button row
         if y != button_y {
             return None;
         }
 
-        let total_button_width: u16 = self.buttons.iter().map(|b| b.width()).sum::<u16>()
+        // Match rendering: account for button shadows in Unicode mode (line 409-413)
+        let has_button_shadow = matches!(
+            charset.mode,
+            CharsetMode::Unicode | CharsetMode::UnicodeSingleLine
+        );
+        let button_shadow_extra = if has_button_shadow { 1 } else { 0 };
+
+        // Match rendering calculation (line 415-420)
+        // Note: total_button_width includes shadow width for proper centering
+        let total_button_width: u16 = self
+            .buttons
+            .iter()
+            .map(|b| b.width() + button_shadow_extra)
+            .sum::<u16>()
             + (self.buttons.len().saturating_sub(1)) as u16 * 2;
 
+        // Calculate the same starting position as rendering uses (line 422)
         let mut button_x = self.x + (self.width.saturating_sub(total_button_width)) / 2;
 
         for button in &self.buttons {
             let button_width = button.width();
-            let button_end = button_x + button_width;
+            // Include the shadow in the clickable area for better UX
+            // The shadow is 1 cell to the right of the button
+            let button_end = button_x + button_width + button_shadow_extra;
 
             if x >= button_x && x < button_end {
                 return Some(button.action);
             }
 
-            button_x = button_end + 2; // Move to next button (with spacing)
+            // Match rendering: account for shadow and spacing (line 503, 507)
+            button_x = button_end + 2;
         }
 
         None
