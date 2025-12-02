@@ -237,6 +237,16 @@ impl TerminalEmulator {
             }
         }
 
+        // On Windows, the PTY reader thread may not immediately detect when a child
+        // process exits (e.g., cmd.exe). Explicitly check if the child has exited
+        // using try_wait() to ensure windows are auto-closed properly.
+        if process_result.as_ref().is_ok_and(|&running| running) {
+            if let Ok(Some(_exit_status)) = self.child.try_wait() {
+                // Child process has exited
+                process_result = Ok(false);
+            }
+        }
+
         process_result
     }
 
