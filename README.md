@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
-A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Full-screen interface with window management and complete terminal emulation.  ( Linux / Windows / MacOS / Android/Termux )
+A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Full-screen interface with window management and complete terminal emulation. ( Linux / Windows / MacOS / Android-Termux )
 
 <div align="center">
   <img src="assets/ascii_logo.png" alt="TERM39 Logo"/>
@@ -53,6 +53,7 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
 ## Features
 
 **General**
+
 - **Retro DOS Aesthetic**: Classic blue-and-white color scheme with box-drawing characters, ~60fps rendering
 - **Multiple Terminal Windows**: Create, drag, resize, minimize, and maximize windows with mouse or keyboard
 - **Window Management**: Automatic tiling, snap to corners, focus management with ALT+TAB
@@ -66,6 +67,7 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
 - **ASCII Compatibility**: `--ascii` flag for maximum terminal compatibility
 
 **Linux Only**
+
 - **Framebuffer Mode**: Direct `/dev/fb0` rendering with DOS text modes (40x25, 80x25, ... , 320x200)
 - **Console Mouse**: Native mouse support on Linux TTY via raw `/dev/input` devices
 
@@ -86,6 +88,7 @@ Requires Rust ([Install](https://rustup.rs/))
 ### Linux Packages
 
 **Homebrew**:
+
 ```bash
 brew tap alejandroqh/term39
 brew install term39
@@ -108,6 +111,7 @@ Or download from [Releases](https://github.com/alejandroqh/term39/releases/lates
 ### macOS
 
 **Homebrew** (Recommended):
+
 ```bash
 brew tap alejandroqh/term39
 brew install term39
@@ -253,6 +257,7 @@ Press **`` ` ``** (backtick) or **F8** to enter Window Mode for full keyboard co
 | `L` (Shift+l) | Snap to right half |
 
 **Numpad-Style Snap Positions (1-9)**
+
 ```
 7 Top-Left     8 Top-Center     9 Top-Right
 4 Middle-Left  5 Center         6 Middle-Right
@@ -290,33 +295,33 @@ Press **`` ` ``** (backtick) or **F8** to enter Window Mode for full keyboard co
 
 ### General Options
 
-| Option | Description |
-|--------|-------------|
-| `--ascii` | Use ASCII-compatible characters (`+-\|#`) instead of Unicode box-drawing |
-| `--single-line` | Use single-line Unicode box characters (`┌─┐│└┘`) instead of double-line |
-| `--theme <THEME>` | Set color theme (see [Themes](#themes) section) |
-| `--tint-terminal` | Apply theme-based color tinting to terminal content |
-| `--no-restore` | Don't restore previous session on startup |
-| `--no-save` | Don't save session (disables auto-save and manual save) |
-| `--no-exit` | Disable exit functionality (for use as a window manager) |
-| `--shell <SHELL>` | Specify custom shell for terminal windows (e.g., `--shell /bin/zsh`) |
-| `--lock` | Lock a running term39 instance and exit (Unix only, see [Lockscreen](#lockscreen)) |
+| Option            | Description                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------- |
+| `--ascii`         | Use ASCII-compatible characters (`+-\|#`) instead of Unicode box-drawing           |
+| `--single-line`   | Use single-line Unicode box characters (`┌─┐│└┘`) instead of double-line           |
+| `--theme <THEME>` | Set color theme (see [Themes](#themes) section)                                    |
+| `--tint-terminal` | Apply theme-based color tinting to terminal content                                |
+| `--no-restore`    | Don't restore previous session on startup                                          |
+| `--no-save`       | Don't save session (disables auto-save and manual save)                            |
+| `--no-exit`       | Disable exit functionality (for use as a window manager)                           |
+| `--shell <SHELL>` | Specify custom shell for terminal windows (e.g., `--shell /bin/zsh`)               |
+| `--lock`          | Lock a running term39 instance and exit (Unix only, see [Lockscreen](#lockscreen)) |
 
 ### Linux Console Options
 
-| Option | Description |
-|--------|-------------|
-| `-f`, `--framebuffer` | Enable framebuffer mode (requires `/dev/fb0` access) |
-| `--fb-mode <MODE>` | Text mode: `40x25`, `80x25`, `80x43`, `80x50`, `160x50`, `160x100`, `320x100`, `320x200` |
-| `--fb-scale <SCALE>` | Pixel scale factor (`1`, `2`, `3`, `4`, or `auto`) |
-| `--fb-font <FONT>` | Console font name (e.g., `Unifont-APL8x16`) |
-| `--fb-list-fonts` | List available console fonts and exit |
-| `--fb-setup` | Launch interactive framebuffer setup wizard |
-| `--mouse-device <DEVICE>` | Mouse input device (e.g., `/dev/input/event2`) |
-| `--mouse-sensitivity <VALUE>` | Mouse sensitivity for TTY mode (`0.1`-`5.0`, default: auto) |
-| `--swap-mouse-buttons` | Swap left/right mouse buttons |
-| `--invert-mouse-x` | Invert mouse X-axis movement |
-| `--invert-mouse-y` | Invert mouse Y-axis movement |
+| Option                        | Description                                                                              |
+| ----------------------------- | ---------------------------------------------------------------------------------------- |
+| `-f`, `--framebuffer`         | Enable framebuffer mode (requires `/dev/fb0` access)                                     |
+| `--fb-mode <MODE>`            | Text mode: `40x25`, `80x25`, `80x43`, `80x50`, `160x50`, `160x100`, `320x100`, `320x200` |
+| `--fb-scale <SCALE>`          | Pixel scale factor (`1`, `2`, `3`, `4`, or `auto`)                                       |
+| `--fb-font <FONT>`            | Console font name (e.g., `Unifont-APL8x16`)                                              |
+| `--fb-list-fonts`             | List available console fonts and exit                                                    |
+| `--fb-setup`                  | Launch interactive framebuffer setup wizard                                              |
+| `--mouse-device <DEVICE>`     | Mouse input device (e.g., `/dev/input/event2`)                                           |
+| `--mouse-sensitivity <VALUE>` | Mouse sensitivity for TTY mode (`0.1`-`5.0`, default: auto)                              |
+| `--swap-mouse-buttons`        | Swap left/right mouse buttons                                                            |
+| `--invert-mouse-x`            | Invert mouse X-axis movement                                                             |
+| `--invert-mouse-y`            | Invert mouse Y-axis movement                                                             |
 
 **Note:** Linux console options require `--features framebuffer-backend` at compile time and running on a physical console (TTY1-6), not in terminal emulators or SSH.
 
@@ -382,10 +387,10 @@ Press **`` ` ``** (backtick) or **F8** to enter Window Mode for full keyboard co
 
 System-authenticated lockscreen using PAM (Linux), Directory Services (macOS), or Windows Security.
 
-| Trigger | Command |
-|---------|---------|
-| Keyboard | `Shift+Q` |
-| CLI (Unix) | `term39 --lock` |
+| Trigger       | Command                      |
+| ------------- | ---------------------------- |
+| Keyboard      | `Shift+Q`                    |
+| CLI (Unix)    | `term39 --lock`              |
 | Signal (Unix) | `kill -USR1 $(pgrep term39)` |
 
 **Features:** Opaque background, progressive lockout (5s→120s after 3+ failures), auto-fill username.
@@ -411,10 +416,10 @@ cargo test && cargo clippy && cargo fmt   # Test, lint, format
 
 Configuration files are stored in `~/.config/term39/`:
 
-| File | Description |
-|------|-------------|
+| File           | Description                                      |
+| -------------- | ------------------------------------------------ |
 | `session.toml` | Saved session (window layouts, terminal content) |
-| `fb.toml` | Framebuffer settings (Linux only) |
+| `fb.toml`      | Framebuffer settings (Linux only)                |
 
 Available themes: `classic` (default), `dark`, `monochrome`, `green_phosphor`, `amber`, `dracu`, `ndd`, `qbasic`, `turbo`, `nc`, `xt`, `wp`, `db`
 
@@ -431,12 +436,16 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute to th
 ## Cargo Features
 
 ### `clipboard` (Default: **ON**)
+
 System clipboard integration with Ctrl+Shift+C/V.
+
 - **Enable**: Desktop usage, copy/paste between apps
 - **Disable**: Android/Termux, headless servers → `--no-default-features`
 
 ### `framebuffer-backend` (Default: **ON** for Linux)
+
 Direct Linux framebuffer rendering with DOS text modes (40x25, 80x25, ... , 320x200).
+
 - **Modes**: 40x25, 80x25, 80x43, 80x50, 160x50, 160x100, 320x100, 320x200
 - **Platform**: Linux only (automatically disabled on macOS/Windows)
 - **Disable**: To opt-out on Linux → `--no-default-features --features clipboard`
