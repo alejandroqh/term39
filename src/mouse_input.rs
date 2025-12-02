@@ -5,7 +5,9 @@
 //! 2. TTY direct (Linux console) - Uses raw /dev/input/ with inverted cell cursor
 //! 3. Framebuffer mode - Uses raw /dev/input/ with sprite cursor rendering
 
-use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use crossterm::event::MouseEvent;
+#[cfg(unix)]
+use crossterm::event::{KeyModifiers, MouseButton, MouseEventKind};
 use std::collections::VecDeque;
 use std::io;
 

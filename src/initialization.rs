@@ -13,7 +13,9 @@ use crate::theme::Theme;
 use crate::video_buffer::VideoBuffer;
 use crate::window_manager::WindowManager;
 use crossterm::{cursor, event, execute, style, terminal};
-use std::io::{self, Write};
+use std::io;
+#[cfg(unix)]
+use std::io::Write;
 
 /// Initializes the rendering backend based on CLI arguments
 pub fn initialize_backend(
