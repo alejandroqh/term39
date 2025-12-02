@@ -215,7 +215,6 @@ pub fn initialize_window_manager(
     app_config: &mut AppConfig,
     shell_config: ShellConfig,
 ) -> io::Result<WindowManager> {
-
     let window_manager = if !cli_args.no_restore {
         // Try to restore session, fall back to new if it fails
         let manager = WindowManager::restore_session_from_file(shell_config.clone())

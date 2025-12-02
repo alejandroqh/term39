@@ -111,6 +111,20 @@ pub enum TextAlign {
     Center,
 }
 
+/// Positioning mode for prompts
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PositionMode {
+    /// Center on the entire screen (default behavior)
+    CenteredOnScreen,
+    /// Center within a specific region (e.g., inside a window)
+    CenteredInRegion {
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+    },
+}
+
 /// A modal prompt dialog (no title bar, centered on screen)
 pub struct Prompt {
     pub prompt_type: PromptType,
@@ -120,8 +134,10 @@ pub struct Prompt {
     pub height: u16,
     pub x: u16,
     pub y: u16,
-    pub selected_button_index: usize, // Index of currently selected button for keyboard navigation
-    pub text_align: TextAlign,        // Text alignment for the message
+    pub selected_button_index: usize,    // Index of currently selected button for keyboard navigation
+    pub text_align: TextAlign,           // Text alignment for the message
+    pub show_selection_indicators: bool, // Whether to show >< around selected button
+    pub position_mode: PositionMode,     // How to position the dialog
 }
 
 impl Prompt {
@@ -171,7 +187,7 @@ impl Prompt {
         let width = content_width + 6; // 2 for padding on each side + 2 for borders
 
         // Height: message lines + padding + button row
-        let height = message_lines.len() as u16 + 6; // 1 top padding + message + 1 padding + buttons + 1 padding + borders
+        let height = message_lines.len() as u16 + 7; // 1 top padding + message + 1 padding + buttons + button shadow + 1 padding + borders
 
         // Center on screen
         let x = (buffer_width.saturating_sub(width)) / 2;
@@ -190,6 +206,8 @@ impl Prompt {
             y,
             selected_button_index,
             text_align,
+            show_selection_indicators: false, // Default: no indicators (backward compatible)
+            position_mode: PositionMode::CenteredOnScreen,
         }
     }
 
@@ -198,6 +216,28 @@ impl Prompt {
         if index < self.buttons.len() {
             self.selected_button_index = index;
         }
+        self
+    }
+
+    /// Enable or disable selection indicators
+    /// When enabled: selected button shows [ ] brackets, unselected shows spaces
+    /// When disabled: all buttons show [ ] brackets (default behavior)
+    pub fn with_selection_indicators(mut self, show: bool) -> Self {
+        self.show_selection_indicators = show;
+        self
+    }
+
+    /// Position the prompt centered within a specific region
+    pub fn centered_in_region(mut self, region_x: u16, region_y: u16, region_width: u16, region_height: u16) -> Self {
+        self.position_mode = PositionMode::CenteredInRegion {
+            x: region_x,
+            y: region_y,
+            width: region_width,
+            height: region_height,
+        };
+        // Recalculate position
+        self.x = region_x + (region_width.saturating_sub(self.width)) / 2;
+        self.y = region_y + (region_height.saturating_sub(self.height)) / 2;
         self
     }
 
@@ -355,51 +395,60 @@ impl Prompt {
             }
         }
 
-        // Render buttons (centered, at bottom)
-        let button_y = self.y + self.height - 2;
-        let total_button_width: u16 = self.buttons.iter().map(|b| b.width()).sum::<u16>()
+        // Render buttons (centered, at bottom with space for shadows)
+        let button_y = self.y + self.height - 3;
+
+        // In UTF8 mode, buttons have shadows (1 cell right, 1 cell down)
+        // Account for shadow space in button width calculation
+        let has_button_shadow = matches!(
+            charset.mode,
+            CharsetMode::Unicode | CharsetMode::UnicodeSingleLine
+        );
+        let button_shadow_extra = if has_button_shadow { 1 } else { 0 };
+
+        let total_button_width: u16 = self
+            .buttons
+            .iter()
+            .map(|b| b.width() + button_shadow_extra)
+            .sum::<u16>()
             + (self.buttons.len().saturating_sub(1)) as u16 * 2; // 2 spaces between buttons
 
         let mut button_x = self.x + (self.width.saturating_sub(total_button_width)) / 2;
 
+        // Shadow color for buttons
+        let button_shadow_bg = Color::Black;
+
         for (index, button) in self.buttons.iter().enumerate() {
             let is_selected = index == self.selected_button_index;
 
-            // Color based on SELECTION state: selected shows action color, non-selected is gray
+            // Prompt button colors are fixed regardless of theme:
+            // - Non-selected: white text on black background
+            // - Selected: yellow text on black background
             let (button_fg, button_bg) = if is_selected {
-                // Selected: show action color based on button action type
-                match button.action {
-                    PromptAction::Cancel => (
-                        theme.dialog_button_primary_success_fg,
-                        theme.dialog_button_primary_success_bg,
-                    ),
-                    PromptAction::Confirm | PromptAction::Custom(_) => (
-                        theme.dialog_button_primary_danger_fg,
-                        theme.dialog_button_primary_danger_bg,
-                    ),
-                }
+                (Color::Black, theme.prompt_warning_bg)
             } else {
-                // Not selected: gray
-                (
-                    theme.dialog_button_secondary_fg,
-                    theme.dialog_button_secondary_bg,
-                )
+                (Color::Black, Color::White)
             };
 
-            // Render selection indicator before button
-            if is_selected {
-                // Add ">" indicator before selected button (1 cell to the left)
-                if button_x > self.x {
-                    buffer.set(
-                        button_x - 1,
-                        button_y,
-                        Cell::new('>', default_fg_color, bg_color),
-                    );
-                }
-            }
+            let button_start_x = button_x;
+            let button_width = button.width();
 
-            // Render button: [ Text ]
-            buffer.set(button_x, button_y, Cell::new('[', button_fg, button_bg));
+            // When selection indicators are enabled:
+            // - Selected button: [ Text ] (with brackets)
+            // - Not selected button:   Text   (spaces instead of brackets)
+            let (left_bracket, right_bracket) = if self.show_selection_indicators {
+                if is_selected {
+                    ('[', ']')
+                } else {
+                    (' ', ' ')
+                }
+            } else {
+                // Default behavior: always show brackets
+                ('[', ']')
+            };
+
+            // Render button: [ Text ] or   Text
+            buffer.set(button_x, button_y, Cell::new(left_bracket, button_fg, button_bg));
             button_x += 1;
             buffer.set(button_x, button_y, Cell::new(' ', button_fg, button_bg));
             button_x += 1;
@@ -411,16 +460,37 @@ impl Prompt {
 
             buffer.set(button_x, button_y, Cell::new(' ', button_fg, button_bg));
             button_x += 1;
-            buffer.set(button_x, button_y, Cell::new(']', button_fg, button_bg));
+            buffer.set(button_x, button_y, Cell::new(right_bracket, button_fg, button_bg));
             button_x += 1;
 
-            // Render selection indicator after button
-            if is_selected {
+            // Render button shadow (right side and bottom) in UTF8 mode
+            // Uses half-block characters for a subtle shadow effect
+            if has_button_shadow {
+                // The shadow color is the foreground, background is the prompt bg
                 buffer.set(
                     button_x,
                     button_y,
-                    Cell::new('<', default_fg_color, bg_color),
+                    Cell::new_unchecked('▄', button_shadow_bg, bg_color),
                 );
+
+                // Bottom shadow: use upper half block '▀' (U+2580)
+                // Shadow fg on prompt bg to create half-height shadow
+                for dx in 0..button_width {
+                    buffer.set(
+                        button_start_x + dx + 1,
+                        button_y + 1,
+                        Cell::new_unchecked('▀', button_shadow_bg, bg_color),
+                    );
+                }
+
+                // Corner shadow (bottom-right): use quadrant upper left '▘' (U+2598)
+                buffer.set(
+                    button_start_x + button_width,
+                    button_y + 1,
+                    Cell::new_unchecked('▀', button_shadow_bg, bg_color),
+                );
+
+                button_x += 1; // Account for right shadow in spacing
             }
 
             // Add spacing between buttons

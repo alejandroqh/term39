@@ -1196,6 +1196,7 @@ fn main() -> io::Result<()> {
                                 cols,
                                 rows,
                             )
+                            .with_selection_indicators(true)
                             .with_selected_button(1),
                         ); // Select "Cancel"
 

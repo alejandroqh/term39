@@ -174,6 +174,7 @@ pub fn handle_desktop_keyboard(
                     cols,
                     rows,
                 )
+                .with_selection_indicators(true)
                 .with_selected_button(0),
             ); // Select "Cancel"
         }
@@ -490,6 +491,7 @@ fn handle_esc_key(
                 cols,
                 rows,
             )
+            .with_selection_indicators(true)
             .with_selected_button(0),
         ); // Select "Cancel"
     } else {
@@ -533,6 +535,7 @@ fn handle_q_key(
                 cols,
                 rows,
             )
+            .with_selection_indicators(true)
             .with_selected_button(0),
         ); // Select "Cancel"
     } else {
