@@ -714,7 +714,7 @@ fn main() -> io::Result<()> {
             let is_injected = false;
 
             #[cfg(target_os = "linux")]
-            let current_event = if let Some(evt) = injected_event {
+            let current_event = if let Some(evt) = injected_event.take() {
                 evt
             } else {
                 event::read()?
