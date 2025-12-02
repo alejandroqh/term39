@@ -11,7 +11,7 @@ use std::os::windows::ffi::OsStrExt;
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
 #[cfg(target_os = "windows")]
-use windows_sys::Win32::Security::Credentials::{
+use windows_sys::Win32::Security::{
     LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, LogonUserW,
 };
 
