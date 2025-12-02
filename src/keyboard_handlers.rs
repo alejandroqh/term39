@@ -226,6 +226,16 @@ pub fn handle_desktop_keyboard(
             handle_esc_key(app_state, current_focus, window_manager, backend, cli_args);
             return true;
         }
+        // Shift+Q to lock screen (before checking for lowercase 'q' exit)
+        KeyCode::Char('Q')
+            if key_event.modifiers.contains(KeyModifiers::SHIFT)
+                && matches!(current_focus, FocusState::Desktop | FocusState::Topbar) =>
+        {
+            if app_state.lockscreen.is_available() {
+                app_state.lockscreen.lock();
+            }
+            return true;
+        }
         KeyCode::Char('q') => {
             handle_q_key(app_state, current_focus, window_manager, backend, cli_args);
             return true;

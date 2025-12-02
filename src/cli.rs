@@ -324,6 +324,22 @@ pub struct Cli {
         help = "Path to shell executable for terminal windows"
     )]
     pub shell: Option<String>,
+
+    /// Lock a running term39 instance (Unix only)
+    ///
+    /// Sends a lock signal (SIGUSR1) to a running term39 process,
+    /// triggering its lockscreen. This is useful for:
+    ///   - ACPI lid close events
+    ///   - Screen lock scripts
+    ///   - Keyboard shortcuts via window manager
+    ///
+    /// Example usage:
+    ///   term39 --lock
+    ///
+    /// Note: Only available on Unix systems with lockscreen feature enabled.
+    #[cfg(unix)]
+    #[arg(long, help = "Lock a running term39 instance and exit")]
+    pub lock: bool,
 }
 
 impl Cli {

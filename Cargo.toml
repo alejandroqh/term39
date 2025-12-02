@@ -17,10 +17,11 @@ exclude = [
 ]
 
 [features]
-default = ["clipboard", "framebuffer-backend", "battery"]
+default = ["clipboard", "framebuffer-backend", "battery", "lockscreen"]
 clipboard = ["dep:arboard"]
 framebuffer-backend = ["dep:framebuffer", "dep:memmap2", "dep:flate2"]
 battery = ["dep:starship-battery"]
+lockscreen = ["dep:pam", "dep:windows-sys"]
 
 [profile.release]
 strip = true
@@ -43,11 +44,16 @@ clap = { version = "4.5", features = ["derive"] }
 arboard = { version = "3.4", optional = true }
 starship-battery = { version = "0.10", optional = true }
 
-# Framebuffer backend dependencies (Linux only)
+# Framebuffer backend and lockscreen dependencies (Linux only)
 [target.'cfg(target_os = "linux")'.dependencies]
 framebuffer = { version = "0.3", optional = true }
 memmap2 = { version = "0.9", optional = true }
 flate2 = { version = "1.0", optional = true }
+pam = { version = "0.8", optional = true }
+
+# Windows lockscreen dependencies
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Security_Authentication_Identity", "Win32_Foundation"], optional = true }
 
 [package.metadata.deb]
 maintainer = "Alejandro Quintanar <a@q39.dev>"

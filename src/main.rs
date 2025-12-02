@@ -28,6 +28,7 @@ mod info_window;
 mod initialization;
 mod keyboard_handlers;
 mod keyboard_mode;
+mod lockscreen;
 mod mouse_input;
 mod prompt;
 mod render_backend;
@@ -70,9 +71,91 @@ use theme::Theme;
 use ui_render::CalendarState;
 use window_manager::{FocusState, WindowManager};
 
+/// Send SIGUSR1 to all other running term39 instances to trigger lockscreen
+#[cfg(unix)]
+fn send_lock_signal() -> io::Result<()> {
+    use std::process::Command;
+
+    let current_pid = std::process::id();
+
+    // Use pgrep to find term39 processes
+    let output = Command::new("pgrep").arg("-x").arg("term39").output();
+
+    match output {
+        Ok(result) => {
+            let pids_str = String::from_utf8_lossy(&result.stdout);
+            let mut found = false;
+
+            for line in pids_str.lines() {
+                if let Ok(pid) = line.trim().parse::<u32>() {
+                    // Don't signal ourselves
+                    if pid != current_pid {
+                        // Send SIGUSR1 to the process
+                        unsafe {
+                            if libc::kill(pid as i32, libc::SIGUSR1) == 0 {
+                                println!("Sent lock signal to term39 (PID: {})", pid);
+                                found = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !found {
+                eprintln!("No running term39 instance found to lock.");
+                std::process::exit(1);
+            }
+        }
+        Err(_) => {
+            // pgrep not available, try reading /proc directly
+            if let Ok(entries) = std::fs::read_dir("/proc") {
+                let mut found = false;
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if let Some(name) = path.file_name() {
+                        if let Ok(pid) = name.to_string_lossy().parse::<u32>() {
+                            if pid != current_pid {
+                                let comm_path = path.join("comm");
+                                if let Ok(comm) = std::fs::read_to_string(&comm_path) {
+                                    if comm.trim() == "term39" {
+                                        unsafe {
+                                            if libc::kill(pid as i32, libc::SIGUSR1) == 0 {
+                                                println!(
+                                                    "Sent lock signal to term39 (PID: {})",
+                                                    pid
+                                                );
+                                                found = true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if !found {
+                    eprintln!("No running term39 instance found to lock.");
+                    std::process::exit(1);
+                }
+            } else {
+                eprintln!("Could not find running term39 instances.");
+                std::process::exit(1);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn main() -> io::Result<()> {
     // Parse command-line arguments
     let cli_args = cli::Cli::parse_args();
+
+    // Handle --lock flag: send SIGUSR1 to running term39 instance and exit
+    #[cfg(unix)]
+    if cli_args.lock {
+        return send_lock_signal();
+    }
 
     // Set up panic hook to restore terminal state on panic
     // This prevents the terminal from being left in raw mode if the application crashes
@@ -440,11 +523,33 @@ fn main() -> io::Result<()> {
     // Show splash screen for 1 second
     splash_screen::show_splash_screen(&mut video_buffer, &mut backend, &charset, &theme)?;
 
+    // Set up signal handler for external lockscreen trigger (Unix only)
+    lockscreen::signal_handler::setup();
+
+    // Check lockscreen availability and warn if unavailable
+    if !app_state.lockscreen.is_available() {
+        eprintln!(
+            "Warning: Lockscreen authentication system ({}) unavailable.",
+            app_state.lockscreen.auth_system_name()
+        );
+        eprintln!("Lockscreen feature (Shift+Q) will be disabled.");
+        std::thread::sleep(Duration::from_secs(2));
+    }
+
     // Start with desktop focused - no windows yet
     // User can press 't' to create windows
 
     // Main loop
     loop {
+        // Check for external lock request (via SIGUSR1 signal)
+        if lockscreen::signal_handler::check_and_clear() {
+            if app_state.lockscreen.is_available() {
+                app_state.lockscreen.lock();
+            }
+        }
+
+        // Update lockscreen state (check lockout timer)
+        app_state.lockscreen.update();
         // Check if backend was resized and recreate buffer if needed
         if let Some((new_cols, new_rows)) = backend.check_resize()? {
             // Clear the terminal screen to remove artifacts
@@ -479,7 +584,7 @@ fn main() -> io::Result<()> {
             &mut backend,
             &mut stdout,
             &mut window_manager,
-            &app_state,
+            &mut app_state,
             &charset,
             &theme,
             &app_config,
@@ -617,6 +722,11 @@ fn main() -> io::Result<()> {
                     }
 
                     let current_focus = window_manager.get_focus();
+
+                    // Handle lockscreen keyboard events (highest priority - blocks all other input)
+                    if dialog_handlers::handle_lockscreen_keyboard(&mut app_state, key_event) {
+                        continue;
+                    }
 
                     // Handle prompt keyboard navigation
                     if let Some(should_exit) =

@@ -16,7 +16,7 @@ pub fn render_frame(
     backend: &mut Box<dyn RenderBackend>,
     stdout: &mut io::Stdout,
     window_manager: &mut WindowManager,
-    app_state: &AppState,
+    app_state: &mut AppState,
     charset: &Charset,
     theme: &Theme,
     app_config: &AppConfig,
@@ -124,6 +124,12 @@ pub fn render_frame(
     // Render context menu (if visible)
     if app_state.context_menu.visible {
         app_state.context_menu.render(video_buffer, charset, theme);
+    }
+
+    // Render lockscreen (highest priority - on top of everything)
+    // This completely blocks all other UI when active
+    if app_state.lockscreen.is_active() {
+        app_state.lockscreen.render(video_buffer, charset, theme);
     }
 
     // Restore old cursor area before presenting new frame

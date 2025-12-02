@@ -4,6 +4,7 @@ use crate::context_menu::ContextMenu;
 use crate::error_dialog::ErrorDialog;
 use crate::info_window::InfoWindow;
 use crate::keyboard_mode::{KeyboardMode, MovementState};
+use crate::lockscreen::LockScreen;
 use crate::prompt::Prompt;
 use crate::slight_input::SlightInput;
 use crate::ui_render::CalendarState;
@@ -56,6 +57,9 @@ pub struct AppState {
 
     // Double-backtick detection for literal backtick input
     pub last_backtick_time: Option<Instant>,
+
+    // Lockscreen
+    pub lockscreen: LockScreen,
 }
 
 impl AppState {
@@ -142,6 +146,9 @@ impl AppState {
 
             // Double-backtick detection
             last_backtick_time: None,
+
+            // Lockscreen
+            lockscreen: LockScreen::new(),
         }
     }
 

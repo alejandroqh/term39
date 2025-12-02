@@ -319,3 +319,63 @@ pub fn handle_config_window_keyboard(app_state: &mut AppState, key_event: KeyEve
     }
     false
 }
+
+/// Handles keyboard events when lockscreen is active
+/// Returns true if event was handled
+pub fn handle_lockscreen_keyboard(app_state: &mut AppState, key_event: KeyEvent) -> bool {
+    if !app_state.lockscreen.is_active() {
+        return false;
+    }
+
+    // Block all input during lockout (but still consume events)
+    if app_state.lockscreen.lockout_remaining().is_some() {
+        return true;
+    }
+
+    match key_event.code {
+        KeyCode::Char(c) => {
+            app_state.lockscreen.insert_char(c);
+            true
+        }
+        KeyCode::Backspace => {
+            app_state.lockscreen.delete_char();
+            true
+        }
+        KeyCode::Delete => {
+            // Delete at cursor (not implemented, just consume)
+            true
+        }
+        KeyCode::Left => {
+            app_state.lockscreen.move_cursor_left();
+            true
+        }
+        KeyCode::Right => {
+            app_state.lockscreen.move_cursor_right();
+            true
+        }
+        KeyCode::Home => {
+            app_state.lockscreen.move_cursor_home();
+            true
+        }
+        KeyCode::End => {
+            app_state.lockscreen.move_cursor_end();
+            true
+        }
+        KeyCode::Tab => {
+            app_state.lockscreen.toggle_focus();
+            true
+        }
+        KeyCode::Enter => {
+            app_state.lockscreen.attempt_login();
+            true
+        }
+        KeyCode::Esc => {
+            // ESC does nothing on lockscreen - can't dismiss it
+            true
+        }
+        _ => {
+            // Consume all other keys when lockscreen is active
+            true
+        }
+    }
+}

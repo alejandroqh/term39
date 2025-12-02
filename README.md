@@ -59,6 +59,7 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
 - **Session Persistence**: Auto-save/restore of window layouts and terminal content between sessions
 - **Command Launcher**: Quick command palette with `Ctrl+Space`
 - **Clipboard Support**: System clipboard integration with drag-to-select, Ctrl+Shift+C/V, right-click menu
+- **Lockscreen**: System-authenticated lockscreen with `Shift+Q`, supports PAM (Linux), Directory Services (macOS), and Windows Security
 - **Customizable Themes**: Classic (default), Dark, Monochrome, Green Phosphor, Amber, Dracu, NDD, QBasic, TurboP, NCC, XT, WP, dB (via `--theme` flag)
 - **Battery Indicator**: Real-time battery status display in the top bar
 - **Cross-Platform**: Linux, macOS, Windows with full VT100/ANSI support and true color
@@ -203,7 +204,7 @@ cargo build --release --no-default-features
 | `t` / `T` | New window / Maximized window | `q` / `ESC` | Exit (desktop) |
 | `F1` / `?` / `h` | Show help | `s` | Settings |
 | `l` | License | `c` | Calendar |
-| `Ctrl+Space` | Command launcher | | |
+| `Ctrl+Space` | Command launcher | `Shift+Q` | Lock screen |
 
 **Window & Session**
 | Key | Action | Key | Action |
@@ -298,6 +299,7 @@ Press **`` ` ``** (backtick) or **F8** to enter Window Mode for full keyboard co
 | `--no-restore` | Don't restore previous session on startup |
 | `--no-save` | Don't save session (disables auto-save and manual save) |
 | `--no-exit` | Disable exit functionality (for use as a window manager) |
+| `--lock` | Lock a running term39 instance and exit (Unix only, see [Lockscreen](#lockscreen)) |
 
 ### Linux Console Options
 
@@ -374,6 +376,20 @@ Press **`` ` ``** (backtick) or **F8** to enter Window Mode for full keyboard co
     </tr>
   </table>
 </div>
+
+## Lockscreen
+
+System-authenticated lockscreen using PAM (Linux), Directory Services (macOS), or Windows Security.
+
+| Trigger | Command |
+|---------|---------|
+| Keyboard | `Shift+Q` |
+| CLI (Unix) | `term39 --lock` |
+| Signal (Unix) | `kill -USR1 $(pgrep term39)` |
+
+**Features:** Opaque background, progressive lockout (5s→120s after 3+ failures), auto-fill username.
+
+**Note:** Disabled with warning if authentication system unavailable.
 
 ## Architecture
 
