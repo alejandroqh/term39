@@ -204,7 +204,7 @@ cargo build --release --no-default-features
 | `t` / `T` | New window / Maximized window | `q` / `ESC` | Exit (desktop) |
 | `F1` / `?` / `h` | Show help | `s` | Settings |
 | `l` | License | `c` | Calendar |
-| `Ctrl+Space` | Command launcher | `Shift+Q` | Lock screen |
+| `Ctrl+Space` | Command launcher | `Shift+Q` / `F12` | Lock screen |
 
 **Window & Session**
 | Key | Action | Key | Action |

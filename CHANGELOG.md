@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.5] - 2025-12-02
+
+### Added
+
+- `F12` global lockscreen shortcut (works from anywhere, even inside terminal)
+- Toast notifications for user feedback (e.g., lockscreen configuration hints)
+
+### Fixed
+
+- **Windows keyboard input lag**: Keystrokes being eaten or requiring multiple presses now processed correctly via batch event handling (up to 50 events per frame)
+- **Confirmation dialog buttons not responding**: Fixed button click detection to account for Unicode button shadows and correct Y position calculation
+- Improved scrollback buffer performance using `VecDeque` for O(1) removal
+
 ## [0.16.4] - 2025-12-02
 
 ### Added
@@ -378,6 +391,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.16.5]: https://github.com/alejandroqh/term39/releases/tag/v0.16.5
+[0.16.4]: https://github.com/alejandroqh/term39/releases/tag/v0.16.4
 [0.16.0]: https://github.com/alejandroqh/term39/releases/tag/v0.16.0
 [0.15.3]: https://github.com/alejandroqh/term39/releases/tag/v0.15.3
 [0.15.0]: https://github.com/alejandroqh/term39/releases/tag/v0.15.0
