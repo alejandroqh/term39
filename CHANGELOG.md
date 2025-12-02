@@ -5,12 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.16.0] - 2025-12-02
+## [0.16.4] - 2025-12-02
 
 ### Added
 
 - Lockscreen feature with system authentication (PAM on Linux, Directory Services on macOS, Windows Security on Windows)
-- `--shell` flag to specify custom shell for terminal windows (e.g., `--shell /bin/zsh`)
+- `--shell` flag to specify custom shell for terminal windows (e.g., `--shell /bin/zsh`) idea by @dox187
 - `--lock` CLI option to lock a running term39 instance (Unix only)
 - `Shift+Q` keyboard shortcut to activate lockscreen
 - Progressive lockout after failed authentication attempts (5s→120s after 3+ failures)
