@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2025-12-02
+
+### Added
+
+- Lockscreen feature with system authentication (PAM on Linux, Directory Services on macOS, Windows Security on Windows)
+- `--shell` flag to specify custom shell for terminal windows (e.g., `--shell /bin/zsh`)
+- `--lock` CLI option to lock a running term39 instance (Unix only)
+- `Shift+Q` keyboard shortcut to activate lockscreen
+- Progressive lockout after failed authentication attempts (5s→120s after 3+ failures)
+
+### Changed
+
+- Improved cursor visibility handling during window operations
+- Enhanced dialog and prompt rendering
+
 ## [0.15.3] - 2025-12-01
 
 ### Added
@@ -363,6 +378,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.16.0]: https://github.com/alejandroqh/term39/releases/tag/v0.16.0
 [0.15.3]: https://github.com/alejandroqh/term39/releases/tag/v0.15.3
 [0.15.0]: https://github.com/alejandroqh/term39/releases/tag/v0.15.0
 [0.14.5]: https://github.com/alejandroqh/term39/releases/tag/v0.14.5

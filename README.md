@@ -299,6 +299,7 @@ Press **`` ` ``** (backtick) or **F8** to enter Window Mode for full keyboard co
 | `--no-restore` | Don't restore previous session on startup |
 | `--no-save` | Don't save session (disables auto-save and manual save) |
 | `--no-exit` | Disable exit functionality (for use as a window manager) |
+| `--shell <SHELL>` | Specify custom shell for terminal windows (e.g., `--shell /bin/zsh`) |
 | `--lock` | Lock a running term39 instance and exit (Unix only, see [Lockscreen](#lockscreen)) |
 
 ### Linux Console Options
