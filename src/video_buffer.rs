@@ -160,6 +160,11 @@ impl VideoBuffer {
     /// Uses queued commands for batched I/O - significantly reduces syscalls
     /// Optimized with run-length encoding for consecutive cells
     pub fn present(&mut self, stdout: &mut io::Stdout) -> io::Result<()> {
+        // Hide cursor at the START of rendering to prevent any cursor flicker
+        // This ensures the cursor stays hidden even if PTY output or other
+        // operations between frames affected cursor state
+        stdout.queue(cursor::Hide)?;
+
         let mut current_fg = Color::Reset;
         let mut current_bg = Color::Reset;
 

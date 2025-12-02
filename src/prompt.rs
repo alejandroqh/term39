@@ -134,10 +134,10 @@ pub struct Prompt {
     pub height: u16,
     pub x: u16,
     pub y: u16,
-    pub selected_button_index: usize,    // Index of currently selected button for keyboard navigation
-    pub text_align: TextAlign,           // Text alignment for the message
+    pub selected_button_index: usize, // Index of currently selected button for keyboard navigation
+    pub text_align: TextAlign,        // Text alignment for the message
     pub show_selection_indicators: bool, // Whether to show >< around selected button
-    pub position_mode: PositionMode,     // How to position the dialog
+    pub position_mode: PositionMode,  // How to position the dialog
 }
 
 impl Prompt {
@@ -228,7 +228,13 @@ impl Prompt {
     }
 
     /// Position the prompt centered within a specific region
-    pub fn centered_in_region(mut self, region_x: u16, region_y: u16, region_width: u16, region_height: u16) -> Self {
+    pub fn centered_in_region(
+        mut self,
+        region_x: u16,
+        region_y: u16,
+        region_width: u16,
+        region_height: u16,
+    ) -> Self {
         self.position_mode = PositionMode::CenteredInRegion {
             x: region_x,
             y: region_y,
@@ -437,18 +443,18 @@ impl Prompt {
             // - Selected button: [ Text ] (with brackets)
             // - Not selected button:   Text   (spaces instead of brackets)
             let (left_bracket, right_bracket) = if self.show_selection_indicators {
-                if is_selected {
-                    ('[', ']')
-                } else {
-                    (' ', ' ')
-                }
+                if is_selected { ('[', ']') } else { (' ', ' ') }
             } else {
                 // Default behavior: always show brackets
                 ('[', ']')
             };
 
             // Render button: [ Text ] or   Text
-            buffer.set(button_x, button_y, Cell::new(left_bracket, button_fg, button_bg));
+            buffer.set(
+                button_x,
+                button_y,
+                Cell::new(left_bracket, button_fg, button_bg),
+            );
             button_x += 1;
             buffer.set(button_x, button_y, Cell::new(' ', button_fg, button_bg));
             button_x += 1;
@@ -460,7 +466,11 @@ impl Prompt {
 
             buffer.set(button_x, button_y, Cell::new(' ', button_fg, button_bg));
             button_x += 1;
-            buffer.set(button_x, button_y, Cell::new(right_bracket, button_fg, button_bg));
+            buffer.set(
+                button_x,
+                button_y,
+                Cell::new(right_bracket, button_fg, button_bg),
+            );
             button_x += 1;
 
             // Render button shadow (right side and bottom) in UTF8 mode
