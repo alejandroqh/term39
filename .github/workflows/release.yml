@@ -178,9 +178,9 @@ jobs:
         if: ${{ !matrix.use_zigbuild }}
         run: cargo build --release --target ${{ matrix.target }}
 
-      - name: Build binary (zigbuild - Linux with framebuffer)
+      - name: Build binary (zigbuild - Linux musl without PAM)
         if: matrix.use_zigbuild
-        run: cargo zigbuild --release --target ${{ matrix.target }} --features framebuffer-backend
+        run: cargo zigbuild --release --target ${{ matrix.target }} --no-default-features --features clipboard,framebuffer-backend,battery
 
       - name: Package binary (Unix)
         if: runner.os != 'Windows'
@@ -297,8 +297,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-index-
 
-      - name: Build binary
-        run: cargo zigbuild --release --target ${{ matrix.target }} --features framebuffer-backend
+      - name: Build binary (musl without PAM)
+        run: cargo zigbuild --release --target ${{ matrix.target }} --no-default-features --features clipboard,framebuffer-backend,battery
 
       - name: Build .deb package
         run: cargo deb --target ${{ matrix.target }} --no-build --no-strip
@@ -372,8 +372,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-index-
 
-      - name: Build binary
-        run: cargo zigbuild --release --target ${{ matrix.target }} --features framebuffer-backend
+      - name: Build binary (musl without PAM)
+        run: cargo zigbuild --release --target ${{ matrix.target }} --no-default-features --features clipboard,framebuffer-backend,battery
 
       - name: Build .rpm package
         run: cargo generate-rpm --target ${{ matrix.target }}

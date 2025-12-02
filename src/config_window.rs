@@ -1,5 +1,6 @@
 use crate::charset::Charset;
 use crate::config_manager::{AppConfig, LockscreenAuthMode};
+use crate::lockscreen::auth::is_os_auth_compiled;
 use crate::theme::Theme;
 use crate::video_buffer::{self, Cell, VideoBuffer};
 
@@ -244,8 +245,8 @@ impl ConfigWindow {
             theme,
         );
 
-        // Render auth mode selector (only if lockscreen enabled)
-        if config.lockscreen_enabled {
+        // Render auth mode selector (only if lockscreen enabled AND OS auth is compiled)
+        if config.lockscreen_enabled && is_os_auth_compiled() {
             self.render_auth_mode_selector(
                 buffer,
                 self.lockscreen_auth_row,
@@ -253,16 +254,18 @@ impl ConfigWindow {
                 os_auth_available,
                 theme,
             );
+        }
 
-            // Render PIN setup button (only if PIN mode)
-            if config.lockscreen_auth_mode == LockscreenAuthMode::Pin {
-                self.render_pin_setup_button(
-                    buffer,
-                    self.pin_setup_row,
-                    config.has_pin_configured(),
-                    theme,
-                );
-            }
+        // Render PIN setup button (only if lockscreen enabled and PIN mode, or OS auth not compiled)
+        if config.lockscreen_enabled
+            && (config.lockscreen_auth_mode == LockscreenAuthMode::Pin || !is_os_auth_compiled())
+        {
+            self.render_pin_setup_button(
+                buffer,
+                self.pin_setup_row,
+                config.has_pin_configured(),
+                theme,
+            );
         }
 
         // Render instruction at bottom
@@ -542,16 +545,16 @@ impl ConfigWindow {
             }
         }
 
-        // Check if click is on auth mode row (only if lockscreen enabled)
-        if config.lockscreen_enabled && y == self.lockscreen_auth_row {
+        // Check if click is on auth mode row (only if lockscreen enabled AND OS auth compiled)
+        if config.lockscreen_enabled && is_os_auth_compiled() && y == self.lockscreen_auth_row {
             if x >= self.x && x < self.x + self.width {
                 return ConfigAction::CycleLockscreenAuthMode;
             }
         }
 
-        // Check if click is on PIN setup row (only if lockscreen enabled and PIN mode)
+        // Check if click is on PIN setup row (only if lockscreen enabled and PIN mode, or OS auth not compiled)
         if config.lockscreen_enabled
-            && config.lockscreen_auth_mode == LockscreenAuthMode::Pin
+            && (config.lockscreen_auth_mode == LockscreenAuthMode::Pin || !is_os_auth_compiled())
             && y == self.pin_setup_row
         {
             if x >= self.x && x < self.x + self.width {

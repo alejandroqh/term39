@@ -80,6 +80,7 @@ jobs:
         target:
           - x86_64-unknown-linux-gnu
           - aarch64-unknown-linux-gnu
+          - x86_64-unknown-linux-musl
 
     steps:
       - name: Checkout code
@@ -103,5 +104,10 @@ jobs:
       - name: Install cargo-zigbuild
         run: cargo install cargo-zigbuild
 
-      - name: Build
+      - name: Build (glibc targets with all features)
+        if: contains(matrix.target, 'gnu')
         run: cargo zigbuild --target ${{ matrix.target }}
+
+      - name: Build (musl targets without PAM)
+        if: contains(matrix.target, 'musl')
+        run: cargo zigbuild --target ${{ matrix.target }} --no-default-features --features clipboard,framebuffer-backend,battery

@@ -8,7 +8,7 @@
 
 #[cfg(target_os = "macos")]
 mod macos_auth;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", feature = "lockscreen"))]
 mod pam_auth;
 mod pin_auth;
 mod stub_auth;
@@ -46,9 +46,24 @@ pub trait Authenticator: Send + Sync {
     fn system_name(&self) -> &'static str;
 }
 
-/// Check if OS-level authentication is available
+/// Check if OS-level authentication is available at compile time
+/// Returns false for musl builds or when lockscreen feature is disabled on Linux
+pub const fn is_os_auth_compiled() -> bool {
+    cfg!(any(
+        all(target_os = "linux", feature = "lockscreen"),
+        target_os = "macos",
+        target_os = "windows"
+    ))
+}
+
+/// Check if OS-level authentication is available at runtime
 pub fn is_os_auth_available() -> bool {
-    #[cfg(target_os = "linux")]
+    // First check compile-time availability
+    if !is_os_auth_compiled() {
+        return false;
+    }
+
+    #[cfg(all(target_os = "linux", feature = "lockscreen"))]
     {
         if let Ok(auth) = pam_auth::PamAuthenticator::new() {
             return auth.is_available();
@@ -94,7 +109,7 @@ pub fn create_authenticator_with_mode(
 
 /// Factory function to create the platform-specific authenticator
 pub fn create_authenticator() -> Box<dyn Authenticator> {
-    #[cfg(target_os = "linux")]
+    #[cfg(all(target_os = "linux", feature = "lockscreen"))]
     {
         if let Ok(auth) = pam_auth::PamAuthenticator::new() {
             if auth.is_available() {

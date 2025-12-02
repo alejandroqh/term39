@@ -5,9 +5,9 @@ use std::path::PathBuf;
 /// Authentication mode for lockscreen
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum LockscreenAuthMode {
-    #[default]
     OsAuth, // PAM/macOS/Windows native auth
-    Pin, // Alphanumeric PIN with local hash
+    #[default]
+    Pin, // Alphanumeric PIN with local hash (default - always available)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
