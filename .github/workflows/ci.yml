@@ -91,11 +91,6 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libclang-dev libpam0g-dev
-
       - name: Install Zig
         uses: goto-bus-stop/setup-zig@v2
         with:
@@ -104,10 +99,5 @@ jobs:
       - name: Install cargo-zigbuild
         run: cargo install cargo-zigbuild
 
-      - name: Build (glibc targets with all features)
-        if: contains(matrix.target, 'gnu')
-        run: cargo zigbuild --target ${{ matrix.target }}
-
-      - name: Build (musl targets without PAM)
-        if: contains(matrix.target, 'musl')
+      - name: Build (cross-compile without PAM - PAM requires native build)
         run: cargo zigbuild --target ${{ matrix.target }} --no-default-features --features clipboard,framebuffer-backend,battery

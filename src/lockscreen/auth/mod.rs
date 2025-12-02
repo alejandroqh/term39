@@ -47,12 +47,15 @@ pub trait Authenticator: Send + Sync {
 }
 
 /// Check if OS-level authentication is available at compile time
-/// Returns false for musl builds or when lockscreen feature is disabled on Linux
+/// Returns false when lockscreen feature is disabled
 pub const fn is_os_auth_compiled() -> bool {
-    cfg!(any(
-        all(target_os = "linux", feature = "lockscreen"),
-        target_os = "macos",
-        target_os = "windows"
+    cfg!(all(
+        feature = "lockscreen",
+        any(
+            target_os = "linux",
+            target_os = "macos",
+            target_os = "windows"
+        )
     ))
 }
 
