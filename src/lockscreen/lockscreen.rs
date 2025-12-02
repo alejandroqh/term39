@@ -1,12 +1,15 @@
 //! LockScreen struct - manages the lockscreen UI and state.
 
 use crate::charset::Charset;
+use crate::config_manager::LockscreenAuthMode;
 use crate::theme::Theme;
 use crate::video_buffer::{self, Cell, VideoBuffer};
 use crossterm::style::Color;
 use std::time::{Duration, Instant};
 
-use super::auth::{AuthResult, Authenticator, create_authenticator};
+use super::auth::{
+    AuthResult, Authenticator, create_authenticator, create_authenticator_with_mode, secure_clear,
+};
 
 /// State of the lockscreen
 #[derive(Debug, Clone, PartialEq)]
@@ -47,6 +50,13 @@ pub struct LockScreen {
 
     // Authentication backend
     authenticator: Box<dyn Authenticator>,
+
+    // Authentication mode
+    auth_mode: LockscreenAuthMode,
+
+    // Cached PIN hash and salt for PIN mode
+    pin_hash: Option<String>,
+    pin_salt: Option<String>,
 }
 
 impl LockScreen {
@@ -67,17 +77,82 @@ impl LockScreen {
             dialog_width: 50,
             dialog_height: 14,
             authenticator,
+            auth_mode: LockscreenAuthMode::OsAuth,
+            pin_hash: None,
+            pin_salt: None,
         }
     }
 
+    /// Create a new lockscreen with the specified auth mode
+    pub fn new_with_mode(
+        auth_mode: LockscreenAuthMode,
+        pin_hash: Option<String>,
+        pin_salt: Option<String>,
+    ) -> Self {
+        let authenticator =
+            create_authenticator_with_mode(auth_mode, pin_hash.as_deref(), pin_salt.as_deref());
+        let username = authenticator.get_current_username().unwrap_or_default();
+
+        Self {
+            state: LockScreenState::Inactive,
+            username,
+            password: String::new(),
+            cursor_position: 0,
+            focus: InputFocus::Password,
+            error_message: None,
+            failed_attempts: 0,
+            dialog_width: 50,
+            dialog_height: if auth_mode == LockscreenAuthMode::Pin {
+                12
+            } else {
+                14
+            },
+            authenticator,
+            auth_mode,
+            pin_hash,
+            pin_salt,
+        }
+    }
+
+    /// Update the authenticator (call when config changes)
+    pub fn update_auth_mode(
+        &mut self,
+        auth_mode: LockscreenAuthMode,
+        pin_hash: Option<String>,
+        pin_salt: Option<String>,
+    ) {
+        self.auth_mode = auth_mode;
+        self.pin_hash = pin_hash.clone();
+        self.pin_salt = pin_salt.clone();
+        self.authenticator =
+            create_authenticator_with_mode(auth_mode, pin_hash.as_deref(), pin_salt.as_deref());
+        self.dialog_height = if auth_mode == LockscreenAuthMode::Pin {
+            12
+        } else {
+            14
+        };
+    }
+
     /// Check if authentication system is available
+    /// For OS Auth: requires system auth available
+    /// For PIN: requires PIN configured
     pub fn is_available(&self) -> bool {
-        self.authenticator.is_available()
+        match self.auth_mode {
+            LockscreenAuthMode::OsAuth => self.authenticator.is_available(),
+            LockscreenAuthMode::Pin => self.pin_hash.is_some() && self.pin_salt.is_some(),
+        }
     }
 
     /// Get the authentication system name (for debugging/display)
+    #[allow(dead_code)]
     pub fn auth_system_name(&self) -> &'static str {
         self.authenticator.system_name()
+    }
+
+    /// Get current auth mode
+    #[allow(dead_code)]
+    pub fn auth_mode(&self) -> LockscreenAuthMode {
+        self.auth_mode
     }
 
     /// Activate the lockscreen
@@ -326,8 +401,12 @@ impl LockScreen {
             Cell::new(top_right, border_color, bg_color),
         );
 
-        // Draw title centered in top border
-        let title = " System Locked ";
+        // Draw title centered in top border - different for PIN vs OS Auth
+        let title = if self.auth_mode == LockscreenAuthMode::Pin {
+            " Enter PIN "
+        } else {
+            " System Locked "
+        };
         let title_start = x + (self.dialog_width - title.len() as u16) / 2;
         for (i, ch) in title.chars().enumerate() {
             buffer.set(title_start + i as u16, y, Cell::new(ch, title_fg, title_bg));
@@ -366,109 +445,186 @@ impl LockScreen {
         let content_x = x + 3;
         let field_width = self.dialog_width - 16; // Width for input fields
 
-        // Username label and field (y + 3)
-        let username_y = y + 3;
-        let username_label = "Username:";
-        for (i, ch) in username_label.chars().enumerate() {
-            buffer.set(
-                content_x + i as u16,
-                username_y,
-                Cell::new(ch, fg_color, bg_color),
-            );
-        }
-
-        // Username input field
-        let field_x = content_x + 11;
-        self.render_input_field(
-            buffer,
-            field_x,
-            username_y,
-            field_width,
-            &self.username,
-            false, // Not masked
-            self.focus == InputFocus::Username,
-            if self.focus == InputFocus::Username {
-                self.cursor_position
-            } else {
-                usize::MAX
-            },
-            theme,
-        );
-
-        // Password label and field (y + 5)
-        let password_y = y + 5;
-        let password_label = "Password:";
-        for (i, ch) in password_label.chars().enumerate() {
-            buffer.set(
-                content_x + i as u16,
-                password_y,
-                Cell::new(ch, fg_color, bg_color),
-            );
-        }
-
-        // Password input field (masked)
-        self.render_input_field(
-            buffer,
-            field_x,
-            password_y,
-            field_width,
-            &self.password,
-            true, // Masked with *
-            self.focus == InputFocus::Password,
-            if self.focus == InputFocus::Password {
-                self.cursor_position
-            } else {
-                usize::MAX
-            },
-            theme,
-        );
-
-        // Error message or lockout message (y + 7)
-        let message_y = y + 8;
-        if let Some(remaining) = self.lockout_remaining() {
-            let lockout_msg = format!("Locked for {} seconds...", remaining);
-            let msg_x = x + (self.dialog_width - lockout_msg.len() as u16) / 2;
-            for (i, ch) in lockout_msg.chars().enumerate() {
+        // Different layout for PIN mode vs OS Auth mode
+        if self.auth_mode == LockscreenAuthMode::Pin {
+            // PIN mode: only show PIN input field
+            let pin_y = y + 3;
+            let pin_label = "PIN:";
+            for (i, ch) in pin_label.chars().enumerate() {
                 buffer.set(
-                    msg_x + i as u16,
-                    message_y,
-                    Cell::new(ch, Color::Yellow, bg_color),
+                    content_x + i as u16,
+                    pin_y,
+                    Cell::new(ch, fg_color, bg_color),
                 );
             }
-        } else if let Some(ref error) = self.error_message {
-            let msg_x = x + (self.dialog_width - error.len() as u16) / 2;
-            for (i, ch) in error.chars().enumerate() {
-                buffer.set(
-                    msg_x + i as u16,
-                    message_y,
-                    Cell::new(ch, Color::Red, bg_color),
-                );
-            }
-        }
 
-        // Failed attempts counter (if any)
-        if self.failed_attempts > 0 {
-            let attempts_msg = format!("Failed attempts: {}", self.failed_attempts);
-            let attempts_x = x + (self.dialog_width - attempts_msg.len() as u16) / 2;
-            for (i, ch) in attempts_msg.chars().enumerate() {
+            // PIN input field (masked)
+            let field_x = content_x + 11;
+            self.render_input_field(
+                buffer,
+                field_x,
+                pin_y,
+                field_width,
+                &self.password,
+                true, // Masked with *
+                true, // Always focused in PIN mode
+                self.cursor_position,
+                theme,
+            );
+
+            // Error message or lockout message
+            let message_y = y + 5;
+            if let Some(remaining) = self.lockout_remaining() {
+                let lockout_msg = format!("Locked for {} seconds...", remaining);
+                let msg_x = x + (self.dialog_width - lockout_msg.len() as u16) / 2;
+                for (i, ch) in lockout_msg.chars().enumerate() {
+                    buffer.set(
+                        msg_x + i as u16,
+                        message_y,
+                        Cell::new(ch, Color::Yellow, bg_color),
+                    );
+                }
+            } else if let Some(ref error) = self.error_message {
+                let msg_x = x + (self.dialog_width - error.len() as u16) / 2;
+                for (i, ch) in error.chars().enumerate() {
+                    buffer.set(
+                        msg_x + i as u16,
+                        message_y,
+                        Cell::new(ch, Color::Red, bg_color),
+                    );
+                }
+            }
+
+            // Failed attempts counter (if any)
+            if self.failed_attempts > 0 {
+                let attempts_msg = format!("Failed attempts: {}", self.failed_attempts);
+                let attempts_x = x + (self.dialog_width - attempts_msg.len() as u16) / 2;
+                for (i, ch) in attempts_msg.chars().enumerate() {
+                    buffer.set(
+                        attempts_x + i as u16,
+                        y + 7,
+                        Cell::new(ch, Color::DarkGrey, bg_color),
+                    );
+                }
+            }
+
+            // Instructions at bottom
+            let instructions_y = y + 9;
+            let instructions = "Enter: Unlock";
+            let instructions_x = x + (self.dialog_width - instructions.len() as u16) / 2;
+            for (i, ch) in instructions.chars().enumerate() {
                 buffer.set(
-                    attempts_x + i as u16,
-                    y + 9,
+                    instructions_x + i as u16,
+                    instructions_y,
                     Cell::new(ch, Color::DarkGrey, bg_color),
                 );
             }
-        }
+        } else {
+            // OS Auth mode: show username and password fields
+            // Username label and field (y + 3)
+            let username_y = y + 3;
+            let username_label = "Username:";
+            for (i, ch) in username_label.chars().enumerate() {
+                buffer.set(
+                    content_x + i as u16,
+                    username_y,
+                    Cell::new(ch, fg_color, bg_color),
+                );
+            }
 
-        // Instructions at bottom (y + 11)
-        let instructions_y = y + 11;
-        let instructions = "Enter: Unlock | Tab: Switch field";
-        let instructions_x = x + (self.dialog_width - instructions.len() as u16) / 2;
-        for (i, ch) in instructions.chars().enumerate() {
-            buffer.set(
-                instructions_x + i as u16,
-                instructions_y,
-                Cell::new(ch, Color::DarkGrey, bg_color),
+            // Username input field
+            let field_x = content_x + 11;
+            self.render_input_field(
+                buffer,
+                field_x,
+                username_y,
+                field_width,
+                &self.username,
+                false, // Not masked
+                self.focus == InputFocus::Username,
+                if self.focus == InputFocus::Username {
+                    self.cursor_position
+                } else {
+                    usize::MAX
+                },
+                theme,
             );
+
+            // Password label and field (y + 5)
+            let password_y = y + 5;
+            let password_label = "Password:";
+            for (i, ch) in password_label.chars().enumerate() {
+                buffer.set(
+                    content_x + i as u16,
+                    password_y,
+                    Cell::new(ch, fg_color, bg_color),
+                );
+            }
+
+            // Password input field (masked)
+            self.render_input_field(
+                buffer,
+                field_x,
+                password_y,
+                field_width,
+                &self.password,
+                true, // Masked with *
+                self.focus == InputFocus::Password,
+                if self.focus == InputFocus::Password {
+                    self.cursor_position
+                } else {
+                    usize::MAX
+                },
+                theme,
+            );
+
+            // Error message or lockout message (y + 7)
+            let message_y = y + 8;
+            if let Some(remaining) = self.lockout_remaining() {
+                let lockout_msg = format!("Locked for {} seconds...", remaining);
+                let msg_x = x + (self.dialog_width - lockout_msg.len() as u16) / 2;
+                for (i, ch) in lockout_msg.chars().enumerate() {
+                    buffer.set(
+                        msg_x + i as u16,
+                        message_y,
+                        Cell::new(ch, Color::Yellow, bg_color),
+                    );
+                }
+            } else if let Some(ref error) = self.error_message {
+                let msg_x = x + (self.dialog_width - error.len() as u16) / 2;
+                for (i, ch) in error.chars().enumerate() {
+                    buffer.set(
+                        msg_x + i as u16,
+                        message_y,
+                        Cell::new(ch, Color::Red, bg_color),
+                    );
+                }
+            }
+
+            // Failed attempts counter (if any)
+            if self.failed_attempts > 0 {
+                let attempts_msg = format!("Failed attempts: {}", self.failed_attempts);
+                let attempts_x = x + (self.dialog_width - attempts_msg.len() as u16) / 2;
+                for (i, ch) in attempts_msg.chars().enumerate() {
+                    buffer.set(
+                        attempts_x + i as u16,
+                        y + 9,
+                        Cell::new(ch, Color::DarkGrey, bg_color),
+                    );
+                }
+            }
+
+            // Instructions at bottom (y + 11)
+            let instructions_y = y + 11;
+            let instructions = "Enter: Unlock | Tab: Switch field";
+            let instructions_x = x + (self.dialog_width - instructions.len() as u16) / 2;
+            for (i, ch) in instructions.chars().enumerate() {
+                buffer.set(
+                    instructions_x + i as u16,
+                    instructions_y,
+                    Cell::new(ch, Color::DarkGrey, bg_color),
+                );
+            }
         }
 
         // Render shadow (like other dialogs)
@@ -527,6 +683,13 @@ impl LockScreen {
 impl Default for LockScreen {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Drop for LockScreen {
+    fn drop(&mut self) {
+        // Clear sensitive data from memory
+        secure_clear(&mut self.password);
     }
 }
 

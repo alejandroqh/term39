@@ -7,8 +7,10 @@
 pub mod auth;
 #[allow(clippy::module_inception)]
 mod lockscreen;
+mod pin_setup;
 
 pub use lockscreen::LockScreen;
+pub use pin_setup::{PinSetupDialog, PinSetupState};
 
 // Signal handler for external lock trigger (Unix only)
 #[cfg(unix)]

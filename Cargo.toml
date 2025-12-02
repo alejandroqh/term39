@@ -43,6 +43,7 @@ directories = "6.0"
 clap = { version = "4.5", features = ["derive"] }
 arboard = { version = "3.4", optional = true }
 starship-battery = { version = "0.10", optional = true }
+sha2 = "0.10"
 
 # Framebuffer backend and lockscreen dependencies (Linux only)
 [target.'cfg(target_os = "linux")'.dependencies]

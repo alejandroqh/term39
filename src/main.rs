@@ -61,6 +61,8 @@ use crossterm::{
     terminal::{self, ClearType},
 };
 use error_dialog::ErrorDialog;
+use lockscreen::PinSetupState;
+use lockscreen::auth::is_os_auth_available;
 use prompt::{Prompt, PromptAction, PromptButton, PromptType};
 use selection::SelectionType;
 use slight_input::SlightInput;
@@ -501,12 +503,11 @@ fn main() -> io::Result<()> {
 
     // Initialize application state
     let (cols, rows) = backend.dimensions();
-    let mut app_state = AppState::new(
-        cols,
-        rows,
-        app_config.auto_tiling_on_startup,
-        app_config.tint_terminal || cli_args.tint_terminal,
-    );
+    // If tint_terminal is set via CLI, update config (won't persist to file)
+    if cli_args.tint_terminal {
+        app_config.tint_terminal = true;
+    }
+    let mut app_state = AppState::new(cols, rows, &app_config);
 
     // Disable exit button if --no-exit flag is set
     if cli_args.no_exit {
@@ -525,16 +526,6 @@ fn main() -> io::Result<()> {
 
     // Set up signal handler for external lockscreen trigger (Unix only)
     lockscreen::signal_handler::setup();
-
-    // Check lockscreen availability and warn if unavailable
-    if !app_state.lockscreen.is_available() {
-        eprintln!(
-            "Warning: Lockscreen authentication system ({}) unavailable.",
-            app_state.lockscreen.auth_system_name()
-        );
-        eprintln!("Lockscreen feature (Shift+Q) will be disabled.");
-        std::thread::sleep(Duration::from_secs(2));
-    }
 
     // Start with desktop focused - no windows yet
     // User can press 't' to create windows
@@ -760,6 +751,24 @@ fn main() -> io::Result<()> {
                         continue;
                     }
 
+                    // Handle PIN setup dialog keyboard events
+                    if let Some(ref mut pin_setup) = app_state.active_pin_setup {
+                        pin_setup.handle_key(key_event);
+                        match pin_setup.state().clone() {
+                            PinSetupState::Complete { hash, salt } => {
+                                // Save PIN to config
+                                app_config.set_pin(hash, salt);
+                                app_state.update_lockscreen_auth(&app_config);
+                                app_state.active_pin_setup = None;
+                            }
+                            PinSetupState::Cancelled => {
+                                app_state.active_pin_setup = None;
+                            }
+                            _ => {}
+                        }
+                        continue;
+                    }
+
                     // Handle Slight input keyboard events
                     if dialog_handlers::handle_slight_input_keyboard(
                         &mut app_state,
@@ -914,8 +923,11 @@ fn main() -> io::Result<()> {
                     if !handled {
                         if let Some(ref config_win) = app_state.active_config_window {
                             if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
-                                let action =
-                                    config_win.handle_click(mouse_event.column, mouse_event.row);
+                                let action = config_win.handle_click(
+                                    mouse_event.column,
+                                    mouse_event.row,
+                                    &app_config,
+                                );
                                 match action {
                                     ConfigAction::Close => {
                                         app_state.active_config_window = None;
@@ -998,6 +1010,23 @@ fn main() -> io::Result<()> {
                                         }
 
                                         // Keep config window open (silent save)
+                                        handled = true;
+                                    }
+                                    ConfigAction::ToggleLockscreen => {
+                                        app_config.toggle_lockscreen_enabled();
+                                        handled = true;
+                                    }
+                                    ConfigAction::CycleLockscreenAuthMode => {
+                                        app_config
+                                            .cycle_lockscreen_auth_mode(is_os_auth_available());
+                                        app_state.update_lockscreen_auth(&app_config);
+                                        handled = true;
+                                    }
+                                    ConfigAction::SetupPin => {
+                                        // Close config window and open PIN setup dialog
+                                        app_state.active_config_window = None;
+                                        let salt = app_config.get_or_create_salt();
+                                        app_state.start_pin_setup(salt);
                                         handled = true;
                                     }
                                     ConfigAction::None => {

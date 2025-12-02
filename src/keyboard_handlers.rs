@@ -231,9 +231,11 @@ pub fn handle_desktop_keyboard(
             if key_event.modifiers.contains(KeyModifiers::SHIFT)
                 && matches!(current_focus, FocusState::Desktop | FocusState::Topbar) =>
         {
-            if app_state.lockscreen.is_available() {
+            // Check if lockscreen is enabled in config
+            if app_config.lockscreen_enabled && app_state.lockscreen.is_available() {
                 app_state.lockscreen.lock();
             }
+            // If disabled or unavailable, silently ignore
             return true;
         }
         KeyCode::Char('q') => {

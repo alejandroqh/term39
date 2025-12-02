@@ -1,5 +1,5 @@
 use crate::charset::Charset;
-use crate::config_manager::AppConfig;
+use crate::config_manager::{AppConfig, LockscreenAuthMode};
 use crate::theme::Theme;
 use crate::video_buffer::{self, Cell, VideoBuffer};
 
@@ -15,6 +15,9 @@ pub enum ConfigAction {
     CycleBackgroundChar,
     ToggleTintTerminal,
     ToggleAutoSave,
+    ToggleLockscreen,
+    CycleLockscreenAuthMode,
+    SetupPin,
 }
 
 /// Configuration modal window (centered, with border and title)
@@ -29,6 +32,9 @@ pub struct ConfigWindow {
     background_char_row: u16, // Row where background character selector is rendered
     tint_terminal_row: u16,   // Row where tint terminal toggle is rendered
     auto_save_row: u16,       // Row where auto-save toggle is rendered
+    lockscreen_row: u16,      // Row where lockscreen toggle is rendered
+    lockscreen_auth_row: u16, // Row where lockscreen auth mode is rendered
+    pin_setup_row: u16,       // Row where PIN setup button is rendered
 }
 
 impl ConfigWindow {
@@ -36,7 +42,7 @@ impl ConfigWindow {
     pub fn new(buffer_width: u16, buffer_height: u16) -> Self {
         // Fixed dimensions for config window
         let width = 60;
-        let height = 18; // Increased to fit all options including auto-save
+        let height = 24; // Increased to fit lockscreen options
 
         // Center on screen
         let x = (buffer_width.saturating_sub(width)) / 2;
@@ -49,6 +55,9 @@ impl ConfigWindow {
         let background_char_row = y + 9; // Blank at y+8, fourth option at y+9
         let tint_terminal_row = y + 11; // Blank at y+10, fifth option at y+11
         let auto_save_row = y + 13; // Blank at y+12, sixth option at y+13
+        let lockscreen_row = y + 15; // Blank at y+14, seventh option at y+15
+        let lockscreen_auth_row = y + 17; // Blank at y+16, eighth option at y+17
+        let pin_setup_row = y + 19; // Blank at y+18, ninth option at y+19
 
         Self {
             width,
@@ -61,6 +70,9 @@ impl ConfigWindow {
             background_char_row,
             tint_terminal_row,
             auto_save_row,
+            lockscreen_row,
+            lockscreen_auth_row,
+            pin_setup_row,
         }
     }
 
@@ -72,6 +84,7 @@ impl ConfigWindow {
         theme: &Theme,
         config: &AppConfig,
         tint_terminal: bool,
+        os_auth_available: bool,
     ) {
         let title_bg = theme.config_title_bg;
         let title_fg = theme.config_title_fg;
@@ -220,6 +233,37 @@ impl ConfigWindow {
             charset,
             theme,
         );
+
+        // Render lockscreen toggle
+        self.render_option(
+            buffer,
+            self.lockscreen_row,
+            "Lockscreen (Shift+Q):",
+            config.lockscreen_enabled,
+            charset,
+            theme,
+        );
+
+        // Render auth mode selector (only if lockscreen enabled)
+        if config.lockscreen_enabled {
+            self.render_auth_mode_selector(
+                buffer,
+                self.lockscreen_auth_row,
+                config.lockscreen_auth_mode,
+                os_auth_available,
+                theme,
+            );
+
+            // Render PIN setup button (only if PIN mode)
+            if config.lockscreen_auth_mode == LockscreenAuthMode::Pin {
+                self.render_pin_setup_button(
+                    buffer,
+                    self.pin_setup_row,
+                    config.has_pin_configured(),
+                    theme,
+                );
+            }
+        }
 
         // Render instruction at bottom
         let instruction = "Press ESC to close";
@@ -370,8 +414,79 @@ impl ConfigWindow {
         }
     }
 
+    /// Render auth mode selector showing current mode with arrows to cycle
+    fn render_auth_mode_selector(
+        &self,
+        buffer: &mut VideoBuffer,
+        row: u16,
+        mode: LockscreenAuthMode,
+        os_auth_available: bool,
+        theme: &Theme,
+    ) {
+        let fg = theme.config_content_fg;
+        let bg = theme.config_content_bg;
+
+        let option_x = self.x + 3;
+
+        let label = "Auth mode:";
+        for (i, ch) in label.chars().enumerate() {
+            buffer.set(option_x + i as u16, row, Cell::new(ch, fg, bg));
+        }
+
+        let mode_text = match mode {
+            LockscreenAuthMode::OsAuth => {
+                if os_auth_available {
+                    "< OS Auth >"
+                } else {
+                    "< OS Auth (unavail) >"
+                }
+            }
+            LockscreenAuthMode::Pin => "< PIN >",
+        };
+
+        let selector_x = option_x + label.len() as u16 + 2;
+        for (i, ch) in mode_text.chars().enumerate() {
+            buffer.set(selector_x + i as u16, row, Cell::new(ch, fg, bg));
+        }
+    }
+
+    /// Render PIN setup button
+    fn render_pin_setup_button(
+        &self,
+        buffer: &mut VideoBuffer,
+        row: u16,
+        has_pin: bool,
+        theme: &Theme,
+    ) {
+        let fg = theme.config_content_fg;
+        let bg = theme.config_content_bg;
+
+        let option_x = self.x + 3;
+
+        let (button_text, status_text) = if has_pin {
+            ("[ Change PIN ]", "   PIN is configured")
+        } else {
+            ("[ Set PIN ]", "      PIN required to enable")
+        };
+
+        // Render button in highlight color
+        for (i, ch) in button_text.chars().enumerate() {
+            buffer.set(
+                option_x + i as u16,
+                row,
+                Cell::new(ch, theme.config_toggle_on_color, bg),
+            );
+        }
+
+        // Render status text
+        let status_x = option_x + button_text.len() as u16;
+        for (i, ch) in status_text.chars().enumerate() {
+            buffer.set(status_x + i as u16, row, Cell::new(ch, fg, bg));
+        }
+    }
+
     /// Handle mouse click and return appropriate action
-    pub fn handle_click(&self, x: u16, y: u16) -> ConfigAction {
+    pub fn handle_click(&self, x: u16, y: u16, config: &AppConfig) -> ConfigAction {
         // Check if click is on auto tiling row
         if y == self.auto_arrange_row {
             // Click anywhere on the row toggles the option
@@ -417,6 +532,30 @@ impl ConfigWindow {
             // Click anywhere on the row toggles the option
             if x >= self.x && x < self.x + self.width {
                 return ConfigAction::ToggleAutoSave;
+            }
+        }
+
+        // Check if click is on lockscreen row
+        if y == self.lockscreen_row {
+            if x >= self.x && x < self.x + self.width {
+                return ConfigAction::ToggleLockscreen;
+            }
+        }
+
+        // Check if click is on auth mode row (only if lockscreen enabled)
+        if config.lockscreen_enabled && y == self.lockscreen_auth_row {
+            if x >= self.x && x < self.x + self.width {
+                return ConfigAction::CycleLockscreenAuthMode;
+            }
+        }
+
+        // Check if click is on PIN setup row (only if lockscreen enabled and PIN mode)
+        if config.lockscreen_enabled
+            && config.lockscreen_auth_mode == LockscreenAuthMode::Pin
+            && y == self.pin_setup_row
+        {
+            if x >= self.x && x < self.x + self.width {
+                return ConfigAction::SetupPin;
             }
         }
 

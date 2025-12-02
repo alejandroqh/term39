@@ -2,6 +2,7 @@ use crate::app_state::AppState;
 use crate::charset::Charset;
 use crate::config_manager::AppConfig;
 use crate::keyboard_mode::KeyboardMode;
+use crate::lockscreen::auth::is_os_auth_available;
 use crate::render_backend::RenderBackend;
 use crate::theme::Theme;
 use crate::ui_render;
@@ -94,7 +95,14 @@ pub fn render_frame(
             theme,
             app_config,
             app_state.tint_terminal,
+            is_os_auth_available(),
         );
+    }
+
+    // Render active PIN setup dialog (if any) on top of everything
+    if let Some(ref pin_setup) = app_state.active_pin_setup {
+        video_buffer::render_fullscreen_shadow(video_buffer, theme);
+        pin_setup.render(video_buffer, charset, theme);
     }
 
     // Render active help window (if any)

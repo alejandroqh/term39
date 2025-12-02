@@ -1,10 +1,11 @@
 use crate::button::Button;
+use crate::config_manager::AppConfig;
 use crate::config_window::ConfigWindow;
 use crate::context_menu::ContextMenu;
 use crate::error_dialog::ErrorDialog;
 use crate::info_window::InfoWindow;
 use crate::keyboard_mode::{KeyboardMode, MovementState};
-use crate::lockscreen::LockScreen;
+use crate::lockscreen::{LockScreen, PinSetupDialog};
 use crate::prompt::Prompt;
 use crate::slight_input::SlightInput;
 use crate::ui_render::CalendarState;
@@ -60,11 +61,14 @@ pub struct AppState {
 
     // Lockscreen
     pub lockscreen: LockScreen,
+    pub active_pin_setup: Option<PinSetupDialog>,
 }
 
 impl AppState {
     /// Creates a new AppState with initial button positions
-    pub fn new(cols: u16, rows: u16, auto_tiling_on_startup: bool, tint_terminal: bool) -> Self {
+    pub fn new(cols: u16, rows: u16, config: &AppConfig) -> Self {
+        let auto_tiling_on_startup = config.auto_tiling_on_startup;
+        let tint_terminal = config.tint_terminal;
         // Create the "New Terminal" button
         let new_terminal_button = Button::new(1, 0, "+New Terminal".to_string());
 
@@ -147,9 +151,28 @@ impl AppState {
             // Double-backtick detection
             last_backtick_time: None,
 
-            // Lockscreen
-            lockscreen: LockScreen::new(),
+            // Lockscreen - initialize with config settings
+            lockscreen: LockScreen::new_with_mode(
+                config.lockscreen_auth_mode,
+                config.lockscreen_pin_hash.clone(),
+                config.lockscreen_salt.clone(),
+            ),
+            active_pin_setup: None,
         }
+    }
+
+    /// Starts the PIN setup dialog
+    pub fn start_pin_setup(&mut self, salt: String) {
+        self.active_pin_setup = Some(PinSetupDialog::new(salt));
+    }
+
+    /// Updates the lockscreen authentication mode from config
+    pub fn update_lockscreen_auth(&mut self, config: &AppConfig) {
+        self.lockscreen.update_auth_mode(
+            config.lockscreen_auth_mode,
+            config.lockscreen_pin_hash.clone(),
+            config.lockscreen_salt.clone(),
+        );
     }
 
     /// Updates button positions and states based on current clipboard and selection state
