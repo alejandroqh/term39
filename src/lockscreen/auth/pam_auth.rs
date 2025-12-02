@@ -4,7 +4,7 @@
 use super::{AuthResult, Authenticator};
 
 #[cfg(target_os = "linux")]
-use pam::Authenticator as PamAuth;
+use pam::client::Client as PamClient;
 
 /// PAM-based authenticator for Linux systems.
 #[cfg(target_os = "linux")]
@@ -40,19 +40,21 @@ impl Authenticator for PamAuthenticator {
     }
 
     fn authenticate(&self, username: &str, password: &str) -> AuthResult {
-        // Create PAM authenticator
-        let mut auth = match PamAuth::with_password(&self.service_name) {
-            Ok(auth) => auth,
+        // Create PAM client
+        let mut client = match PamClient::with_password(&self.service_name) {
+            Ok(client) => client,
             Err(e) => {
                 return AuthResult::SystemError(format!("PAM initialization failed: {}", e));
             }
         };
 
         // Set credentials
-        auth.get_handler().set_credentials(username, password);
+        client
+            .conversation_mut()
+            .set_credentials(username, password);
 
         // Attempt authentication
-        match auth.authenticate() {
+        match client.authenticate() {
             Ok(()) => AuthResult::Success,
             Err(_) => AuthResult::Failure("Invalid username or password".to_string()),
         }
