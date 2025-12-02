@@ -29,6 +29,12 @@ jobs:
           toolchain: ${{ matrix.rust }}
           components: rustfmt, clippy
 
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev libpam0g-dev
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
@@ -83,6 +89,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev libpam0g-dev
 
       - name: Install Zig
         uses: goto-bus-stop/setup-zig@v2
