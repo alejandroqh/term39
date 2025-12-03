@@ -721,15 +721,38 @@ fn main() -> io::Result<()> {
 
             match current_event {
                 Event::Key(key_event) => {
-                    // Only process key press and repeat events
                     // Windows sends KeyEventKind::Press, Release, AND Repeat
                     // - Press: initial key down
                     // - Repeat: key held down (auto-repeat)
                     // - Release: key up (should be ignored)
-                    // Ignoring Repeat events was causing keys to feel "unreliable" on Windows
-                    // as held keys would not register after the initial press
+                    //
+                    // For character keys: only process Press events to avoid duplicates
+                    // when typing fast (Windows can generate spurious Repeat events)
+                    // For navigation keys (arrows, etc.): process both Press and Repeat
+                    // so holding the key continues to work
                     if key_event.kind == KeyEventKind::Release {
                         continue;
+                    }
+
+                    // Skip Repeat events for character keys to prevent duplicates
+                    // Allow Repeat for navigation/control keys (arrows, Page Up/Down, etc.)
+                    if key_event.kind == KeyEventKind::Repeat {
+                        let is_navigation_key = matches!(
+                            key_event.code,
+                            KeyCode::Up
+                                | KeyCode::Down
+                                | KeyCode::Left
+                                | KeyCode::Right
+                                | KeyCode::PageUp
+                                | KeyCode::PageDown
+                                | KeyCode::Home
+                                | KeyCode::End
+                                | KeyCode::Backspace
+                                | KeyCode::Delete
+                        );
+                        if !is_navigation_key {
+                            continue;
+                        }
                     }
 
                     let current_focus = window_manager.get_focus();

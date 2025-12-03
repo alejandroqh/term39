@@ -49,22 +49,42 @@ pub fn handle_desktop_keyboard(
     }
 
     // Handle F8 to toggle Window Mode (vim-like keyboard control)
+    // Only toggle from Desktop/Topbar, or to exit Window Mode if already in it
+    // When terminal is focused and NOT in Window Mode: forward F8 to terminal
     if key_event.code == KeyCode::F(8) {
-        app_state.keyboard_mode.toggle();
-        app_state.move_state.reset();
-        app_state.resize_state.reset();
-        return true;
+        let in_window_mode = app_state.keyboard_mode.is_window_mode();
+        if in_window_mode {
+            // Already in Window Mode: F8 exits it
+            app_state.keyboard_mode.exit_to_normal();
+            app_state.move_state.reset();
+            app_state.resize_state.reset();
+            return true;
+        } else if matches!(current_focus, FocusState::Window(_)) {
+            // Terminal is focused and NOT in Window Mode: forward F8 to terminal
+            // Let it fall through to forward_to_terminal
+            return false;
+        } else {
+            // Desktop/Topbar focused: F8 enters Window Mode
+            app_state.keyboard_mode.toggle();
+            app_state.move_state.reset();
+            app_state.resize_state.reset();
+            return true;
+        }
     }
 
     // Handle backtick (`) with double-press detection
-    // Single backtick: toggle Window Mode
+    // Single backtick: toggle Window Mode (only from Desktop/Topbar focus, OR to EXIT from Window Mode)
     // Double backtick (within 300ms): send literal '`' to terminal
+    // When terminal is focused and NOT in Window Mode: forward backtick directly to terminal
     if key_event.code == KeyCode::Char('`') {
         let now = Instant::now();
         let is_double_press = app_state
             .last_backtick_time
             .map(|t| now.duration_since(t) < Duration::from_millis(DOUBLE_BACKTICK_THRESHOLD_MS))
             .unwrap_or(false);
+
+        // Check if we're currently in Window Mode
+        let in_window_mode = app_state.keyboard_mode.is_window_mode();
 
         if is_double_press {
             // Double backtick: send literal '`' to focused terminal
@@ -76,8 +96,22 @@ pub fn handle_desktop_keyboard(
             // Send the backtick character to the terminal
             let _ = window_manager.send_to_focused("`");
             return true;
+        } else if in_window_mode {
+            // Already in Window Mode: single backtick exits it
+            app_state.last_backtick_time = Some(now);
+            app_state.keyboard_mode.exit_to_normal();
+            app_state.move_state.reset();
+            app_state.resize_state.reset();
+            return true;
+        } else if matches!(current_focus, FocusState::Window(_)) {
+            // Terminal is focused and NOT in Window Mode: forward backtick to terminal
+            // Don't intercept backtick when user is typing in terminal
+            // Record time in case next press is a double-backtick to enter Window Mode
+            app_state.last_backtick_time = Some(now);
+            // Let it fall through to forward_to_terminal
+            return false;
         } else {
-            // Single backtick: toggle Window Mode and record time
+            // Desktop/Topbar focused: single backtick enters Window Mode
             app_state.last_backtick_time = Some(now);
             app_state.keyboard_mode.toggle();
             app_state.move_state.reset();
@@ -368,6 +402,11 @@ pub fn forward_to_terminal(key_event: KeyEvent, window_manager: &mut WindowManag
         KeyCode::Insert => {
             let _ = window_manager.send_to_focused("\x1b[2~");
         }
+        KeyCode::F(8) => {
+            // F8 - send as escape sequence (CSI 19~)
+            let _ = window_manager.send_to_focused("\x1b[19~");
+        }
+        // Note: Backtick ('`') is handled by KeyCode::Char(c) above
         _ => {}
     }
 }
