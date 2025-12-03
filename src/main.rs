@@ -1650,8 +1650,7 @@ fn main() -> io::Result<()> {
                                         match action {
                                             MenuAction::Restore => {
                                                 // Restore from minimized and focus
-                                                window_manager
-                                                    .restore_and_focus_window(window_id);
+                                                window_manager.restore_and_focus_window(window_id);
                                             }
                                             MenuAction::Maximize => {
                                                 // Maximize the window

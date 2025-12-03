@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2025-12-03
+
+### Added
+
+- **Right-click context menu for bottom bar**: Terminal buttons in the bottom bar now support right-click context menu
+
+### Fixed
+
+- **Text selection while moving window**: Fixed issue where text selection occurred during window drag
+- **1 character selection**: Fixed edge case with single character selection
+- **Terminal rendering**: Fixed wrap_pending flag handling for proper terminal rendering
+- **Windows icons**: Fixed icon display issues on Windows
+
 ## [0.16.7] - 2025-12-03
 
 ### Fixed
@@ -409,6 +422,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.17.0]: https://github.com/alejandroqh/term39/releases/tag/v0.17.0
 [0.16.7]: https://github.com/alejandroqh/term39/releases/tag/v0.16.7
 [0.16.6]: https://github.com/alejandroqh/term39/releases/tag/v0.16.6
 [0.16.5]: https://github.com/alejandroqh/term39/releases/tag/v0.16.5
