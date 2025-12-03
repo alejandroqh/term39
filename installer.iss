@@ -27,7 +27,7 @@ AllowNoIcons=yes
 LicenseFile=LICENSE
 OutputDir=installer-output
 OutputBaseFilename=term39-{#MyAppVersion}-{#Platform}-{#BitWidth}-{#Arch}-installer
-SetupIconFile=compiler:SetupClassicIcon.ico
+SetupIconFile=assets\term39.ico
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -44,13 +44,14 @@ Name: "envpath"; Description: "Add to PATH (recommended - allows running 'term39
 
 [Files]
 Source: "target\{#TargetTriple}\release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "assets\term39.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\term39.ico"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\term39.ico"; Tasks: desktopicon
 
 [Code]
 const EnvironmentKey = 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment';

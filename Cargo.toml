@@ -56,6 +56,9 @@ pam = { version = "0.8", optional = true }
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Security", "Win32_Foundation"], optional = true }
 
+[build-dependencies]
+winres = "0.1"
+
 [package.metadata.deb]
 maintainer = "Alejandro Quintanar <a@q39.dev>"
 copyright = "2025, Alejandro Quintanar <a@q39.dev>"
