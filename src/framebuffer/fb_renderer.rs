@@ -392,8 +392,13 @@ impl FramebufferRenderer {
         let fg_color = self.color_to_rgb(cell.fg_color);
         let bg_color = self.color_to_rgb(cell.bg_color);
 
-        // Copy glyph data and font properties to avoid borrow conflicts
-        let glyph_data: Vec<u8> = self.font.get_glyph(cell.character).to_vec();
+        // Copy glyph data to stack-allocated buffer to avoid borrow conflicts with put_pixel
+        // Max glyph size: 24 rows * 3 bytes/row = 72 bytes (covers all standard fonts up to 24px)
+        let glyph_src = self.font.get_glyph(cell.character);
+        let glyph_len = glyph_src.len().min(72);
+        let mut glyph_data = [0u8; 72];
+        glyph_data[..glyph_len].copy_from_slice(&glyph_src[..glyph_len]);
+
         let is_width_8 = self.font.is_width_8;
         let bytes_per_row = self.font.bytes_per_row;
 
@@ -404,14 +409,13 @@ impl FramebufferRenderer {
                 // Inline pixel checking to avoid borrow conflicts with put_pixel
                 let is_set = if is_width_8 {
                     // Fast path for 8-pixel-wide fonts
-                    py < glyph_data.len() && (glyph_data[py] & (0x80 >> px)) != 0
+                    py < glyph_len && (glyph_data[py] & (0x80 >> px)) != 0
                 } else {
                     // General path for wider fonts
                     let row_start = py * bytes_per_row;
                     let byte_index = row_start + (px >> 3);
                     let bit_index = 7 - (px & 7);
-                    byte_index < glyph_data.len()
-                        && (glyph_data[byte_index] & (1 << bit_index)) != 0
+                    byte_index < glyph_len && (glyph_data[byte_index] & (1 << bit_index)) != 0
                 };
                 let color = if is_set { fg_color } else { bg_color };
                 self.put_pixel(x_offset + px, y_offset + py, color.0, color.1, color.2);

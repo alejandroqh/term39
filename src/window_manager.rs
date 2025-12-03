@@ -6,6 +6,7 @@ use crate::theme::Theme;
 use crate::video_buffer::VideoBuffer;
 use crate::window::ResizeEdge;
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use std::collections::HashMap;
 use std::io;
 use std::time::Instant;
 
@@ -22,6 +23,9 @@ pub struct WindowManager {
     windows: Vec<TerminalWindow>,
     next_id: u32,
     focus: FocusState,
+
+    // Window ID to Vec index cache for O(1) lookups
+    window_index_cache: HashMap<u32, usize>,
 
     // Interaction state
     dragging: Option<DragState>,
@@ -92,6 +96,7 @@ impl WindowManager {
             windows: Vec::new(),
             next_id: 1,
             focus: FocusState::Desktop,
+            window_index_cache: HashMap::new(),
             dragging: None,
             resizing: None,
             scrollbar_dragging: None,
@@ -101,6 +106,40 @@ impl WindowManager {
             last_window_y: None,
             shell_config: ShellConfig::default(),
         }
+    }
+
+    // =========================================================================
+    // Window Index Cache Management (O(1) lookups)
+    // =========================================================================
+
+    /// Rebuild the entire window index cache
+    /// Called after operations that may invalidate multiple indices
+    #[inline]
+    fn rebuild_cache(&mut self) {
+        self.window_index_cache.clear();
+        for (idx, window) in self.windows.iter().enumerate() {
+            self.window_index_cache.insert(window.id(), idx);
+        }
+    }
+
+    /// Get window index by ID (O(1) lookup)
+    #[inline]
+    fn get_window_index(&self, id: u32) -> Option<usize> {
+        self.window_index_cache.get(&id).copied()
+    }
+
+    /// Get immutable reference to window by ID (O(1) lookup)
+    #[inline]
+    fn get_window_by_id(&self, id: u32) -> Option<&TerminalWindow> {
+        self.get_window_index(id)
+            .and_then(|idx| self.windows.get(idx))
+    }
+
+    /// Get mutable reference to window by ID (O(1) lookup)
+    #[inline]
+    fn get_window_by_id_mut(&mut self, id: u32) -> Option<&mut TerminalWindow> {
+        self.get_window_index(id)
+            .and_then(|idx| self.windows.get_mut(idx))
     }
 
     /// Create a new WindowManager with a custom shell configuration
@@ -210,7 +249,9 @@ impl WindowManager {
         ) {
             Ok(mut terminal_window) => {
                 terminal_window.set_focused(true);
+                let idx = self.windows.len();
                 self.windows.push(terminal_window);
+                self.window_index_cache.insert(id, idx);
                 self.focus = FocusState::Window(id);
                 Ok(id)
             }
@@ -255,7 +296,7 @@ impl WindowManager {
             if idx >= positions.len() {
                 continue;
             }
-            if let Some(win) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+            if let Some(win) = self.get_window_by_id_mut(window_id) {
                 let (x, y, width, height) = positions[idx];
                 win.window.x = x;
                 win.window.y = y;
@@ -376,8 +417,8 @@ impl WindowManager {
 
     /// Bring window to front and focus it
     pub fn focus_window(&mut self, id: u32) {
-        // Find window
-        if let Some(pos) = self.windows.iter().position(|w| w.id() == id) {
+        // Find window using cache
+        if let Some(pos) = self.get_window_index(id) {
             // Move to end (top of z-order)
             let mut window = self.windows.remove(pos);
 
@@ -390,6 +431,9 @@ impl WindowManager {
             window.set_focused(true);
             self.windows.push(window);
             self.focus = FocusState::Window(id);
+
+            // Rebuild cache since indices changed
+            self.rebuild_cache();
         }
     }
 
@@ -521,20 +565,14 @@ impl WindowManager {
         if let Some(clicked_window_id) = self.window_at(x, y) {
             // Check if this specific clicked window has a confirmation dialog
             let clicked_window_has_confirmation = self
-                .windows
-                .iter()
-                .find(|w| w.id() == clicked_window_id)
+                .get_window_by_id(clicked_window_id)
                 .map(|w| w.has_close_confirmation())
                 .unwrap_or(false);
 
             if clicked_window_has_confirmation {
                 if let MouseEventKind::Down(MouseButton::Left) = event.kind {
                     // Handle confirmation dialog click
-                    if let Some(window) = self
-                        .windows
-                        .iter_mut()
-                        .find(|w| w.id() == clicked_window_id)
-                    {
+                    if let Some(window) = self.get_window_by_id_mut(clicked_window_id) {
                         if let Some(should_close) =
                             window.handle_close_confirmation_click(event.column, event.row, charset)
                         {
@@ -575,19 +613,50 @@ impl WindowManager {
     fn handle_mouse_down(&mut self, buffer: &mut VideoBuffer, x: u16, y: u16) -> bool {
         // Find window at click position
         if let Some(window_id) = self.window_at(x, y) {
-            // Get the window
-            if let Some(terminal_window) = self.windows.iter().find(|w| w.id() == window_id) {
-                let window = &terminal_window.window;
+            // Extract all needed data from window before any mutable operations
+            // This avoids borrow checker issues with self.last_click, self.dragging, etc.
+            let window_data = self.get_window_by_id(window_id).map(|tw| {
+                let w = &tw.window;
+                (
+                    tw.is_in_close_button(x, y),
+                    tw.is_dirty(),
+                    w.is_in_maximize_button(x, y),
+                    w.is_in_minimize_button(x, y),
+                    w.is_maximized,
+                    w.get_resize_edge(x, y),
+                    w.width,
+                    w.height,
+                    w.x,
+                    w.y,
+                    tw.is_point_on_scrollbar(x, y),
+                    tw.is_point_on_scrollbar_thumb(x, y),
+                    tw.get_scroll_offset(),
+                    tw.is_in_title_bar(x, y),
+                )
+            });
 
+            if let Some((
+                is_close_button,
+                is_dirty,
+                is_maximize_button,
+                is_minimize_button,
+                is_maximized,
+                resize_edge,
+                win_width,
+                win_height,
+                win_x,
+                win_y,
+                is_on_scrollbar,
+                is_on_thumb,
+                scroll_offset,
+                is_title_bar,
+            )) = window_data
+            {
                 // Check if clicking close button
-                if terminal_window.is_in_close_button(x, y) {
-                    // Check if window is dirty (has user input or running process)
-                    let is_dirty = terminal_window.is_dirty();
-
+                if is_close_button {
                     if is_dirty {
                         // Show confirmation dialog
-                        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id)
-                        {
+                        if let Some(window) = self.get_window_by_id_mut(window_id) {
                             window.show_close_confirmation();
                         }
                         return false; // Don't close yet
@@ -599,11 +668,11 @@ impl WindowManager {
                 }
 
                 // Check if clicking maximize button
-                if window.is_in_maximize_button(x, y) {
+                if is_maximize_button {
                     let (buffer_width, buffer_height) = buffer.dimensions();
 
                     // Find the window mutably and toggle maximize
-                    if let Some(win) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+                    if let Some(win) = self.get_window_by_id_mut(window_id) {
                         win.window.toggle_maximize(buffer_width, buffer_height);
                         // Resize the terminal to match new window size
                         let _ = win.resize(win.window.width, win.window.height);
@@ -612,9 +681,9 @@ impl WindowManager {
                 }
 
                 // Check if clicking minimize button
-                if window.is_in_minimize_button(x, y) {
+                if is_minimize_button {
                     // Find the window mutably and minimize it
-                    if let Some(win) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+                    if let Some(win) = self.get_window_by_id_mut(window_id) {
                         win.window.minimize();
                     }
 
@@ -637,34 +706,34 @@ impl WindowManager {
                 }
 
                 // Check if clicking on a resizable border (only if not maximized)
-                if !window.is_maximized {
-                    if let Some(edge) = window.get_resize_edge(x, y) {
+                if !is_maximized {
+                    if let Some(edge) = resize_edge {
                         self.resizing = Some(ResizeState {
                             window_id,
                             edge,
                             start_x: x,
                             start_y: y,
-                            start_width: window.width,
-                            start_height: window.height,
-                            start_window_x: window.x,
-                            start_window_y: window.y,
+                            start_width: win_width,
+                            start_height: win_height,
+                            start_window_x: win_x,
+                            start_window_y: win_y,
                         });
                         return false;
                     }
                 }
 
                 // Check if clicking scrollbar
-                if terminal_window.is_point_on_scrollbar(x, y) {
-                    if terminal_window.is_point_on_scrollbar_thumb(x, y) {
+                if is_on_scrollbar {
+                    if is_on_thumb {
                         // Start dragging scrollbar thumb
                         self.scrollbar_dragging = Some(ScrollbarDragState {
                             window_id,
-                            start_offset: terminal_window.get_scroll_offset(),
+                            start_offset: scroll_offset,
                         });
                     } else {
                         // Click on track - jump to position or page up/down
                         // For simplicity, jump to clicked position
-                        if let Some(win) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+                        if let Some(win) = self.get_window_by_id_mut(window_id) {
                             win.scroll_to_position(y);
                         }
                     }
@@ -672,7 +741,7 @@ impl WindowManager {
                 }
 
                 // Check if clicking title bar (for dragging or double-click maximize)
-                if terminal_window.is_in_title_bar(x, y) {
+                if is_title_bar {
                     let now = Instant::now();
 
                     // Check for double-click (within 500ms, same window and position)
@@ -688,7 +757,7 @@ impl WindowManager {
                     if is_double_click {
                         // Double-click detected - toggle maximize
                         let (buffer_width, buffer_height) = buffer.dimensions();
-                        if let Some(win) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+                        if let Some(win) = self.get_window_by_id_mut(window_id) {
                             win.window.toggle_maximize(buffer_width, buffer_height);
                             // Resize the terminal to match new window size
                             let _ = win.resize(win.window.width, win.window.height);
@@ -705,9 +774,9 @@ impl WindowManager {
                         });
 
                         // Only start dragging if not maximized
-                        if !window.is_maximized {
-                            let offset_x = x as i16 - window.x as i16;
-                            let offset_y = y as i16 - window.y as i16;
+                        if !is_maximized {
+                            let offset_x = x as i16 - win_x as i16;
+                            let offset_y = y as i16 - win_y as i16;
 
                             self.dragging = Some(DragState {
                                 window_id,
@@ -751,9 +820,7 @@ impl WindowManager {
                 self.current_snap_zone = self.detect_snap_zone(x, y, buffer_width, buffer_height);
             }
 
-            if let Some(terminal_window) =
-                self.windows.iter_mut().find(|w| w.id() == drag.window_id)
-            {
+            if let Some(terminal_window) = self.get_window_by_id_mut(drag.window_id) {
                 // Calculate desired position
                 let desired_x = x as i16 - drag.offset_x;
                 let desired_y = y as i16 - drag.offset_y;
@@ -775,9 +842,7 @@ impl WindowManager {
 
         // Handle window resizing
         if let Some(resize) = self.resizing {
-            if let Some(terminal_window) =
-                self.windows.iter_mut().find(|w| w.id() == resize.window_id)
-            {
+            if let Some(terminal_window) = self.get_window_by_id_mut(resize.window_id) {
                 // Calculate deltas from start position
                 let delta_x = x as i16 - resize.start_x as i16;
                 let delta_y = y as i16 - resize.start_y as i16;
@@ -857,11 +922,7 @@ impl WindowManager {
 
         // Handle scrollbar dragging
         if let Some(_scrollbar) = self.scrollbar_dragging {
-            if let Some(terminal_window) = self
-                .windows
-                .iter_mut()
-                .find(|w| w.id() == _scrollbar.window_id)
-            {
+            if let Some(terminal_window) = self.get_window_by_id_mut(_scrollbar.window_id) {
                 // Update scroll position based on mouse Y position
                 terminal_window.scroll_to_position(y);
             }
@@ -876,9 +937,7 @@ impl WindowManager {
                 self.calculate_snap_rect(snap_zone, buffer_width, buffer_height);
 
             // Find the dragged window and apply snap position
-            if let Some(terminal_window) =
-                self.windows.iter_mut().find(|w| w.id() == drag.window_id)
-            {
+            if let Some(terminal_window) = self.get_window_by_id_mut(drag.window_id) {
                 terminal_window.window.x = snap_x;
                 terminal_window.window.y = snap_y;
                 terminal_window.window.width = snap_width;
@@ -892,7 +951,7 @@ impl WindowManager {
         // Finalize resize - update PTY terminal size
         if let Some(resize) = self.resizing {
             let window_id = resize.window_id;
-            if let Some(terminal_window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+            if let Some(terminal_window) = self.get_window_by_id_mut(window_id) {
                 // Resize the terminal PTY to match final window size
                 let _ = terminal_window
                     .resize(terminal_window.window.width, terminal_window.window.height);
@@ -909,7 +968,7 @@ impl WindowManager {
     fn handle_scroll_up(&mut self, x: u16, y: u16) {
         // Find window at position
         if let Some(window_id) = self.window_at(x, y) {
-            if let Some(terminal_window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+            if let Some(terminal_window) = self.get_window_by_id_mut(window_id) {
                 // Scroll up 3 lines
                 terminal_window.scroll_up(3);
             }
@@ -920,7 +979,7 @@ impl WindowManager {
     fn handle_scroll_down(&mut self, x: u16, y: u16) {
         // Find window at position
         if let Some(window_id) = self.window_at(x, y) {
-            if let Some(terminal_window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+            if let Some(terminal_window) = self.get_window_by_id_mut(window_id) {
                 // Scroll down 3 lines
                 terminal_window.scroll_down(3);
             }
@@ -1095,7 +1154,7 @@ impl WindowManager {
         if let Some(window_id) = clicked_window_id {
             // If the window is minimized, restore it first
             #[allow(clippy::collapsible_if)]
-            if let Some(win) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+            if let Some(win) = self.get_window_by_id_mut(window_id) {
                 if win.window.is_minimized {
                     win.window.restore_from_minimize();
                 }
@@ -1112,7 +1171,7 @@ impl WindowManager {
     #[allow(clippy::collapsible_if)]
     pub fn send_to_focused(&mut self, s: &str) -> std::io::Result<()> {
         if let FocusState::Window(id) = self.focus {
-            if let Some(terminal_window) = self.windows.iter_mut().find(|w| w.id() == id) {
+            if let Some(terminal_window) = self.get_window_by_id_mut(id) {
                 return terminal_window.send_str(s);
             }
         }
@@ -1123,7 +1182,7 @@ impl WindowManager {
     #[allow(clippy::collapsible_if)]
     pub fn send_char_to_focused(&mut self, c: char) -> std::io::Result<()> {
         if let FocusState::Window(id) = self.focus {
-            if let Some(terminal_window) = self.windows.iter_mut().find(|w| w.id() == id) {
+            if let Some(terminal_window) = self.get_window_by_id_mut(id) {
                 return terminal_window.send_char(c);
             }
         }
@@ -1142,7 +1201,7 @@ impl WindowManager {
     /// Get application cursor keys mode (DECCKM) state for the focused window
     pub fn get_focused_application_cursor_keys(&self) -> bool {
         if let FocusState::Window(id) = self.focus {
-            if let Some(terminal_window) = self.windows.iter().find(|w| w.id() == id) {
+            if let Some(terminal_window) = self.get_window_by_id(id) {
                 return terminal_window.get_application_cursor_keys();
             }
         }
@@ -1152,8 +1211,11 @@ impl WindowManager {
     /// Close window by ID
     /// Returns true if a window was actually closed
     pub fn close_window(&mut self, id: u32) -> bool {
-        if let Some(pos) = self.windows.iter().position(|w| w.id() == id) {
+        if let Some(pos) = self.get_window_index(id) {
             self.windows.remove(pos);
+            self.window_index_cache.remove(&id);
+            // Rebuild cache since indices after pos have shifted
+            self.rebuild_cache();
 
             // Update focus - if we closed the focused window, focus desktop
             if self.focus == FocusState::Window(id) {
@@ -1172,15 +1234,13 @@ impl WindowManager {
         window_id: u32,
         key: crossterm::event::KeyEvent,
     ) -> Option<bool> {
-        self.windows
-            .iter_mut()
-            .find(|w| w.id() == window_id)
+        self.get_window_by_id_mut(window_id)
             .and_then(|w| w.handle_close_confirmation_key(key))
     }
 
     /// Maximize window by ID
     pub fn maximize_window(&mut self, id: u32, buffer_width: u16, buffer_height: u16) {
-        if let Some(win) = self.windows.iter_mut().find(|w| w.id() == id) {
+        if let Some(win) = self.get_window_by_id_mut(id) {
             // Only maximize if not already maximized
             if !win.window.is_maximized {
                 win.window.toggle_maximize(buffer_width, buffer_height);
@@ -1240,7 +1300,7 @@ impl WindowManager {
 
     /// Helper to restore minimized window and focus it
     fn restore_and_focus_window(&mut self, window_id: u32) {
-        if let Some(win) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+        if let Some(win) = self.get_window_by_id_mut(window_id) {
             if win.window.is_minimized {
                 win.window.restore_from_minimize();
             }
@@ -1302,15 +1362,12 @@ impl WindowManager {
 
     /// Get selected text from a window
     pub fn get_selected_text(&self, window_id: u32) -> Option<String> {
-        self.windows
-            .iter()
-            .find(|w| w.id() == window_id)?
-            .get_selected_text()
+        self.get_window_by_id(window_id)?.get_selected_text()
     }
 
     /// Paste text to a window
     pub fn paste_to_window(&mut self, window_id: u32, text: &str) -> std::io::Result<()> {
-        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+        if let Some(window) = self.get_window_by_id_mut(window_id) {
             window.paste_text(text)?;
         }
         Ok(())
@@ -1318,7 +1375,7 @@ impl WindowManager {
 
     /// Clear selection in a window
     pub fn clear_selection(&mut self, window_id: u32) {
-        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+        if let Some(window) = self.get_window_by_id_mut(window_id) {
             window.clear_selection();
         }
     }
@@ -1331,42 +1388,42 @@ impl WindowManager {
         y: u16,
         selection_type: crate::selection::SelectionType,
     ) {
-        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+        if let Some(window) = self.get_window_by_id_mut(window_id) {
             window.start_selection(x, y, selection_type);
         }
     }
 
     /// Update selection in a window
     pub fn update_selection(&mut self, window_id: u32, x: u16, y: u16) {
-        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+        if let Some(window) = self.get_window_by_id_mut(window_id) {
             window.update_selection(x, y);
         }
     }
 
     /// Complete selection in a window
     pub fn complete_selection(&mut self, window_id: u32) {
-        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+        if let Some(window) = self.get_window_by_id_mut(window_id) {
             window.complete_selection();
         }
     }
 
     /// Expand selection to word in a window
     pub fn expand_selection_to_word(&mut self, window_id: u32) {
-        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+        if let Some(window) = self.get_window_by_id_mut(window_id) {
             window.expand_selection_to_word();
         }
     }
 
     /// Expand selection to line in a window
     pub fn expand_selection_to_line(&mut self, window_id: u32) {
-        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+        if let Some(window) = self.get_window_by_id_mut(window_id) {
             window.expand_selection_to_line();
         }
     }
 
     /// Select all content in a window
     pub fn select_all(&mut self, window_id: u32) {
-        if let Some(window) = self.windows.iter_mut().find(|w| w.id() == window_id) {
+        if let Some(window) = self.get_window_by_id_mut(window_id) {
             window.select_all();
         }
     }
@@ -1375,9 +1432,7 @@ impl WindowManager {
     #[allow(dead_code)]
     pub fn focused_window_has_selection(&self) -> bool {
         if let FocusState::Window(window_id) = self.focus {
-            self.windows
-                .iter()
-                .find(|w| w.id() == window_id)
+            self.get_window_by_id(window_id)
                 .map(|w| w.has_selection())
                 .unwrap_or(false)
         } else {
@@ -1388,9 +1443,7 @@ impl WindowManager {
     /// Check if the focused window has a meaningful selection (more than 1 character)
     pub fn focused_window_has_meaningful_selection(&self) -> bool {
         if let FocusState::Window(window_id) = self.focus {
-            self.windows
-                .iter()
-                .find(|w| w.id() == window_id)
+            self.get_window_by_id(window_id)
                 .and_then(|w| w.get_selected_text())
                 .map(|text| text.len() > 1)
                 .unwrap_or(false)
@@ -1406,7 +1459,7 @@ impl WindowManager {
     /// Get immutable reference to the focused window
     pub fn get_focused_window(&self) -> Option<&TerminalWindow> {
         if let FocusState::Window(id) = self.focus {
-            self.windows.iter().find(|w| w.id() == id)
+            self.get_window_by_id(id)
         } else {
             None
         }
@@ -1415,7 +1468,7 @@ impl WindowManager {
     /// Get mutable reference to the focused window
     pub fn get_focused_window_mut(&mut self) -> Option<&mut TerminalWindow> {
         if let FocusState::Window(id) = self.focus {
-            self.windows.iter_mut().find(|w| w.id() == id)
+            self.get_window_by_id_mut(id)
         } else {
             None
         }
@@ -1578,7 +1631,7 @@ impl WindowManager {
         };
 
         // Get current window center
-        let current_window = self.windows.iter().find(|w| w.id() == current_id);
+        let current_window = self.get_window_by_id(current_id);
         let (cx, cy) = match current_window {
             Some(w) => (
                 w.window.x + w.window.width / 2,
@@ -1771,6 +1824,9 @@ impl WindowManager {
                 manager.windows.push(terminal_window);
             }
         }
+
+        // Rebuild cache after restoring all windows
+        manager.rebuild_cache();
 
         // Restore focus state
         manager.focus = match state.focused_window_id {

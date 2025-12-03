@@ -176,6 +176,9 @@ impl VideoBuffer {
         let mut run_char_count: u16 = 0; // Track character count separately for O(1) access
         let mut in_run = false;
 
+        // Extract cursor position once to avoid is_some_and() call per cell
+        let cursor_pos = self.tty_cursor;
+
         for y in 0..self.height {
             // Calculate row start index once per row
             let row_start = (y as usize) * (self.width as usize);
@@ -192,7 +195,7 @@ impl VideoBuffer {
                 let back_cell = &self.back_buffer[idx];
 
                 // Check if this cell is under the TTY cursor - if so, invert colors
-                let is_cursor = self.tty_cursor.is_some_and(|(cx, cy)| cx == x && cy == y);
+                let is_cursor = cursor_pos.is_some_and(|(cx, cy)| cx == x && cy == y);
                 let display_cell = if is_cursor {
                     back_cell.inverted()
                 } else {
@@ -253,11 +256,12 @@ impl VideoBuffer {
 
         // Update front buffer to reflect what's actually displayed
         // We need to handle cursor separately since it's rendered with inverted colors
+        // Use the pre-extracted cursor_pos to avoid repeated is_some_and() calls
         for (idx, back_cell) in self.back_buffer.iter().enumerate() {
             let x = (idx % self.width as usize) as u16;
             let y = (idx / self.width as usize) as u16;
 
-            let is_cursor = self.tty_cursor.is_some_and(|(cx, cy)| cx == x && cy == y);
+            let is_cursor = cursor_pos.is_some_and(|(cx, cy)| cx == x && cy == y);
             self.front_buffer[idx] = if is_cursor {
                 back_cell.inverted()
             } else {

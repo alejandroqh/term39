@@ -1094,116 +1094,148 @@ fn main() -> io::Result<()> {
                     }
 
                     // Update button hover state on mouse movement (always active)
+                    // OPTIMIZATION: Early exit if mouse is not on top bar (row 0) or bottom bar
                     if !handled {
-                        if app_state
-                            .new_terminal_button
-                            .contains(mouse_event.column, mouse_event.row)
-                        {
-                            app_state
-                                .new_terminal_button
-                                .set_state(button::ButtonState::Hovered);
-                        } else {
+                        let (cols, rows) = backend.dimensions();
+                        let bar_y = rows.saturating_sub(1);
+                        let mouse_row = mouse_event.row;
+                        let mouse_col = mouse_event.column;
+
+                        // Fast path: if mouse is not on top or bottom bar, reset all buttons to Normal
+                        if mouse_row != 0 && mouse_row != bar_y {
+                            // Reset all top bar buttons
                             app_state
                                 .new_terminal_button
                                 .set_state(button::ButtonState::Normal);
-                        }
-
-                        // Clipboard buttons hover state
-                        if app_state
-                            .paste_button
-                            .contains(mouse_event.column, mouse_event.row)
-                        {
-                            app_state
-                                .paste_button
-                                .set_state(button::ButtonState::Hovered);
-                        } else {
                             app_state
                                 .paste_button
                                 .set_state(button::ButtonState::Normal);
-                        }
-
-                        if app_state
-                            .clear_clipboard_button
-                            .contains(mouse_event.column, mouse_event.row)
-                        {
-                            app_state
-                                .clear_clipboard_button
-                                .set_state(button::ButtonState::Hovered);
-                        } else {
                             app_state
                                 .clear_clipboard_button
                                 .set_state(button::ButtonState::Normal);
-                        }
-
-                        if app_state
-                            .copy_button
-                            .contains(mouse_event.column, mouse_event.row)
-                        {
-                            app_state
-                                .copy_button
-                                .set_state(button::ButtonState::Hovered);
-                        } else {
                             app_state.copy_button.set_state(button::ButtonState::Normal);
-                        }
-
-                        if app_state
-                            .clear_selection_button
-                            .contains(mouse_event.column, mouse_event.row)
-                        {
-                            app_state
-                                .clear_selection_button
-                                .set_state(button::ButtonState::Hovered);
-                        } else {
                             app_state
                                 .clear_selection_button
                                 .set_state(button::ButtonState::Normal);
-                        }
-
-                        // Exit button hover state
-                        if app_state
-                            .exit_button
-                            .contains(mouse_event.column, mouse_event.row)
-                        {
-                            app_state
-                                .exit_button
-                                .set_state(button::ButtonState::Hovered);
-                        } else {
                             app_state.exit_button.set_state(button::ButtonState::Normal);
-                        }
-
-                        // Battery indicator hover state (top bar, right side before clock)
-                        let (cols, _) = backend.dimensions();
-                        let battery_width = 10u16; // "| [█████] "
-                        let clock_width = if app_config.show_date_in_clock {
-                            20u16
-                        } else {
-                            12u16
-                        };
-                        let battery_start = cols.saturating_sub(battery_width + clock_width);
-                        let battery_end = battery_start + battery_width;
-
-                        app_state.battery_hovered = mouse_event.row == 0
-                            && mouse_event.column >= battery_start
-                            && mouse_event.column < battery_end;
-
-                        // Calculate position for toggle button hover detection (bottom bar, left side)
-                        let (_, rows) = backend.dimensions();
-                        let bar_y = rows - 1;
-                        let button_start_x = 1u16;
-                        let button_text_width = app_state.auto_tiling_button.label.len() as u16 + 3; // +1 for "[", +1 for label, +1 for " "
-                        let button_end_x = button_start_x + button_text_width;
-
-                        if mouse_event.row == bar_y
-                            && mouse_event.column >= button_start_x
-                            && mouse_event.column < button_end_x
-                        {
-                            app_state
-                                .auto_tiling_button
-                                .set_state(button::ButtonState::Hovered);
-                        } else {
+                            app_state.battery_hovered = false;
+                            // Reset bottom bar button
                             app_state
                                 .auto_tiling_button
                                 .set_state(button::ButtonState::Normal);
+                        } else if mouse_row == 0 {
+                            // Top bar - check top bar buttons only
+                            if app_state.new_terminal_button.contains(mouse_col, mouse_row) {
+                                app_state
+                                    .new_terminal_button
+                                    .set_state(button::ButtonState::Hovered);
+                            } else {
+                                app_state
+                                    .new_terminal_button
+                                    .set_state(button::ButtonState::Normal);
+                            }
+
+                            if app_state.paste_button.contains(mouse_col, mouse_row) {
+                                app_state
+                                    .paste_button
+                                    .set_state(button::ButtonState::Hovered);
+                            } else {
+                                app_state
+                                    .paste_button
+                                    .set_state(button::ButtonState::Normal);
+                            }
+
+                            if app_state
+                                .clear_clipboard_button
+                                .contains(mouse_col, mouse_row)
+                            {
+                                app_state
+                                    .clear_clipboard_button
+                                    .set_state(button::ButtonState::Hovered);
+                            } else {
+                                app_state
+                                    .clear_clipboard_button
+                                    .set_state(button::ButtonState::Normal);
+                            }
+
+                            if app_state.copy_button.contains(mouse_col, mouse_row) {
+                                app_state
+                                    .copy_button
+                                    .set_state(button::ButtonState::Hovered);
+                            } else {
+                                app_state.copy_button.set_state(button::ButtonState::Normal);
+                            }
+
+                            if app_state
+                                .clear_selection_button
+                                .contains(mouse_col, mouse_row)
+                            {
+                                app_state
+                                    .clear_selection_button
+                                    .set_state(button::ButtonState::Hovered);
+                            } else {
+                                app_state
+                                    .clear_selection_button
+                                    .set_state(button::ButtonState::Normal);
+                            }
+
+                            if app_state.exit_button.contains(mouse_col, mouse_row) {
+                                app_state
+                                    .exit_button
+                                    .set_state(button::ButtonState::Hovered);
+                            } else {
+                                app_state.exit_button.set_state(button::ButtonState::Normal);
+                            }
+
+                            // Battery indicator hover state (top bar, right side before clock)
+                            let battery_width = 10u16; // "| [█████] "
+                            let clock_width = if app_config.show_date_in_clock {
+                                20u16
+                            } else {
+                                12u16
+                            };
+                            let battery_start = cols.saturating_sub(battery_width + clock_width);
+                            let battery_end = battery_start + battery_width;
+                            app_state.battery_hovered =
+                                mouse_col >= battery_start && mouse_col < battery_end;
+
+                            // Reset bottom bar button when on top bar
+                            app_state
+                                .auto_tiling_button
+                                .set_state(button::ButtonState::Normal);
+                        } else {
+                            // Bottom bar - check bottom bar button only
+                            let button_start_x = 1u16;
+                            let button_text_width =
+                                app_state.auto_tiling_button.label.len() as u16 + 3;
+                            let button_end_x = button_start_x + button_text_width;
+
+                            if mouse_col >= button_start_x && mouse_col < button_end_x {
+                                app_state
+                                    .auto_tiling_button
+                                    .set_state(button::ButtonState::Hovered);
+                            } else {
+                                app_state
+                                    .auto_tiling_button
+                                    .set_state(button::ButtonState::Normal);
+                            }
+
+                            // Reset top bar buttons when on bottom bar
+                            app_state
+                                .new_terminal_button
+                                .set_state(button::ButtonState::Normal);
+                            app_state
+                                .paste_button
+                                .set_state(button::ButtonState::Normal);
+                            app_state
+                                .clear_clipboard_button
+                                .set_state(button::ButtonState::Normal);
+                            app_state.copy_button.set_state(button::ButtonState::Normal);
+                            app_state
+                                .clear_selection_button
+                                .set_state(button::ButtonState::Normal);
+                            app_state.exit_button.set_state(button::ButtonState::Normal);
+                            app_state.battery_hovered = false;
                         }
                     }
 

@@ -68,27 +68,39 @@ pub fn render_frame(
         theme,
     );
 
+    // Check if any modal/dialog is active - apply shadow ONCE if so
+    // This avoids redundant O(cols*rows) iterations for each modal
+    let has_modal = app_state.active_prompt.is_some()
+        || app_state.active_slight_input.is_some()
+        || app_state.active_calendar.is_some()
+        || app_state.active_config_window.is_some()
+        || app_state.active_pin_setup.is_some()
+        || app_state.active_help_window.is_some()
+        || app_state.active_about_window.is_some()
+        || app_state.active_winmode_help_window.is_some()
+        || app_state.active_error_dialog.is_some();
+
+    if has_modal {
+        video_buffer::render_fullscreen_shadow(video_buffer, theme);
+    }
+
     // Render active prompt (if any) on top of everything
     if let Some(ref prompt) = app_state.active_prompt {
-        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         prompt.render(video_buffer, charset, theme);
     }
 
     // Render active Slight input (if any) on top of everything
     if let Some(ref slight_input) = app_state.active_slight_input {
-        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         slight_input.render(video_buffer, charset, theme);
     }
 
     // Render active calendar (if any) on top of everything
     if let Some(ref calendar) = app_state.active_calendar {
-        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         ui_render::render_calendar(video_buffer, calendar, charset, theme, cols, rows);
     }
 
     // Render active config window (if any) on top of everything
     if let Some(ref config_win) = app_state.active_config_window {
-        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         config_win.render(
             video_buffer,
             charset,
@@ -101,31 +113,26 @@ pub fn render_frame(
 
     // Render active PIN setup dialog (if any) on top of everything
     if let Some(ref pin_setup) = app_state.active_pin_setup {
-        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         pin_setup.render(video_buffer, charset, theme);
     }
 
     // Render active help window (if any)
     if let Some(ref help_win) = app_state.active_help_window {
-        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         help_win.render(video_buffer, charset, theme);
     }
 
     // Render active about window (if any)
     if let Some(ref about_win) = app_state.active_about_window {
-        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         about_win.render(video_buffer, charset, theme);
     }
 
     // Render active Window Mode help window (if any)
     if let Some(ref winmode_help_win) = app_state.active_winmode_help_window {
-        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         winmode_help_win.render(video_buffer, charset, theme);
     }
 
     // Render error dialog (if any) on top of everything
     if let Some(ref error_dialog) = app_state.active_error_dialog {
-        video_buffer::render_fullscreen_shadow(video_buffer, theme);
         error_dialog.render(video_buffer, charset, theme);
     }
 
