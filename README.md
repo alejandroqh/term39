@@ -159,6 +159,8 @@ Expand-Archive term39-v*-windows-x86_64.zip
 $env:Path += ";$PWD\term39-v*-windows-x86_64"
 ```
 
+**Runtime Requirement:** If you see errors about `MSVCP140.dll` or `VCRUNTIME140.dll`, install the [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) ([x86 version](https://aka.ms/vs/17/release/vc_redist.x86.exe) for 32-bit systems).
+
 ### From Source
 
 ```bash
