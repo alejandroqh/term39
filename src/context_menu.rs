@@ -11,6 +11,10 @@ pub enum MenuAction {
     SelectAll,
     #[allow(dead_code)]
     Close,
+    // Taskbar menu actions
+    Restore,
+    Maximize,
+    CloseWindow,
 }
 
 /// Menu item definition
@@ -59,6 +63,23 @@ impl ContextMenu {
             MenuItem::new("Copy", None, MenuAction::Copy),
             MenuItem::new("Paste", None, MenuAction::Paste),
             MenuItem::new("Select All", None, MenuAction::SelectAll),
+        ];
+
+        Self {
+            x,
+            y,
+            items,
+            selected_index: 0,
+            visible: false,
+        }
+    }
+
+    /// Create a taskbar context menu for window buttons in the bottom bar
+    pub fn new_taskbar_menu(x: u16, y: u16) -> Self {
+        let items = vec![
+            MenuItem::new("Restore", None, MenuAction::Restore),
+            MenuItem::new("Maximize", None, MenuAction::Maximize),
+            MenuItem::new("Close", None, MenuAction::CloseWindow),
         ];
 
         Self {

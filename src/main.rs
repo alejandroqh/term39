@@ -1540,7 +1540,31 @@ fn main() -> io::Result<()> {
                             .is_some();
                     }
 
-                    // Handle right-click for context menu
+                    // Handle right-click on button bar for taskbar context menu
+                    if !handled
+                        && app_state.active_prompt.is_none()
+                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Right)
+                        && mouse_event.row == bar_y
+                    {
+                        // Calculate where window buttons start (after auto-tiling button)
+                        let window_buttons_start =
+                            1 + 1 + app_state.auto_tiling_button.label.len() as u16 + 1 + 2;
+
+                        if let Some(window_id) = window_manager.button_bar_get_window_at(
+                            mouse_event.column,
+                            bar_y,
+                            mouse_event.row,
+                            window_buttons_start,
+                        ) {
+                            // Position menu above the click point (menu height is 5: 3 items + 2 borders)
+                            let menu_y = mouse_event.row.saturating_sub(5);
+                            app_state.taskbar_menu.show(mouse_event.column, menu_y);
+                            app_state.taskbar_menu_window_id = Some(window_id);
+                            handled = true;
+                        }
+                    }
+
+                    // Handle right-click for context menu (inside windows)
                     if !handled
                         && app_state.active_prompt.is_none()
                         && mouse_event.kind == MouseEventKind::Down(MouseButton::Right)
@@ -1588,7 +1612,10 @@ fn main() -> io::Result<()> {
                                             MenuAction::SelectAll => {
                                                 window_manager.select_all(window_id);
                                             }
-                                            MenuAction::Close => {}
+                                            MenuAction::Close
+                                            | MenuAction::Restore
+                                            | MenuAction::Maximize
+                                            | MenuAction::CloseWindow => {}
                                         }
                                     }
                                 }
@@ -1602,6 +1629,61 @@ fn main() -> io::Result<()> {
                             // Update menu selection on hover
                             app_state
                                 .context_menu
+                                .update_selection_from_mouse(mouse_event.column, mouse_event.row);
+                        }
+                    }
+
+                    // Handle taskbar menu interactions
+                    if !handled && app_state.taskbar_menu.visible {
+                        if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
+                            if app_state
+                                .taskbar_menu
+                                .contains_point(mouse_event.column, mouse_event.row)
+                            {
+                                // Update selection to clicked item before getting action
+                                app_state.taskbar_menu.update_selection_from_mouse(
+                                    mouse_event.column,
+                                    mouse_event.row,
+                                );
+                                if let Some(action) = app_state.taskbar_menu.get_selected_action() {
+                                    if let Some(window_id) = app_state.taskbar_menu_window_id {
+                                        match action {
+                                            MenuAction::Restore => {
+                                                // Restore from minimized and focus
+                                                window_manager
+                                                    .restore_and_focus_window(window_id);
+                                            }
+                                            MenuAction::Maximize => {
+                                                // Maximize the window
+                                                window_manager.maximize_window(
+                                                    window_id,
+                                                    cols,
+                                                    rows - 2, // Account for top and bottom bars
+                                                );
+                                            }
+                                            MenuAction::CloseWindow => {
+                                                // Close the window without confirmation
+                                                window_manager.close_window(window_id);
+                                            }
+                                            MenuAction::Copy
+                                            | MenuAction::Paste
+                                            | MenuAction::SelectAll
+                                            | MenuAction::Close => {}
+                                        }
+                                    }
+                                }
+                                app_state.taskbar_menu.hide();
+                                app_state.taskbar_menu_window_id = None;
+                                handled = true;
+                            } else {
+                                // Clicked outside menu - hide it
+                                app_state.taskbar_menu.hide();
+                                app_state.taskbar_menu_window_id = None;
+                            }
+                        } else if mouse_event.kind == MouseEventKind::Moved {
+                            // Update menu selection on hover
+                            app_state
+                                .taskbar_menu
                                 .update_selection_from_mouse(mouse_event.column, mouse_event.row);
                         }
                     }

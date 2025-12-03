@@ -1104,10 +1104,10 @@ impl WindowManager {
         list
     }
 
-    /// Handle click on button bar - returns window ID if clicked on a button
+    /// Get window ID at button bar position (read-only, does not modify state)
     /// offset_x: the starting x position for window buttons (after other UI elements)
-    pub fn button_bar_click(
-        &mut self,
+    pub fn button_bar_get_window_at(
+        &self,
         x: u16,
         bar_y: u16,
         click_y: u16,
@@ -1123,7 +1123,6 @@ impl WindowManager {
         sorted_windows.sort_by_key(|w| w.id());
 
         let mut current_x = offset_x; // Start at the offset position
-        let mut clicked_window_id: Option<u32> = None;
 
         for terminal_window in sorted_windows {
             let window = &terminal_window.window;
@@ -1142,13 +1141,27 @@ impl WindowManager {
 
             // Check if click is within this button
             if x >= current_x && x < button_end {
-                clicked_window_id = Some(window.id);
-                break;
+                return Some(window.id);
             }
 
             // Move to next button position (with 1 space gap)
             current_x = button_end + 1;
         }
+
+        None
+    }
+
+    /// Handle click on button bar - returns window ID if clicked on a button
+    /// offset_x: the starting x position for window buttons (after other UI elements)
+    pub fn button_bar_click(
+        &mut self,
+        x: u16,
+        bar_y: u16,
+        click_y: u16,
+        offset_x: u16,
+    ) -> Option<u32> {
+        // Use the read-only method to find the window
+        let clicked_window_id = self.button_bar_get_window_at(x, bar_y, click_y, offset_x);
 
         // Focus the clicked window if found
         if let Some(window_id) = clicked_window_id {
@@ -1299,7 +1312,7 @@ impl WindowManager {
     }
 
     /// Helper to restore minimized window and focus it
-    fn restore_and_focus_window(&mut self, window_id: u32) {
+    pub fn restore_and_focus_window(&mut self, window_id: u32) {
         if let Some(win) = self.get_window_by_id_mut(window_id) {
             if win.window.is_minimized {
                 win.window.restore_from_minimize();

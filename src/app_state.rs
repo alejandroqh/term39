@@ -25,6 +25,8 @@ pub struct AppState {
     pub active_error_dialog: Option<ErrorDialog>,
     pub active_toast: Option<Toast>,
     pub context_menu: ContextMenu,
+    pub taskbar_menu: ContextMenu,
+    pub taskbar_menu_window_id: Option<u32>,
 
     // Top Bar Buttons
     pub new_terminal_button: Button,
@@ -106,6 +108,9 @@ impl AppState {
         // Context menu (initially at 0, 0, not visible)
         let context_menu = ContextMenu::new(0, 0);
 
+        // Taskbar context menu (initially at 0, 0, not visible)
+        let taskbar_menu = ContextMenu::new_taskbar_menu(0, 0);
+
         Self {
             // Dialog/Popup State
             active_prompt: None,
@@ -118,6 +123,8 @@ impl AppState {
             active_error_dialog: None,
             active_toast: None,
             context_menu,
+            taskbar_menu,
+            taskbar_menu_window_id: None,
 
             // Top Bar Buttons
             new_terminal_button,

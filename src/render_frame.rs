@@ -154,6 +154,11 @@ pub fn render_frame(
         app_state.context_menu.render(video_buffer, charset, theme);
     }
 
+    // Render taskbar context menu (if visible)
+    if app_state.taskbar_menu.visible {
+        app_state.taskbar_menu.render(video_buffer, charset, theme);
+    }
+
     // Render lockscreen (highest priority - on top of everything)
     // This completely blocks all other UI when active
     if app_state.lockscreen.is_active() {
