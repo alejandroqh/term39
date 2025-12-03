@@ -168,32 +168,21 @@ fn main() -> io::Result<()> {
         let mut stdout = io::stdout();
 
         // Best-effort cleanup - ignore errors since we're already panicking
-        let _ = crossterm::execute!(stdout, crossterm::event::DisableMouseCapture);
-        // Reset colors FIRST before clearing
-        let _ = crossterm::execute!(stdout, crossterm::style::ResetColor);
-        let _ = crossterm::execute!(
-            stdout,
-            crossterm::style::SetAttribute(crossterm::style::Attribute::Reset),
-            crossterm::style::SetForegroundColor(crossterm::style::Color::Reset),
-            crossterm::style::SetBackgroundColor(crossterm::style::Color::Reset)
-        );
-        let _ = crossterm::execute!(
-            stdout,
-            crossterm::terminal::Clear(crossterm::terminal::ClearType::All)
-        );
-        let _ = crossterm::execute!(
-            stdout,
-            crossterm::cursor::MoveTo(0, 0),
-            crossterm::style::ResetColor
-        );
-        let _ = crossterm::execute!(
-            stdout,
-            crossterm::cursor::Show,
-            crossterm::terminal::LeaveAlternateScreen
-        );
-        // Final color reset after leaving alternate screen
-        let _ = crossterm::execute!(stdout, crossterm::style::ResetColor);
+        // Following ratatui's pattern: disable raw mode FIRST (most side effects)
         let _ = crossterm::terminal::disable_raw_mode();
+
+        // Leave alternate screen and show cursor
+        let _ = crossterm::execute!(
+            stdout,
+            crossterm::terminal::LeaveAlternateScreen,
+            crossterm::cursor::Show
+        );
+
+        // Disable mouse capture
+        let _ = crossterm::execute!(stdout, crossterm::event::DisableMouseCapture);
+
+        // Final color reset
+        let _ = crossterm::execute!(stdout, crossterm::style::ResetColor);
 
         // Call the default panic handler to print the panic message
         default_panic(panic_info);
@@ -1624,8 +1613,15 @@ fn main() -> io::Result<()> {
                     {
                         match mouse_event.kind {
                             MouseEventKind::Down(MouseButton::Left) => {
-                                // Check if click is in a window content area
-                                if let FocusState::Window(window_id) = window_manager.get_focus() {
+                                // Skip selection if clicking on title bar or resize edge (would start drag/resize)
+                                if window_manager.is_point_on_drag_or_resize_area(
+                                    mouse_event.column,
+                                    mouse_event.row,
+                                ) {
+                                    // Let window_manager handle dragging/resizing, skip selection
+                                } else if let FocusState::Window(window_id) =
+                                    window_manager.get_focus()
+                                {
                                     // Track click timing and position for double/triple-click detection
                                     let now = Instant::now();
                                     let click_x = mouse_event.column;
@@ -1705,7 +1701,10 @@ fn main() -> io::Result<()> {
                                 }
                             }
                             MouseEventKind::Drag(MouseButton::Left) => {
-                                if app_state.selection_active {
+                                // Don't update selection while dragging/resizing a window
+                                if app_state.selection_active
+                                    && !window_manager.is_dragging_or_resizing()
+                                {
                                     if let FocusState::Window(window_id) =
                                         window_manager.get_focus()
                                     {
@@ -1779,7 +1778,7 @@ fn main() -> io::Result<()> {
     }
 
     // Cleanup: restore terminal
-    initialization::cleanup(&mut stdout)?;
+    initialization::cleanup(&mut stdout);
 
     Ok(())
 }

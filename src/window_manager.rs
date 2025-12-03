@@ -1428,6 +1428,29 @@ impl WindowManager {
         }
     }
 
+    /// Check if a window is currently being dragged or resized
+    pub fn is_dragging_or_resizing(&self) -> bool {
+        self.dragging.is_some() || self.resizing.is_some()
+    }
+
+    /// Check if a point is on a window's title bar or resize edge
+    /// Returns true if clicking here would start a drag or resize operation
+    pub fn is_point_on_drag_or_resize_area(&self, x: u16, y: u16) -> bool {
+        if let Some(window_id) = self.window_at(x, y) {
+            if let Some(terminal_window) = self.get_window_by_id(window_id) {
+                let w = &terminal_window.window;
+                // Check if on title bar (would start drag) or resize edge (would start resize)
+                // Don't count if window is maximized (can't drag/resize maximized windows)
+                if !w.is_maximized {
+                    if terminal_window.is_in_title_bar(x, y) || w.get_resize_edge(x, y).is_some() {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
     /// Check if the focused window has a selection
     #[allow(dead_code)]
     pub fn focused_window_has_selection(&self) -> bool {

@@ -328,9 +328,17 @@ pub fn initialize_mouse_input(
     (manager, None)
 }
 
-/// Cleanup function to restore terminal state
-pub fn cleanup(stdout: &mut io::Stdout) -> io::Result<()> {
-    // Disable mouse capture (only if not on Linux console)
+/// Cleanup function to restore terminal state (fallible version)
+/// Following ratatui's pattern: disable raw mode FIRST as it has the most side effects
+pub fn try_cleanup(stdout: &mut io::Stdout) -> io::Result<()> {
+    // 1. Disable raw mode FIRST (has the most side effects)
+    // This follows ratatui's best practice for reliable terminal restoration
+    terminal::disable_raw_mode()?;
+
+    // 2. Leave alternate screen and show cursor
+    execute!(stdout, terminal::LeaveAlternateScreen, cursor::Show)?;
+
+    // 3. Disable mouse capture (only if not on Linux console)
     #[cfg(target_os = "linux")]
     let is_linux_console = std::env::var("TERM").map(|t| t == "linux").unwrap_or(false);
     #[cfg(not(target_os = "linux"))]
@@ -340,33 +348,16 @@ pub fn cleanup(stdout: &mut io::Stdout) -> io::Result<()> {
         execute!(stdout, event::DisableMouseCapture)?;
     }
 
-    // Reset colors FIRST to ensure default colors are used for subsequent operations
+    // 4. Final color reset
     execute!(stdout, style::ResetColor)?;
-
-    // Set explicit default attributes (important for TTY/Linux console)
-    // This ensures the terminal doesn't inherit any residual color state
-    execute!(
-        stdout,
-        style::SetAttribute(style::Attribute::Reset),
-        style::SetForegroundColor(style::Color::Reset),
-        style::SetBackgroundColor(style::Color::Reset)
-    )?;
-
-    // Clear screen with default colors
-    execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
-
-    // Move cursor to home position and reset colors again
-    // This is important for TTY where color state can persist
-    execute!(stdout, cursor::MoveTo(0, 0), style::ResetColor)?;
-
-    // Show cursor and leave alternate screen
-    execute!(stdout, cursor::Show, terminal::LeaveAlternateScreen)?;
-
-    // Final color reset after leaving alternate screen (for TTY)
-    execute!(stdout, style::ResetColor)?;
-
-    // Disable raw mode
-    terminal::disable_raw_mode()?;
 
     Ok(())
+}
+
+/// Cleanup function to restore terminal state (infallible wrapper)
+/// Logs errors to stderr but never fails - safe to call from panic handlers
+pub fn cleanup(stdout: &mut io::Stdout) {
+    if let Err(err) = try_cleanup(stdout) {
+        eprintln!("Failed to restore terminal: {err}");
+    }
 }
