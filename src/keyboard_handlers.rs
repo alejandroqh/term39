@@ -103,15 +103,10 @@ pub fn handle_desktop_keyboard(
             app_state.move_state.reset();
             app_state.resize_state.reset();
             return true;
-        } else if matches!(current_focus, FocusState::Window(_)) {
-            // Terminal is focused and NOT in Window Mode: forward backtick to terminal
-            // Don't intercept backtick when user is typing in terminal
-            // Record time in case next press is a double-backtick to enter Window Mode
-            app_state.last_backtick_time = Some(now);
-            // Let it fall through to forward_to_terminal
-            return false;
         } else {
-            // Desktop/Topbar focused: single backtick enters Window Mode
+            // Not in Window Mode: single backtick enters Window Mode
+            // Works from Desktop, Topbar, or terminal Window focus
+            // Users can double-tap backtick to send literal '`' to terminal
             app_state.last_backtick_time = Some(now);
             app_state.keyboard_mode.toggle();
             app_state.move_state.reset();
