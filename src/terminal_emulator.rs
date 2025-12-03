@@ -251,10 +251,16 @@ impl TerminalEmulator {
     }
 
     /// Write input to the PTY (send to shell)
+    /// Note: This does NOT flush immediately - call flush_input() after batch processing
+    /// to avoid per-keystroke I/O overhead (especially important on Windows)
     pub fn write_input(&mut self, data: &[u8]) -> std::io::Result<()> {
-        self.writer.write_all(data)?;
-        self.writer.flush()?;
-        Ok(())
+        self.writer.write_all(data)
+    }
+
+    /// Flush any buffered PTY input
+    /// Call this once after processing a batch of keyboard events
+    pub fn flush_input(&mut self) -> std::io::Result<()> {
+        self.writer.flush()
     }
 
     /// Resize the terminal and notify the PTY

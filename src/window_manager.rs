@@ -1130,6 +1130,15 @@ impl WindowManager {
         Ok(())
     }
 
+    /// Flush buffered input for all terminal windows
+    /// Call this once after processing a batch of keyboard events
+    /// to avoid per-keystroke I/O overhead (especially important on Windows)
+    pub fn flush_all_terminal_input(&mut self) {
+        for terminal_window in &mut self.windows {
+            let _ = terminal_window.flush_input();
+        }
+    }
+
     /// Get application cursor keys mode (DECCKM) state for the focused window
     pub fn get_focused_application_cursor_keys(&self) -> bool {
         if let FocusState::Window(id) = self.focus {

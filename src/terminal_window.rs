@@ -160,6 +160,12 @@ impl TerminalWindow {
         self.emulator.send_char(c)
     }
 
+    /// Flush any buffered terminal input
+    /// Call this after processing a batch of keyboard events
+    pub fn flush_input(&mut self) -> std::io::Result<()> {
+        self.emulator.flush_input()
+    }
+
     /// Resize the window (also resizes the terminal)
     pub fn resize(&mut self, new_width: u16, new_height: u16) -> std::io::Result<()> {
         self.window.width = new_width;

@@ -691,8 +691,16 @@ fn main() -> io::Result<()> {
 
         while events_processed < MAX_EVENTS_PER_FRAME {
             // Check for available events (non-blocking after first iteration)
+            // Windows console I/O is slower, so use shorter timeout for faster input response
             let poll_timeout = if events_processed == 0 {
-                Duration::from_millis(16) // First poll: wait up to 16ms
+                #[cfg(target_os = "windows")]
+                {
+                    Duration::from_millis(8) // Windows: faster polling for responsive input
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    Duration::from_millis(16) // Other platforms: standard 60fps timing
+                }
             } else {
                 Duration::from_millis(0) // Subsequent: non-blocking
             };
@@ -1672,6 +1680,10 @@ fn main() -> io::Result<()> {
                 _ => {}
             }
         } // End of while events loop
+
+        // Flush all buffered terminal input once after processing the event batch
+        // This avoids per-keystroke I/O overhead (especially important on Windows)
+        window_manager.flush_all_terminal_input();
 
         // Check if we need to exit the main loop
         if should_break_main_loop {
