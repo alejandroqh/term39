@@ -164,6 +164,30 @@ impl Selection {
     pub fn is_empty(&self) -> bool {
         self.start == self.end
     }
+
+    /// Check if selection is too small (less than 2 characters)
+    /// This is used to avoid showing single-character selections from accidental clicks
+    pub fn is_too_small(&self) -> bool {
+        let (start, end) = self.normalized_bounds();
+        match self.selection_type {
+            SelectionType::Block => {
+                // For block selection, require at least 2 cells in any dimension
+                let width = (end.col as i32 - start.col as i32).abs() + 1;
+                let height = (end.row as i32 - start.row as i32).abs() + 1;
+                width * height < 2
+            }
+            _ => {
+                // For linear selection, calculate total characters
+                if start.row == end.row {
+                    // Same row: just check column difference
+                    (end.col as i32 - start.col as i32).abs() < 1
+                } else {
+                    // Different rows: always has at least 2 characters
+                    false
+                }
+            }
+        }
+    }
 }
 
 /// Check if a character is part of a word (for word selection)
@@ -207,5 +231,31 @@ mod tests {
         let (start, end) = sel.normalized_bounds();
         assert_eq!(start.col, 5);
         assert_eq!(end.col, 10);
+    }
+
+    #[test]
+    fn test_is_too_small() {
+        // Single character selection (click without drag) should be too small
+        let sel = Selection::new(Position::new(5, 0), SelectionType::Character);
+        assert!(sel.is_too_small());
+
+        // Two character selection should not be too small
+        let mut sel2 = Selection::new(Position::new(5, 0), SelectionType::Character);
+        sel2.update_end(Position::new(6, 0));
+        assert!(!sel2.is_too_small());
+
+        // Multi-row selection should not be too small
+        let mut sel3 = Selection::new(Position::new(5, 0), SelectionType::Character);
+        sel3.update_end(Position::new(5, 1));
+        assert!(!sel3.is_too_small());
+
+        // Single cell block selection should be too small
+        let sel_block = Selection::new(Position::new(5, 5), SelectionType::Block);
+        assert!(sel_block.is_too_small());
+
+        // 2-cell block selection should not be too small
+        let mut sel_block2 = Selection::new(Position::new(5, 5), SelectionType::Block);
+        sel_block2.update_end(Position::new(6, 5));
+        assert!(!sel_block2.is_too_small());
     }
 }

@@ -682,9 +682,15 @@ impl TerminalWindow {
     }
 
     /// Complete the selection
+    /// Clears the selection if it's too small (less than 2 characters)
     pub fn complete_selection(&mut self) {
         if let Some(selection) = &mut self.selection {
-            selection.complete();
+            // Clear selection if it's too small (single character click)
+            if selection.is_too_small() {
+                self.selection = None;
+            } else {
+                selection.complete();
+            }
         }
     }
 
