@@ -280,8 +280,8 @@ fn main() -> io::Result<()> {
             if event::poll(Duration::from_millis(50))? {
                 match event::read()? {
                     Event::Key(key_event) => {
-                        // Ignore key release events (Windows sends both press and release)
-                        if key_event.kind != KeyEventKind::Press {
+                        // Only process key press and repeat events (ignore Release)
+                        if key_event.kind == KeyEventKind::Release {
                             continue;
                         }
                         let action = setup_window.handle_key(key_event);
@@ -732,8 +732,14 @@ fn main() -> io::Result<()> {
 
             match current_event {
                 Event::Key(key_event) => {
-                    // Ignore key release events (Windows sends both press and release)
-                    if key_event.kind != KeyEventKind::Press {
+                    // Only process key press and repeat events
+                    // Windows sends KeyEventKind::Press, Release, AND Repeat
+                    // - Press: initial key down
+                    // - Repeat: key held down (auto-repeat)
+                    // - Release: key up (should be ignored)
+                    // Ignoring Repeat events was causing keys to feel "unreliable" on Windows
+                    // as held keys would not register after the initial press
+                    if key_event.kind == KeyEventKind::Release {
                         continue;
                     }
 
