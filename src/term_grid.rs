@@ -392,6 +392,22 @@ impl TerminalGrid {
             std::cmp::Ordering::Equal => {}
         }
 
+        // Also resize the saved alt_screen buffer if in alternate screen mode
+        if let Some(alt_screen) = &mut self.alt_screen {
+            for row in alt_screen.iter_mut() {
+                row.resize(new_cols, TerminalCell::default());
+            }
+            match new_rows.cmp(&alt_screen.len()) {
+                std::cmp::Ordering::Greater => {
+                    alt_screen.resize(new_rows, vec![TerminalCell::default(); new_cols]);
+                }
+                std::cmp::Ordering::Less => {
+                    alt_screen.truncate(new_rows);
+                }
+                std::cmp::Ordering::Equal => {}
+            }
+        }
+
         // Update tab stops
         self.tab_stops.resize(new_cols, false);
         for i in (0..new_cols).step_by(8) {
@@ -1018,10 +1034,39 @@ impl TerminalGrid {
 
     /// Switch back to main screen buffer
     pub fn use_main_screen(&mut self) {
-        if let Some(main_screen) = self.alt_screen.take() {
+        if let Some(mut main_screen) = self.alt_screen.take() {
+            // The terminal may have been resized while in alternate screen.
+            // Resize the saved main screen to match current dimensions.
+            let current_cols = self.cols;
+            let current_rows = self.rows_count;
+
+            // Resize columns in existing rows
+            for row in &mut main_screen {
+                row.resize(current_cols, TerminalCell::default());
+            }
+
+            // Add or remove rows to match current size
+            match current_rows.cmp(&main_screen.len()) {
+                std::cmp::Ordering::Greater => {
+                    main_screen.resize(current_rows, vec![TerminalCell::default(); current_cols]);
+                }
+                std::cmp::Ordering::Less => {
+                    main_screen.truncate(current_rows);
+                }
+                std::cmp::Ordering::Equal => {}
+            }
+
             self.rows = main_screen;
             // Restore cursor position (part of DECSC/DECRC behavior with alt screen)
             self.restore_cursor();
+
+            // Clamp cursor to current bounds after restore
+            self.cursor.x = self.cursor.x.min(current_cols.saturating_sub(1));
+            self.cursor.y = self.cursor.y.min(current_rows.saturating_sub(1));
+
+            // Reset scroll region to full screen (alt screen may have set custom regions)
+            self.scroll_region_top = 0;
+            self.scroll_region_bottom = current_rows.saturating_sub(1);
         }
     }
 
