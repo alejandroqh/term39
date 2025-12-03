@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.6] - 2025-12-03
+
+### Added
+
+- PIN prompt now supports click handling for digit buttons
+
+### Fixed
+
+- **Windows CMD not closing**: Fixed window not closing properly when CMD shell exits
+- **Windows input performance**: Optimized flush input handling for improved responsiveness
+
 ## [0.16.5] - 2025-12-02
 
 ### Added
@@ -391,6 +402,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.16.6]: https://github.com/alejandroqh/term39/releases/tag/v0.16.6
 [0.16.5]: https://github.com/alejandroqh/term39/releases/tag/v0.16.5
 [0.16.4]: https://github.com/alejandroqh/term39/releases/tag/v0.16.4
 [0.16.0]: https://github.com/alejandroqh/term39/releases/tag/v0.16.0
