@@ -1,13 +1,14 @@
 use crate::charset::{Charset, CharsetMode};
 use crate::prompt::{Prompt, PromptAction, PromptButton, PromptType, TextAlign};
 use crate::selection::{Position, Selection, SelectionType};
-use crate::term_grid::{Color as TermColor, NamedColor, TerminalCell};
+use crate::term_grid::{Color as TermColor, NamedColor, TerminalCell, TerminalGrid};
 use crate::terminal_emulator::{ShellConfig, TerminalEmulator};
 use crate::theme::Theme;
 use crate::video_buffer::{Cell, VideoBuffer};
 use crate::window::Window;
 use crossterm::event::{KeyCode, KeyEvent};
 use crossterm::style::Color;
+use std::sync::MutexGuard;
 use std::time::Instant;
 
 /// Close confirmation dialog for a terminal window
@@ -236,28 +237,30 @@ impl TerminalWindow {
             keyboard_mode_active,
         );
 
+        // Acquire grid lock once for both content and scrollbar rendering
+        let grid_arc = self.emulator.grid();
+        let grid = grid_arc.lock().unwrap();
+
         // Render the terminal content
-        self.render_terminal_content(buffer, theme, tint_terminal);
+        self.render_terminal_content_with_grid(buffer, theme, tint_terminal, &grid);
 
         // Render the scrollbar
-        self.render_scrollbar(buffer, charset, theme);
+        self.render_scrollbar_with_grid(buffer, charset, theme, &grid);
 
         // Render close confirmation on top of window content (if active)
         self.render_close_confirmation(buffer, charset, theme);
     }
 
-    fn render_terminal_content(
+    fn render_terminal_content_with_grid(
         &self,
         buffer: &mut VideoBuffer,
         theme: &Theme,
         tint_terminal: bool,
+        grid: &MutexGuard<'_, TerminalGrid>,
     ) {
         if self.window.is_minimized {
             return;
         }
-
-        let grid = self.emulator.grid();
-        let grid = grid.lock().unwrap();
 
         // Content area starts after 2-char left border and title bar
         let content_x = self.window.x + 2; // After 2-char left border
@@ -362,13 +365,16 @@ impl TerminalWindow {
         }
     }
 
-    fn render_scrollbar(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
+    fn render_scrollbar_with_grid(
+        &self,
+        buffer: &mut VideoBuffer,
+        charset: &Charset,
+        theme: &Theme,
+        grid: &MutexGuard<'_, TerminalGrid>,
+    ) {
         if self.window.is_minimized {
             return;
         }
-
-        let grid = self.emulator.grid();
-        let grid = grid.lock().unwrap();
 
         let scrollback_len = grid.scrollback_len();
 

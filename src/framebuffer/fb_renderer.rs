@@ -362,28 +362,6 @@ impl FramebufferRenderer {
             return;
         }
 
-        // Debug: log first few characters rendered
-        static DEBUG_COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-        let count = DEBUG_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        if count < 20 {
-            if let Ok(mut f) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open("/tmp/term39-font-debug.log")
-            {
-                use std::io::Write;
-                let _ = writeln!(
-                    f,
-                    "render_char: col={}, row={}, char='{}' (code={}), glyph_count={}",
-                    col,
-                    row,
-                    cell.character,
-                    cell.character as usize,
-                    self.font.glyph_count()
-                );
-            }
-        }
-
         let x_offset = col * self.font.width;
         let y_offset = row * self.font.height;
         let font_width = self.font.width;

@@ -1047,7 +1047,7 @@ impl WindowManager {
             } else {
                 charset.border_horizontal
             };
-            buffer.set(x + i, y, Cell::new(ch, border_color, bg_color));
+            buffer.set(x + i, y, Cell::new_unchecked(ch, border_color, bg_color));
         }
 
         // Draw bottom border
@@ -1060,7 +1060,11 @@ impl WindowManager {
             } else {
                 charset.border_horizontal
             };
-            buffer.set(x + i, bottom_y, Cell::new(ch, border_color, bg_color));
+            buffer.set(
+                x + i,
+                bottom_y,
+                Cell::new_unchecked(ch, border_color, bg_color),
+            );
         }
 
         // Draw left and right borders
@@ -1068,12 +1072,12 @@ impl WindowManager {
             buffer.set(
                 x,
                 y + j,
-                Cell::new(charset.border_vertical, border_color, bg_color),
+                Cell::new_unchecked(charset.border_vertical, border_color, bg_color),
             );
             buffer.set(
                 x + width.saturating_sub(1),
                 y + j,
-                Cell::new(charset.border_vertical, border_color, bg_color),
+                Cell::new_unchecked(charset.border_vertical, border_color, bg_color),
             );
         }
     }
@@ -1085,6 +1089,7 @@ impl WindowManager {
 
     /// Get window info for button bar rendering (id, title, is_focused, is_minimized)
     /// Returns windows sorted by creation order (ID), not z-order
+    /// Optimized: uses sort_unstable for better performance on small arrays
     pub fn get_window_list(&self) -> Vec<(u32, &str, bool, bool)> {
         let mut list: Vec<(u32, &str, bool, bool)> = self
             .windows
@@ -1100,7 +1105,8 @@ impl WindowManager {
             .collect();
 
         // Sort by window ID to maintain creation order
-        list.sort_by_key(|(id, _, _, _)| *id);
+        // Use sort_unstable for better performance (stable sort not needed for unique IDs)
+        list.sort_unstable_by_key(|(id, _, _, _)| *id);
         list
     }
 

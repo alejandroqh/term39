@@ -255,18 +255,15 @@ impl VideoBuffer {
         }
 
         // Update front buffer to reflect what's actually displayed
-        // We need to handle cursor separately since it's rendered with inverted colors
-        // Use the pre-extracted cursor_pos to avoid repeated is_some_and() calls
-        for (idx, back_cell) in self.back_buffer.iter().enumerate() {
-            let x = (idx % self.width as usize) as u16;
-            let y = (idx / self.width as usize) as u16;
+        // Optimized: bulk copy + single-point cursor inversion (avoids per-cell division/modulo)
+        self.front_buffer.copy_from_slice(&self.back_buffer);
 
-            let is_cursor = cursor_pos.is_some_and(|(cx, cy)| cx == x && cy == y);
-            self.front_buffer[idx] = if is_cursor {
-                back_cell.inverted()
-            } else {
-                *back_cell
-            };
+        // Apply cursor inversion at single location if needed
+        if let Some((cx, cy)) = cursor_pos {
+            let cursor_idx = (cy as usize) * (self.width as usize) + (cx as usize);
+            if cursor_idx < self.front_buffer.len() {
+                self.front_buffer[cursor_idx] = self.back_buffer[cursor_idx].inverted();
+            }
         }
 
         // Hide cursor after rendering to prevent it from being visible or affecting PTY output
