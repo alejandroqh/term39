@@ -182,6 +182,9 @@ pub struct TerminalGrid {
     /// Auto-wrap mode (DECAWM - ?7)
     /// When set, characters wrap to next line at end of line
     pub auto_wrap_mode: bool,
+    /// Pending wrap flag (for deferred wrap behavior like xterm)
+    /// When true, next character will trigger wrap before being printed
+    wrap_pending: bool,
     /// Insert/Replace mode (IRM - mode 4)
     /// When set, characters are inserted; when reset, characters replace
     pub insert_mode: bool,
@@ -234,6 +237,7 @@ impl TerminalGrid {
             mouse_urxvt_mode: false,
             lnm_mode: false,
             auto_wrap_mode: true, // Default: enabled (xterm behavior)
+            wrap_pending: false,  // No pending wrap initially
             insert_mode: false,   // Default: replace mode
             origin_mode: false,   // Default: absolute positioning
             response_queue: Vec::new(),
@@ -483,52 +487,79 @@ impl TerminalGrid {
                     return;
                 }
 
-                // Write character at cursor position
-                if self.cursor.x < self.cols {
-                    // Copy values before mutable borrow
-                    let fg = self.current_fg;
-                    let bg = self.current_bg;
-                    let attrs = self.current_attrs;
+                // Handle pending wrap (deferred wrap like xterm)
+                // When a character was written to the last column, wrap is deferred until
+                // the next printable character, allowing exact-width lines without extra wrap
+                if self.wrap_pending && self.auto_wrap_mode {
+                    self.wrap_pending = false;
+                    if self.cursor.y == self.rows_count - 1 {
+                        // At last row, scroll up
+                        self.scroll_up(1);
+                        self.cursor.x = 0;
+                    } else {
+                        self.cursor.x = 0;
+                        self.cursor.y += 1;
+                    }
+                }
 
-                    // Handle wide characters (width = 2)
-                    if char_width == 2 {
-                        // Check if we have room for a wide character
-                        if self.cursor.x + 1 >= self.cols {
-                            // Not enough room on this line for wide char
-                            // Either wrap to next line or stay at end
-                            if self.auto_wrap_mode {
-                                if self.cursor.y == self.rows_count - 1 {
-                                    // At last row, can't wrap, skip the character
-                                    return;
-                                }
+                // Copy values before mutable borrow
+                let fg = self.current_fg;
+                let bg = self.current_bg;
+                let attrs = self.current_attrs;
+
+                // Handle wide characters (width = 2)
+                if char_width == 2 {
+                    // Check if we have room for a wide character
+                    if self.cursor.x + 1 >= self.cols {
+                        // Not enough room on this line for wide char
+                        // Either wrap to next line or stay at end
+                        if self.auto_wrap_mode {
+                            if self.cursor.y == self.rows_count - 1 {
+                                // At last row, scroll and wrap
+                                self.scroll_up(1);
+                                self.cursor.x = 0;
+                            } else {
                                 // Wrap to next line
                                 self.cursor.x = 0;
-                                self.linefeed();
-                            } else {
-                                // No wrap mode, skip the character
-                                return;
+                                self.cursor.y += 1;
                             }
+                        } else {
+                            // No wrap mode, skip the character
+                            return;
                         }
+                    }
 
-                        // Write the wide character to first cell
-                        if let Some(cell) = self.get_cell_mut(self.cursor.x, self.cursor.y) {
-                            cell.c = c;
-                            cell.fg = fg;
-                            cell.bg = bg;
-                            cell.attrs = attrs;
+                    // Write the wide character to first cell
+                    if let Some(cell) = self.get_cell_mut(self.cursor.x, self.cursor.y) {
+                        cell.c = c;
+                        cell.fg = fg;
+                        cell.bg = bg;
+                        cell.attrs = attrs;
+                    }
+
+                    // Write a placeholder space to second cell (for wide char continuation)
+                    if let Some(cell) = self.get_cell_mut(self.cursor.x + 1, self.cursor.y) {
+                        cell.c = ' ';
+                        cell.fg = fg;
+                        cell.bg = bg;
+                        cell.attrs = attrs;
+                    }
+
+                    self.cursor.x += 2;
+
+                    // Check if we're now at or past end of line
+                    if self.cursor.x >= self.cols {
+                        if self.auto_wrap_mode {
+                            // Set pending wrap instead of wrapping immediately
+                            self.cursor.x = self.cols - 1;
+                            self.wrap_pending = true;
+                        } else {
+                            self.cursor.x = self.cols - 1;
                         }
-
-                        // Write a placeholder space to second cell (for wide char continuation)
-                        if let Some(cell) = self.get_cell_mut(self.cursor.x + 1, self.cursor.y) {
-                            cell.c = ' ';
-                            cell.fg = fg;
-                            cell.bg = bg;
-                            cell.attrs = attrs;
-                        }
-
-                        self.cursor.x += 2;
-                    } else {
-                        // Normal width character
+                    }
+                } else {
+                    // Normal width character
+                    if self.cursor.x < self.cols {
                         if let Some(cell) = self.get_cell_mut(self.cursor.x, self.cursor.y) {
                             cell.c = c;
                             cell.fg = fg;
@@ -536,22 +567,16 @@ impl TerminalGrid {
                             cell.attrs = attrs;
                         }
                         self.cursor.x += 1;
-                    }
 
-                    // Auto-wrap at end of line (if DECAWM is enabled)
-                    if self.cursor.x >= self.cols {
-                        if self.auto_wrap_mode {
-                            // Don't auto-wrap at the very last row - just stay at the last column
-                            // This prevents unwanted scrolling when drawing the last row
-                            if self.cursor.y == self.rows_count - 1 {
+                        // Check if we've reached the end of line
+                        if self.cursor.x >= self.cols {
+                            if self.auto_wrap_mode {
+                                // Set pending wrap instead of wrapping immediately (deferred wrap)
                                 self.cursor.x = self.cols - 1;
+                                self.wrap_pending = true;
                             } else {
-                                self.cursor.x = 0;
-                                self.linefeed();
+                                self.cursor.x = self.cols - 1;
                             }
-                        } else {
-                            // No auto-wrap: stay at last column
-                            self.cursor.x = self.cols - 1;
                         }
                     }
                 }
@@ -562,19 +587,19 @@ impl TerminalGrid {
     /// Move cursor to the next line, scrolling if necessary
     /// If LNM (Line Feed/New Line Mode) is set, also performs carriage return
     fn linefeed(&mut self) {
+        // Clear pending wrap - explicit cursor movement cancels deferred wrap
+        self.wrap_pending = false;
+
         // If LNM is set, linefeed also performs carriage return
         if self.lnm_mode {
             self.cursor.x = 0;
         }
 
         if self.cursor.y == self.scroll_region_bottom {
-            // At bottom of scroll region
-            // Don't scroll during synchronized output
-            if self.synchronized_output {
-                // Stay at last row without scrolling
-            } else {
-                self.scroll_up(1);
-            }
+            // At bottom of scroll region - always scroll
+            // Synchronized output only affects when changes are rendered to screen,
+            // not the underlying terminal state
+            self.scroll_up(1);
         } else if self.cursor.y < self.rows_count - 1 {
             self.cursor.y += 1;
         }
@@ -582,6 +607,8 @@ impl TerminalGrid {
 
     /// Move cursor to start of line
     fn carriage_return(&mut self) {
+        // Clear pending wrap - explicit cursor movement cancels deferred wrap
+        self.wrap_pending = false;
         self.cursor.x = 0;
     }
 
@@ -642,6 +669,7 @@ impl TerminalGrid {
         self.mouse_urxvt_mode = false;
         self.lnm_mode = false;
         self.auto_wrap_mode = true;
+        self.wrap_pending = false;
         self.insert_mode = false;
         self.origin_mode = false;
 
@@ -656,6 +684,8 @@ impl TerminalGrid {
 
     /// Move cursor to next tab stop
     fn tab(&mut self) {
+        // Clear pending wrap - tab movement cancels deferred wrap
+        self.wrap_pending = false;
         for x in (self.cursor.x + 1)..self.cols {
             if self.tab_stops[x] {
                 self.cursor.x = x;
@@ -667,6 +697,8 @@ impl TerminalGrid {
 
     /// Move cursor back one position
     fn backspace(&mut self) {
+        // Clear pending wrap - backspace cancels deferred wrap
+        self.wrap_pending = false;
         if self.cursor.x > 0 {
             self.cursor.x -= 1;
         }
@@ -883,6 +915,8 @@ impl TerminalGrid {
 
     /// Move cursor to absolute position (0-indexed)
     pub fn goto(&mut self, x: usize, y: usize) {
+        // Clear pending wrap - explicit cursor movement cancels deferred wrap
+        self.wrap_pending = false;
         self.cursor.x = x.min(self.cols.saturating_sub(1));
         self.cursor.y = y.min(self.rows_count.saturating_sub(1));
     }
@@ -891,6 +925,8 @@ impl TerminalGrid {
     /// When origin mode (DECOM) is set, positions are relative to scroll region
     /// and cursor is constrained to scroll region
     pub fn goto_origin_aware(&mut self, x: usize, y: usize) {
+        // Clear pending wrap - explicit cursor movement cancels deferred wrap
+        self.wrap_pending = false;
         if self.origin_mode {
             // In origin mode, positions are relative to scroll region
             let actual_y = (self.scroll_region_top + y).min(self.scroll_region_bottom);
@@ -904,8 +940,11 @@ impl TerminalGrid {
 
     /// Move cursor relatively
     pub fn move_cursor(&mut self, dx: isize, dy: isize) {
+        // Clear pending wrap - explicit cursor movement cancels deferred wrap
+        self.wrap_pending = false;
         let new_x = (self.cursor.x as isize + dx).max(0) as usize;
         let new_y = (self.cursor.y as isize + dy).max(0) as usize;
+        // Note: goto() also clears wrap_pending but that's fine
         self.goto(new_x, new_y);
     }
 
