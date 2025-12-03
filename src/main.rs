@@ -1688,12 +1688,50 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle selection events (left-click, drag)
+                    // But first check if child process wants mouse events (e.g., dialog, vim with mouse)
                     if !handled
                         && app_state.active_prompt.is_none()
                         && !app_state.context_menu.visible
                     {
+                        // Check if we should forward mouse to the terminal child process
+                        let forward_to_terminal = window_manager.focused_has_mouse_tracking()
+                            && !window_manager.is_dragging_or_resizing()
+                            && !window_manager.is_point_on_drag_or_resize_area(
+                                mouse_event.column,
+                                mouse_event.row,
+                            );
+
+                        if forward_to_terminal {
+                            // Forward mouse event to child process (e.g., dialog, vim)
+                            let (button, action) = match mouse_event.kind {
+                                MouseEventKind::Down(MouseButton::Left) => (0u8, 0u8),
+                                MouseEventKind::Down(MouseButton::Middle) => (1u8, 0u8),
+                                MouseEventKind::Down(MouseButton::Right) => (2u8, 0u8),
+                                MouseEventKind::Up(MouseButton::Left) => (0u8, 1u8),
+                                MouseEventKind::Up(MouseButton::Middle) => (1u8, 1u8),
+                                MouseEventKind::Up(MouseButton::Right) => (2u8, 1u8),
+                                MouseEventKind::Drag(MouseButton::Left) => (0u8, 2u8),
+                                MouseEventKind::Drag(MouseButton::Middle) => (1u8, 2u8),
+                                MouseEventKind::Drag(MouseButton::Right) => (2u8, 2u8),
+                                MouseEventKind::Moved => (0u8, 2u8), // Motion with no button
+                                MouseEventKind::ScrollUp => (64u8, 0u8),
+                                MouseEventKind::ScrollDown => (65u8, 0u8),
+                                MouseEventKind::ScrollLeft => (66u8, 0u8),
+                                MouseEventKind::ScrollRight => (67u8, 0u8),
+                            };
+
+                            if window_manager.forward_mouse_to_focused(
+                                mouse_event.column,
+                                mouse_event.row,
+                                button,
+                                action,
+                            ) {
+                                handled = true;
+                            }
+                        }
+
                         match mouse_event.kind {
-                            MouseEventKind::Down(MouseButton::Left) => {
+                            MouseEventKind::Down(MouseButton::Left) if !handled => {
                                 // Skip selection if clicking on title bar or resize edge (would start drag/resize)
                                 if window_manager.is_point_on_drag_or_resize_area(
                                     mouse_event.column,
@@ -1781,7 +1819,7 @@ fn main() -> io::Result<()> {
                                     }
                                 }
                             }
-                            MouseEventKind::Drag(MouseButton::Left) => {
+                            MouseEventKind::Drag(MouseButton::Left) if !handled => {
                                 // Don't update selection while dragging/resizing a window
                                 if app_state.selection_active
                                     && !window_manager.is_dragging_or_resizing()
@@ -1797,7 +1835,7 @@ fn main() -> io::Result<()> {
                                     }
                                 }
                             }
-                            MouseEventKind::Up(MouseButton::Left) => {
+                            MouseEventKind::Up(MouseButton::Left) if !handled => {
                                 if app_state.selection_active {
                                     if let FocusState::Window(window_id) =
                                         window_manager.get_focus()

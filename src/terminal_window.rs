@@ -56,6 +56,19 @@ pub struct TerminalWindow {
     has_user_input: bool,
 }
 
+/// Mouse tracking state - all flags retrieved with a single mutex lock
+/// Used internally to avoid multiple lock acquisitions in hot path
+struct MouseTrackingState {
+    /// Whether any mouse tracking mode is enabled
+    tracking_enabled: bool,
+    /// Whether button/drag tracking is enabled (1002 or 1003)
+    button_tracking: bool,
+    /// SGR extended mouse mode (1006)
+    sgr_mode: bool,
+    /// URXVT mouse mode (1015)
+    urxvt_mode: bool,
+}
+
 impl TerminalWindow {
     /// Create a new terminal window
     #[allow(clippy::too_many_arguments)]
@@ -983,6 +996,203 @@ impl TerminalWindow {
             None // Click inside dialog but not on a button
         }
     }
+
+    /// Get all mouse tracking state with a single mutex lock acquisition
+    /// This is more efficient than separate calls that each acquire the lock
+    fn get_mouse_tracking_state(&self) -> MouseTrackingState {
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+        MouseTrackingState {
+            tracking_enabled: grid.mouse_normal_tracking
+                || grid.mouse_button_tracking
+                || grid.mouse_any_event_tracking,
+            button_tracking: grid.mouse_button_tracking || grid.mouse_any_event_tracking,
+            sgr_mode: grid.mouse_sgr_mode,
+            urxvt_mode: grid.mouse_urxvt_mode,
+        }
+    }
+
+    /// Check if the terminal has mouse tracking enabled
+    /// Returns true if the child process has requested mouse events
+    pub fn has_mouse_tracking_enabled(&self) -> bool {
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+        grid.mouse_normal_tracking || grid.mouse_button_tracking || grid.mouse_any_event_tracking
+    }
+
+    /// Convert screen coordinates to terminal-relative coordinates
+    /// Returns None if the point is outside the content area
+    pub fn screen_to_terminal_coords(&self, screen_x: u16, screen_y: u16) -> Option<(u16, u16)> {
+        // Content area starts after 2-char left border and title bar
+        let content_x = self.window.x + 2;
+        let content_y = self.window.y + 1;
+        // Content area ends before 2-char right border and bottom border
+        // But we need to account for the scrollbar on the right side
+        let content_width = self.window.width.saturating_sub(5); // -2 left, -2 right, -1 scrollbar
+        let content_height = self.window.height.saturating_sub(2); // -1 title, -1 bottom
+
+        // Check if point is within content area
+        if screen_x >= content_x
+            && screen_x < content_x + content_width
+            && screen_y >= content_y
+            && screen_y < content_y + content_height
+        {
+            let term_x = screen_x - content_x;
+            let term_y = screen_y - content_y;
+            Some((term_x, term_y))
+        } else {
+            None
+        }
+    }
+
+    /// Send a mouse event to the terminal using pre-fetched tracking state
+    /// Uses stack-allocated buffer to avoid heap allocation in hot path
+    /// button: 0=left, 1=middle, 2=right, 3=release, 64=scroll up, 65=scroll down
+    /// action: 0=press, 1=release, 2=drag/motion
+    /// term_x, term_y: 0-indexed terminal coordinates
+    fn send_mouse_event_with_state(
+        &mut self,
+        state: &MouseTrackingState,
+        button: u8,
+        action: u8,
+        term_x: u16,
+        term_y: u16,
+    ) -> std::io::Result<()> {
+        // Terminal coordinates are 1-indexed for mouse reporting
+        let x = term_x + 1;
+        let y = term_y + 1;
+
+        // Stack-allocated buffer - 24 bytes is sufficient for any mouse sequence
+        // SGR max: \x1b[<999;999;999M = ~18 bytes
+        // URXVT max: \x1b[999;999;999M = ~17 bytes
+        // Normal: \x1b[Mccc = 6 bytes
+        let mut buf = [0u8; 24];
+        let len = if state.sgr_mode {
+            // SGR extended mouse mode (CSI < Cb ; Cx ; Cy M/m)
+            // Cb = button number (0-2 for press, +32 for motion)
+            // M for press, m for release
+            let cb = match action {
+                1 => button,      // release
+                2 => button + 32, // motion/drag
+                _ => button,      // press
+            };
+            let suffix = if action == 1 { b'm' } else { b'M' };
+            // Write escape sequence manually to avoid format! allocation
+            let mut pos = 0;
+            buf[pos..pos + 3].copy_from_slice(b"\x1b[<");
+            pos += 3;
+            pos += write_u16_to_buf(&mut buf[pos..], cb as u16);
+            buf[pos] = b';';
+            pos += 1;
+            pos += write_u16_to_buf(&mut buf[pos..], x);
+            buf[pos] = b';';
+            pos += 1;
+            pos += write_u16_to_buf(&mut buf[pos..], y);
+            buf[pos] = suffix;
+            pos + 1
+        } else if state.urxvt_mode {
+            // URXVT mouse mode (CSI Cb ; Cx ; Cy M)
+            // Cb = 32 + button + modifiers
+            let cb = 32
+                + match action {
+                    1 => 3,           // release (button 3 means release)
+                    2 => button + 32, // motion
+                    _ => button,      // press
+                };
+            let mut pos = 0;
+            buf[pos..pos + 2].copy_from_slice(b"\x1b[");
+            pos += 2;
+            pos += write_u16_to_buf(&mut buf[pos..], cb as u16);
+            buf[pos] = b';';
+            pos += 1;
+            pos += write_u16_to_buf(&mut buf[pos..], x);
+            buf[pos] = b';';
+            pos += 1;
+            pos += write_u16_to_buf(&mut buf[pos..], y);
+            buf[pos] = b'M';
+            pos + 1
+        } else {
+            // Normal X10/X11 mouse mode (CSI M Cb Cx Cy)
+            // Cb = 32 + button, Cx/Cy = 32 + coordinate
+            // Coordinates are limited to 223 (255-32)
+            let cb = 32
+                + match action {
+                    1 => 3,           // release
+                    2 => button + 32, // motion
+                    _ => button,      // press
+                };
+            buf[0..3].copy_from_slice(b"\x1b[M");
+            buf[3] = cb;
+            buf[4] = (32 + x.min(223)) as u8;
+            buf[5] = (32 + y.min(223)) as u8;
+            6
+        };
+
+        self.emulator.write_input(&buf[..len])
+    }
+
+    /// Handle a mouse event from the parent application
+    /// Returns true if the event was consumed (forwarded to terminal)
+    pub fn handle_mouse_for_terminal(
+        &mut self,
+        screen_x: u16,
+        screen_y: u16,
+        button: u8,
+        action: u8,
+    ) -> bool {
+        // Get all mouse tracking state with a single mutex lock
+        let state = self.get_mouse_tracking_state();
+
+        // Check if this terminal wants mouse events
+        if !state.tracking_enabled {
+            return false;
+        }
+
+        // For motion events, check if motion tracking is enabled
+        if action == 2 && !state.button_tracking {
+            return false;
+        }
+
+        // Convert to terminal coordinates
+        if let Some((term_x, term_y)) = self.screen_to_terminal_coords(screen_x, screen_y) {
+            // Send the event using pre-fetched state (no additional lock needed)
+            if self
+                .send_mouse_event_with_state(&state, button, action, term_x, term_y)
+                .is_ok()
+            {
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+/// Write a u16 value as decimal ASCII to a buffer, returning bytes written
+/// This avoids format! allocation for number formatting
+#[inline]
+fn write_u16_to_buf(buf: &mut [u8], value: u16) -> usize {
+    if value == 0 {
+        buf[0] = b'0';
+        return 1;
+    }
+
+    let mut n = value;
+    let mut digits = [0u8; 5]; // u16 max is 65535 = 5 digits
+    let mut len = 0;
+
+    while n > 0 {
+        digits[len] = b'0' + (n % 10) as u8;
+        n /= 10;
+        len += 1;
+    }
+
+    // Reverse digits into buffer
+    for i in 0..len {
+        buf[i] = digits[len - 1 - i];
+    }
+
+    len
 }
 
 /// Convert a terminal cell to a video buffer cell

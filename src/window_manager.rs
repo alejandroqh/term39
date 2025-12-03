@@ -1202,6 +1202,37 @@ impl WindowManager {
         Ok(())
     }
 
+    /// Check if the focused window has mouse tracking enabled
+    pub fn focused_has_mouse_tracking(&self) -> bool {
+        if let FocusState::Window(id) = self.focus {
+            if let Some(terminal_window) = self.get_window_by_id(id) {
+                return terminal_window.has_mouse_tracking_enabled();
+            }
+        }
+        false
+    }
+
+    /// Forward a mouse event to the focused terminal window
+    /// Returns true if the event was consumed (forwarded to child process)
+    /// button: 0=left, 1=middle, 2=right, 64=scroll up, 65=scroll down
+    /// action: 0=press, 1=release, 2=drag/motion
+    #[allow(clippy::collapsible_if)]
+    pub fn forward_mouse_to_focused(
+        &mut self,
+        screen_x: u16,
+        screen_y: u16,
+        button: u8,
+        action: u8,
+    ) -> bool {
+        if let FocusState::Window(id) = self.focus {
+            if let Some(terminal_window) = self.get_window_by_id_mut(id) {
+                return terminal_window
+                    .handle_mouse_for_terminal(screen_x, screen_y, button, action);
+            }
+        }
+        false
+    }
+
     /// Flush buffered input for all terminal windows
     /// Call this once after processing a batch of keyboard events
     /// to avoid per-keystroke I/O overhead (especially important on Windows)
