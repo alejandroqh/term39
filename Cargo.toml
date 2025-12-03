@@ -54,7 +54,7 @@ pam = { version = "0.8", optional = true }
 
 # Windows lockscreen dependencies
 [target.'cfg(target_os = "windows")'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_Security", "Win32_Foundation"], optional = true }
+windows-sys = { version = "0.61", features = ["Win32_Security", "Win32_Foundation"], optional = true }
 
 [package.metadata.deb]
 maintainer = "Alejandro Quintanar <a@q39.dev>"
