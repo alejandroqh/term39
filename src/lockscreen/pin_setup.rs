@@ -1,6 +1,6 @@
 //! PIN Setup Dialog for configuring PIN authentication.
 
-use crate::charset::Charset;
+use crate::charset::{Charset, CharsetMode};
 use crate::lockscreen::auth::{MAX_PIN_LENGTH, MIN_PIN_LENGTH, PinAuthenticator, secure_clear};
 use crate::theme::Theme;
 use crate::video_buffer::{self, Cell, VideoBuffer};
@@ -227,6 +227,70 @@ impl PinSetupDialog {
         }
     }
 
+    /// Check if point is within dialog bounds
+    pub fn contains_point(&self, x: u16, y: u16, cols: u16, rows: u16) -> bool {
+        let dialog_x = (cols.saturating_sub(self.dialog_width)) / 2;
+        let dialog_y = (rows.saturating_sub(self.dialog_height)) / 2;
+        x >= dialog_x
+            && x < dialog_x + self.dialog_width
+            && y >= dialog_y
+            && y < dialog_y + self.dialog_height
+    }
+
+    /// Handle mouse click, return true if a button was clicked and action was taken
+    pub fn handle_click(
+        &mut self,
+        x: u16,
+        y: u16,
+        cols: u16,
+        rows: u16,
+        charset: &Charset,
+    ) -> bool {
+        let dialog_x = (cols.saturating_sub(self.dialog_width)) / 2;
+        let dialog_y = (rows.saturating_sub(self.dialog_height)) / 2;
+        let button_y = dialog_y + self.dialog_height - 3;
+
+        // Only process clicks on the button row
+        if y != button_y {
+            return false;
+        }
+
+        // Account for button shadows in Unicode mode
+        let has_button_shadow = matches!(
+            charset.mode,
+            CharsetMode::Unicode | CharsetMode::UnicodeSingleLine
+        );
+        let shadow_extra = if has_button_shadow { 1 } else { 0 };
+
+        // Calculate confirm button bounds
+        let confirm_text = if self.is_confirming {
+            "[ Set PIN ]"
+        } else {
+            "[ Next ]"
+        };
+        let confirm_width = confirm_text.len() as u16;
+        let confirm_x = dialog_x + self.dialog_width / 2 - confirm_width - 2;
+        let confirm_end = confirm_x + confirm_width + shadow_extra;
+
+        if x >= confirm_x && x < confirm_end {
+            self.try_advance();
+            return true;
+        }
+
+        // Calculate cancel button bounds
+        let cancel_text = "[ Cancel ]";
+        let cancel_width = cancel_text.len() as u16;
+        let cancel_x = dialog_x + self.dialog_width / 2 + 2;
+        let cancel_end = cancel_x + cancel_width + shadow_extra;
+
+        if x >= cancel_x && x < cancel_end {
+            self.cancel();
+            return true;
+        }
+
+        false
+    }
+
     /// Render the dialog
     pub fn render(&self, buffer: &mut VideoBuffer, charset: &Charset, theme: &Theme) {
         let (cols, rows) = buffer.dimensions();
@@ -358,8 +422,15 @@ impl PinSetupDialog {
             }
         }
 
-        // Buttons
+        // Buttons - styled like standard prompts
         let button_y = y + self.dialog_height - 3;
+
+        // Check if we should render button shadows (Unicode mode only)
+        let has_button_shadow = matches!(
+            charset.mode,
+            CharsetMode::Unicode | CharsetMode::UnicodeSingleLine
+        );
+        let button_shadow_bg = Color::Black;
 
         // Confirm button
         let confirm_text = if self.is_confirming {
@@ -367,10 +438,12 @@ impl PinSetupDialog {
         } else {
             "[ Next ]"
         };
-        let confirm_x = x + self.dialog_width / 2 - confirm_text.len() as u16 - 2;
+        let confirm_width = confirm_text.len() as u16;
+        let confirm_x = x + self.dialog_width / 2 - confirm_width - 2;
         let confirm_selected = matches!(self.focus, PinSetupFocus::ConfirmButton);
+        // Match prompt button colors: selected = black on yellow, unselected = black on white
         let (confirm_fg, confirm_bg) = if confirm_selected {
-            (bg, theme.config_toggle_on_color)
+            (Color::Black, theme.prompt_warning_bg)
         } else {
             (Color::Black, Color::White)
         };
@@ -382,12 +455,32 @@ impl PinSetupDialog {
             );
         }
 
+        // Confirm button shadow
+        if has_button_shadow {
+            // Right shadow (half-block character '▄')
+            buffer.set(
+                confirm_x + confirm_width,
+                button_y,
+                Cell::new_unchecked('▄', button_shadow_bg, bg),
+            );
+            // Bottom shadow (upper half block '▀')
+            for dx in 0..confirm_width {
+                buffer.set(
+                    confirm_x + dx + 1,
+                    button_y + 1,
+                    Cell::new_unchecked('▀', button_shadow_bg, bg),
+                );
+            }
+        }
+
         // Cancel button
         let cancel_text = "[ Cancel ]";
+        let cancel_width = cancel_text.len() as u16;
         let cancel_x = x + self.dialog_width / 2 + 2;
         let cancel_selected = matches!(self.focus, PinSetupFocus::CancelButton);
+        // Match prompt button colors: selected = black on yellow, unselected = black on white
         let (cancel_fg, cancel_bg) = if cancel_selected {
-            (bg, theme.config_toggle_on_color)
+            (Color::Black, theme.prompt_warning_bg)
         } else {
             (Color::Black, Color::White)
         };
@@ -397,6 +490,24 @@ impl PinSetupDialog {
                 button_y,
                 Cell::new(ch, cancel_fg, cancel_bg),
             );
+        }
+
+        // Cancel button shadow
+        if has_button_shadow {
+            // Right shadow (half-block character '▄')
+            buffer.set(
+                cancel_x + cancel_width,
+                button_y,
+                Cell::new_unchecked('▄', button_shadow_bg, bg),
+            );
+            // Bottom shadow (upper half block '▀')
+            for dx in 0..cancel_width {
+                buffer.set(
+                    cancel_x + dx + 1,
+                    button_y + 1,
+                    Cell::new_unchecked('▀', button_shadow_bg, bg),
+                );
+            }
         }
 
         // Shadow

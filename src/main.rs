@@ -952,6 +952,45 @@ fn main() -> io::Result<()> {
                         }
                     }
 
+                    // Check if there's an active PIN setup dialog
+                    #[allow(clippy::collapsible_if)]
+                    if !handled {
+                        if let Some(ref mut pin_setup) = app_state.active_pin_setup {
+                            if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
+                                let (cols, rows) = backend.dimensions();
+                                if pin_setup.handle_click(
+                                    mouse_event.column,
+                                    mouse_event.row,
+                                    cols,
+                                    rows,
+                                    &charset,
+                                ) {
+                                    // Button was clicked, check state
+                                    match pin_setup.state().clone() {
+                                        PinSetupState::Complete { hash, salt } => {
+                                            app_config.set_pin(hash, salt);
+                                            app_state.update_lockscreen_auth(&app_config);
+                                            app_state.active_pin_setup = None;
+                                        }
+                                        PinSetupState::Cancelled => {
+                                            app_state.active_pin_setup = None;
+                                        }
+                                        _ => {}
+                                    }
+                                    handled = true;
+                                } else if pin_setup.contains_point(
+                                    mouse_event.column,
+                                    mouse_event.row,
+                                    cols,
+                                    rows,
+                                ) {
+                                    // Click inside dialog but not on a button - consume the event
+                                    handled = true;
+                                }
+                            }
+                        }
+                    }
+
                     // Check if there's an active error dialog (after prompt, before other events)
                     #[allow(clippy::collapsible_if)]
                     if !handled {
