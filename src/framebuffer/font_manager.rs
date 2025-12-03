@@ -757,11 +757,6 @@ impl FontManager {
         )
     }
 
-    /// Get the number of glyphs in the font
-    pub fn glyph_count(&self) -> usize {
-        self.glyph_count
-    }
-
     /// Check if a pixel is set in a glyph at (x, y) position
     /// Optimized with fast path for common 8-pixel-wide fonts
     #[inline(always)]
