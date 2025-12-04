@@ -628,6 +628,7 @@ impl ConfigWindow {
             "xtree" => "XT",
             "wordperfect" => "WP",
             "dbase" => "dB",
+            "system" => "System",
             _ => "Classic",
         };
 
