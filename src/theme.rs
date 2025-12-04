@@ -2576,6 +2576,164 @@ impl Theme {
         }
     }
 
+    /// System theme - uses standard ANSI colors (the basic 16 colors)
+    pub fn system() -> Self {
+        Self {
+            // Desktop - black background with white text
+            desktop_bg: Color::Black,
+            desktop_fg: Color::White,
+
+            // Top bar
+            topbar_bg_focused: Color::Cyan,
+            topbar_bg_unfocused: Color::Black,
+            topbar_fg_focused: Color::Black,
+            topbar_fg_unfocused: Color::White,
+            clock_bg: Color::Black,
+            clock_fg: Color::White,
+
+            // Windows - Title bar
+            window_title_unfocused_fg: Color::White,
+            window_title_unfocused_bg: Color::DarkGrey,
+            window_title_focused_fg: Color::Black,
+            window_title_focused_bg: Color::Cyan,
+            // Windows - Border
+            window_border_unfocused_fg: Color::White,
+            window_border_unfocused_bg: Color::DarkGrey,
+            window_border_focused_fg: Color::Cyan,
+            window_border_focused_bg: Color::Cyan,
+            // Windows - Content
+            window_content_bg: Color::Black,
+            window_content_fg: Color::White,
+            window_shadow_color: Color::DarkGrey,
+
+            // Window controls
+            button_close_color: Color::Red,
+            button_maximize_color: Color::Green,
+            button_minimize_color: Color::Yellow,
+            button_bg: Color::Black,
+            resize_handle_normal_fg: Color::Grey,
+            resize_handle_normal_bg: Color::Black,
+            resize_handle_active_fg: Color::Yellow,
+            resize_handle_active_bg: Color::Grey,
+
+            // UI Buttons
+            button_normal_fg: Color::Black,
+            button_normal_bg: Color::White,
+            button_hovered_fg: Color::Black,
+            button_hovered_bg: Color::Yellow,
+            button_pressed_fg: Color::White,
+            button_pressed_bg: Color::DarkGrey,
+
+            // Bottom bar
+            bottombar_bg: Color::DarkGrey,
+            bottombar_fg: Color::White,
+            bottombar_button_normal_fg: Color::White,
+            bottombar_button_normal_bg: Color::DarkGrey,
+            bottombar_button_focused_fg: Color::Black,
+            bottombar_button_focused_bg: Color::Cyan,
+            bottombar_button_minimized_fg: Color::Black,
+            bottombar_button_minimized_bg: Color::DarkGrey,
+
+            // Toggle button
+            toggle_enabled_fg: Color::Green,
+            toggle_enabled_bg_normal: Color::DarkGrey,
+            toggle_enabled_bg_hovered: Color::Yellow,
+            toggle_enabled_bg_pressed: Color::Black,
+            toggle_disabled_fg: Color::White,
+            toggle_disabled_bg_normal: Color::DarkGrey,
+            toggle_disabled_bg_hovered: Color::Yellow,
+            toggle_disabled_bg_pressed: Color::Black,
+
+            // Prompts/Dialogs
+            prompt_info_bg: Color::DarkGrey,
+            prompt_info_fg: Color::White,
+            prompt_success_bg: Color::Green,
+            prompt_success_fg: Color::Black,
+            prompt_warning_bg: Color::Yellow,
+            prompt_warning_fg: Color::Black,
+            prompt_danger_bg: Color::Red,
+            prompt_danger_fg: Color::White,
+
+            // Dialog buttons
+            dialog_button_primary_info_fg: Color::White,
+            dialog_button_primary_info_bg: Color::DarkCyan,
+            dialog_button_primary_success_fg: Color::White,
+            dialog_button_primary_success_bg: Color::DarkGreen,
+            dialog_button_primary_warning_fg: Color::Black,
+            dialog_button_primary_warning_bg: Color::DarkYellow,
+            dialog_button_primary_danger_fg: Color::White,
+            dialog_button_primary_danger_bg: Color::DarkRed,
+            dialog_button_secondary_fg: Color::White,
+            dialog_button_secondary_bg: Color::DarkGrey,
+
+            // Config window
+            config_title_bg: Color::Cyan,
+            config_title_fg: Color::Black,
+            config_border: Color::White,
+            config_content_bg: Color::Black,
+            config_content_fg: Color::White,
+            config_instructions_fg: Color::DarkGrey,
+            config_toggle_on_color: Color::Green,
+            config_toggle_off_color: Color::DarkGrey,
+
+            // Calendar
+            calendar_bg: Color::Black,
+            calendar_fg: Color::White,
+            calendar_title_color: Color::White,
+            calendar_today_bg: Color::Cyan,
+            calendar_today_fg: Color::Black,
+
+            // Scrollbar
+            scrollbar_track_fg: Color::DarkGrey,
+            scrollbar_thumb_fg: Color::White,
+
+            // Context menu
+            menu_bg: Color::Black,
+            menu_fg: Color::White,
+            menu_border: Color::White,
+            menu_selected_bg: Color::Cyan,
+            menu_selected_fg: Color::Black,
+            menu_shadow_fg: Color::DarkGrey,
+
+            // Snap preview
+            snap_preview_border: Color::Yellow,
+            snap_preview_bg: Color::Black,
+
+            // Splash screen
+            splash_border: Color::White,
+            splash_bg: Color::Black,
+            splash_fg: Color::White,
+
+            // Slight input popup
+            slight_bg: Color::Black,
+            slight_fg: Color::White,
+            slight_border: Color::Cyan,
+            slight_input_bg: Color::DarkGrey,
+            slight_input_fg: Color::White,
+            slight_suggestion_fg: Color::Yellow,
+            slight_dropdown_bg: Color::Black,
+            slight_dropdown_fg: Color::White,
+            slight_dropdown_selected_bg: Color::Cyan,
+            slight_dropdown_selected_fg: Color::Black,
+
+            // Keyboard mode (vim-like window control)
+            keyboard_mode_border_fg: Color::Yellow,
+            keyboard_mode_border_bg: Color::Magenta,
+            keyboard_mode_title_fg: Color::Black,
+            keyboard_mode_title_bg: Color::Yellow,
+            mode_indicator_window_fg: Color::Black,
+            mode_indicator_window_bg: Color::Cyan,
+            mode_indicator_move_fg: Color::Black,
+            mode_indicator_move_bg: Color::Green,
+            mode_indicator_resize_fg: Color::Black,
+            mode_indicator_resize_bg: Color::Magenta,
+
+            // Window number overlay
+            overlay_number_fg: Color::White,
+            overlay_number_bg: Color::Blue,
+        }
+    }
+
     /// Create a theme from a name string, falling back to Classic if invalid
     pub fn from_name(name: &str) -> Self {
         match name.to_lowercase().as_str() {
@@ -2592,6 +2750,7 @@ impl Theme {
             "xtree" | "xtree_gold" | "xtreegold" => Self::xtree(),
             "wordperfect" | "wp" | "wp51" => Self::wordperfect(),
             "dbase" | "dbase4" | "dbaseiv" => Self::dbase(),
+            "system" => Self::system(),
             _ => {
                 eprintln!("Unknown theme '{}', falling back to 'classic'", name);
                 Self::classic()

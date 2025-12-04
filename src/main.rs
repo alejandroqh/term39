@@ -916,7 +916,8 @@ fn main() -> io::Result<()> {
                                     "norton_commander" => "xtree",
                                     "xtree" => "wordperfect",
                                     "wordperfect" => "dbase",
-                                    "dbase" => "classic",
+                                    "dbase" => "system",
+                                    "system" => "classic",
                                     _ => "classic",
                                 };
                                 app_config.theme = next_theme.to_string();
@@ -925,7 +926,8 @@ fn main() -> io::Result<()> {
                             }
                             ConfigAction::CycleThemeBackward => {
                                 let prev_theme = match app_config.theme.as_str() {
-                                    "classic" => "dbase",
+                                    "classic" => "system",
+                                    "system" => "dbase",
                                     "monochrome" => "classic",
                                     "dark" => "monochrome",
                                     "dracu" => "dark",
@@ -1206,7 +1208,8 @@ fn main() -> io::Result<()> {
                                             "norton_commander" => "xtree",
                                             "xtree" => "wordperfect",
                                             "wordperfect" => "dbase",
-                                            "dbase" => "classic",
+                                            "dbase" => "system",
+                                            "system" => "classic",
                                             _ => "classic",
                                         };
                                         app_config.theme = next_theme.to_string();
