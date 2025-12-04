@@ -1695,6 +1695,7 @@ fn main() -> io::Result<()> {
                                                     window_id,
                                                     cols,
                                                     rows - 2, // Account for top and bottom bars
+                                                    app_config.tiling_gaps,
                                                 );
                                             }
                                             MenuAction::CloseWindow => {
@@ -1895,6 +1896,7 @@ fn main() -> io::Result<()> {
                             &mut video_buffer,
                             mouse_event,
                             &charset,
+                            app_config.tiling_gaps,
                         );
                         // Auto-reposition remaining windows if a window was closed
                         if window_closed && app_state.auto_tiling_enabled {

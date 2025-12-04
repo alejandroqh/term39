@@ -646,11 +646,13 @@ impl WindowManager {
 
     /// Handle mouse event
     /// Returns true if a window was closed (so caller can reposition)
+    /// If `gaps` is true, maximize operations will respect gap settings
     pub fn handle_mouse_event(
         &mut self,
         buffer: &mut VideoBuffer,
         event: MouseEvent,
         charset: &Charset,
+        gaps: bool,
     ) -> bool {
         // Validate mouse coordinates are within buffer bounds
         let (buffer_width, buffer_height) = buffer.dimensions();
@@ -690,14 +692,14 @@ impl WindowManager {
         }
 
         match event.kind {
-            MouseEventKind::Down(MouseButton::Left) => self.handle_mouse_down(buffer, x, y),
+            MouseEventKind::Down(MouseButton::Left) => self.handle_mouse_down(buffer, x, y, gaps),
             MouseEventKind::Drag(MouseButton::Left) => {
                 // Pass modifiers to check if Control is pressed (to disable snap)
                 self.handle_mouse_drag(buffer, x, y, event.modifiers);
                 false
             }
             MouseEventKind::Up(MouseButton::Left) => {
-                self.handle_mouse_up(buffer);
+                self.handle_mouse_up(buffer, gaps);
                 false
             }
             MouseEventKind::ScrollUp => {
@@ -712,7 +714,7 @@ impl WindowManager {
         }
     }
 
-    fn handle_mouse_down(&mut self, buffer: &mut VideoBuffer, x: u16, y: u16) -> bool {
+    fn handle_mouse_down(&mut self, buffer: &mut VideoBuffer, x: u16, y: u16, gaps: bool) -> bool {
         // Find window at click position
         if let Some(window_id) = self.window_at(x, y) {
             // Extract all needed data from window before any mutable operations
@@ -775,7 +777,7 @@ impl WindowManager {
 
                     // Find the window mutably and toggle maximize
                     if let Some(win) = self.get_window_by_id_mut(window_id) {
-                        win.window.toggle_maximize(buffer_width, buffer_height);
+                        win.window.toggle_maximize(buffer_width, buffer_height, gaps);
                         // Resize the terminal to match new window size
                         let _ = win.resize(win.window.width, win.window.height);
                     }
@@ -860,7 +862,7 @@ impl WindowManager {
                         // Double-click detected - toggle maximize
                         let (buffer_width, buffer_height) = buffer.dimensions();
                         if let Some(win) = self.get_window_by_id_mut(window_id) {
-                            win.window.toggle_maximize(buffer_width, buffer_height);
+                            win.window.toggle_maximize(buffer_width, buffer_height, gaps);
                             // Resize the terminal to match new window size
                             let _ = win.resize(win.window.width, win.window.height);
                         }
@@ -1031,7 +1033,7 @@ impl WindowManager {
         }
     }
 
-    fn handle_mouse_up(&mut self, buffer: &mut VideoBuffer) {
+    fn handle_mouse_up(&mut self, buffer: &mut VideoBuffer, _gaps: bool) {
         // Apply snap positioning if a snap zone is active
         if let (Some(snap_zone), Some(drag)) = (self.current_snap_zone, self.dragging) {
             let (buffer_width, buffer_height) = buffer.dimensions();
@@ -1391,11 +1393,11 @@ impl WindowManager {
     }
 
     /// Maximize window by ID
-    pub fn maximize_window(&mut self, id: u32, buffer_width: u16, buffer_height: u16) {
+    pub fn maximize_window(&mut self, id: u32, buffer_width: u16, buffer_height: u16, gaps: bool) {
         if let Some(win) = self.get_window_by_id_mut(id) {
             // Only maximize if not already maximized
             if !win.window.is_maximized {
-                win.window.toggle_maximize(buffer_width, buffer_height);
+                win.window.toggle_maximize(buffer_width, buffer_height, gaps);
                 // Resize the terminal to match new window size
                 let _ = win.resize(win.window.width, win.window.height);
             }
@@ -1874,9 +1876,10 @@ impl WindowManager {
         &mut self,
         buffer_width: u16,
         buffer_height: u16,
+        gaps: bool,
     ) -> bool {
         if let Some(win) = self.get_focused_window_mut() {
-            win.window.toggle_maximize(buffer_width, buffer_height);
+            win.window.toggle_maximize(buffer_width, buffer_height, gaps);
             let _ = win.resize(win.window.width, win.window.height);
             true
         } else {

@@ -186,7 +186,7 @@ fn handle_navigation_mode(
 
         // Toggle maximize
         KeyCode::Char('z') | KeyCode::Char('+') | KeyCode::Char(' ') => {
-            window_manager.toggle_focused_window_maximize(cols, rows);
+            window_manager.toggle_focused_window_maximize(cols, rows, app_config.tiling_gaps);
             true
         }
 

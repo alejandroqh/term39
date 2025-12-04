@@ -156,7 +156,8 @@ impl Window {
     }
 
     /// Maximize the window to fill the screen (except top bar)
-    pub fn maximize(&mut self, buffer_width: u16, buffer_height: u16) {
+    /// If `gaps` is true, leaves 1 char gap on all edges and accounts for shadow
+    pub fn maximize(&mut self, buffer_width: u16, buffer_height: u16, gaps: bool) {
         if !self.is_maximized {
             // Save current position and size
             self.pre_maximize_x = self.x;
@@ -164,11 +165,24 @@ impl Window {
             self.pre_maximize_width = self.width;
             self.pre_maximize_height = self.height;
 
-            // Set to full screen (leaving top bar at row 0)
-            self.x = 0;
-            self.y = 1;
-            self.width = buffer_width;
-            self.height = buffer_height - 1;
+            if gaps {
+                // With gaps: 1 char edge gap + 2 char shadow on right/bottom
+                const EDGE_GAP: u16 = 1;
+                const SHADOW_SIZE: u16 = 2;
+
+                self.x = EDGE_GAP;
+                self.y = 1 + EDGE_GAP; // 1 for top bar + gap
+                // Width: buffer_width - left_gap - shadow - right_gap
+                self.width = buffer_width.saturating_sub(2 * EDGE_GAP + SHADOW_SIZE);
+                // Height: buffer_height - top_bar(1) - top_gap - shadow - bottom_gap
+                self.height = buffer_height.saturating_sub(1 + 2 * EDGE_GAP + SHADOW_SIZE);
+            } else {
+                // No gaps: full screen (leaving top bar at row 0)
+                self.x = 0;
+                self.y = 1;
+                self.width = buffer_width;
+                self.height = buffer_height - 1;
+            }
 
             self.is_maximized = true;
         }
@@ -187,11 +201,12 @@ impl Window {
     }
 
     /// Toggle maximize state
-    pub fn toggle_maximize(&mut self, buffer_width: u16, buffer_height: u16) {
+    /// If `gaps` is true, maximized window will have gaps around edges
+    pub fn toggle_maximize(&mut self, buffer_width: u16, buffer_height: u16, gaps: bool) {
         if self.is_maximized {
             self.restore_from_maximize();
         } else {
-            self.maximize(buffer_width, buffer_height);
+            self.maximize(buffer_width, buffer_height, gaps);
         }
     }
 

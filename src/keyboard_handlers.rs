@@ -640,7 +640,7 @@ fn create_terminal_window(
     ) {
         Ok(window_id) => {
             if maximized {
-                window_manager.maximize_window(window_id, cols, rows);
+                window_manager.maximize_window(window_id, cols, rows, tiling_gaps);
             } else if app_state.auto_tiling_enabled {
                 window_manager.auto_position_windows(cols, rows, tiling_gaps);
             }
