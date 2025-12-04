@@ -689,6 +689,7 @@ impl WindowManager {
         event: MouseEvent,
         charset: &Charset,
         gaps: bool,
+        auto_tiling: bool,
     ) -> bool {
         // Validate mouse coordinates are within buffer bounds
         let (buffer_width, buffer_height) = buffer.dimensions();
@@ -728,7 +729,8 @@ impl WindowManager {
         }
 
         // Handle pivot interactions first (highest priority when visible)
-        if gaps {
+        // Pivot is only available when auto-tiling is enabled with gaps
+        if auto_tiling && gaps {
             match event.kind {
                 MouseEventKind::Down(MouseButton::Left) => {
                     if self.is_point_on_pivot(x, y, buffer_width, buffer_height, gaps) {

@@ -2020,6 +2020,7 @@ fn main() -> io::Result<()> {
                             mouse_event,
                             &charset,
                             app_config.tiling_gaps,
+                            app_state.auto_tiling_enabled,
                         );
                         // Auto-reposition remaining windows if a window was closed
                         if window_closed && app_state.auto_tiling_enabled {

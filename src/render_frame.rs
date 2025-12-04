@@ -58,8 +58,10 @@ pub fn render_frame(
     // Render snap preview overlay (if dragging and snap zone is active)
     window_manager.render_snap_preview(video_buffer, charset, theme);
 
-    // Render the pivot for tiled window resizing (if gaps enabled and 2-4 windows)
-    window_manager.render_pivot(video_buffer, charset, theme, app_config.tiling_gaps);
+    // Render the pivot for tiled window resizing (only when auto-tiling enabled with gaps and 2-4 windows)
+    if app_state.auto_tiling_enabled {
+        window_manager.render_pivot(video_buffer, charset, theme, app_config.tiling_gaps);
+    }
 
     // Render the button bar
     ui_render::render_button_bar(
