@@ -2117,24 +2117,16 @@ impl WindowManager {
         const SHADOW_SIZE: u16 = 2;
         const INTER_GAP: u16 = 1;
 
-        // Calculate usable area (excluding edge gaps, shadows, and inter-gap)
+        // Calculate usable width (excluding edge gaps, shadows, and inter-gap)
         let usable_width = buffer_width.saturating_sub(2 * EDGE_GAP + 2 * SHADOW_SIZE + INTER_GAP);
-        let usable_height = buffer_height.saturating_sub(1 + 2 * EDGE_GAP + 2 * SHADOW_SIZE); // -1 for top bar
 
         // Horizontal position: where the inter-gap between left/right columns is
         // Move one character to the left to sit in the gap
         let left_col_width = (usable_width as f32 * self.h_split_ratio) as u16;
         let pivot_x = EDGE_GAP + left_col_width + SHADOW_SIZE - 1;
 
-        // Vertical position (meaningful for 4 windows, center for 2-3 windows)
-        let top_row_height = (usable_height as f32 * self.v_split_ratio) as u16;
-        let pivot_y = if visible_count == 4 {
-            // For 4 windows, show pivot at the vertical split line
-            1 + EDGE_GAP + top_row_height + SHADOW_SIZE
-        } else {
-            // For 2-3 windows, center vertically
-            buffer_height / 2
-        };
+        // Vertical position: always center vertically for all cases (2, 3, or 4 windows)
+        let pivot_y = buffer_height / 2;
 
         Some((pivot_x, pivot_y))
     }
