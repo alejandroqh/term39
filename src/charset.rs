@@ -50,7 +50,7 @@ impl Charset {
             shadow: '▓',                // U+2593 dark shade
             block: '█',                 // U+2588 full block
             shade: '░',                 // U+2591 light shade
-            pivot: '◉',                 // U+25C9 fisheye
+            pivot: '✛',                 // U+271B Heavy Greek cross
         }
     }
 
@@ -70,7 +70,7 @@ impl Charset {
             shadow: '▓',                // U+2593 dark shade
             block: '█',                 // U+2588 full block
             shade: '░',                 // U+2591 light shade
-            pivot: '◉',                 // U+25C9 fisheye
+            pivot: '✛',                 // U+271B Heavy Greek cross
         }
     }
 

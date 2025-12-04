@@ -47,6 +47,8 @@ pub struct WindowManager {
     h_split_ratio: f32,
     /// Current split ratio for vertical division (top row height / total)
     v_split_ratio: f32,
+    /// Last pivot click for double-click detection
+    last_pivot_click: Option<Instant>,
 }
 
 /// Snap zones for window positioning
@@ -128,6 +130,7 @@ impl WindowManager {
             pivot_dragging: None,
             h_split_ratio: 0.5,
             v_split_ratio: 0.5,
+            last_pivot_click: None,
         }
     }
 
@@ -734,6 +737,18 @@ impl WindowManager {
             match event.kind {
                 MouseEventKind::Down(MouseButton::Left) => {
                     if self.is_point_on_pivot(x, y, buffer_width, buffer_height, gaps) {
+                        let now = Instant::now();
+                        // Check for double-click on pivot
+                        if let Some(last_time) = self.last_pivot_click {
+                            if now.duration_since(last_time).as_millis() < 500 {
+                                // Double-click detected - swap windows
+                                self.swap_windows_horizontal(buffer_width, buffer_height);
+                                self.last_pivot_click = None;
+                                return false;
+                            }
+                        }
+                        // Record click time and start drag
+                        self.last_pivot_click = Some(now);
                         self.start_pivot_drag(x, y);
                         return false;
                     }
@@ -2143,16 +2158,30 @@ impl WindowManager {
         const SHADOW_SIZE: u16 = 2;
         const INTER_GAP: u16 = 1;
 
-        // Calculate usable width (excluding edge gaps, shadows, and inter-gap)
+        // Calculate usable dimensions (matching apply_split_ratios)
         let usable_width = buffer_width.saturating_sub(2 * EDGE_GAP + 2 * SHADOW_SIZE + INTER_GAP);
+        let usable_height = buffer_height.saturating_sub(1 + 2 * EDGE_GAP + 2 * SHADOW_SIZE);
 
-        // Horizontal position: where the inter-gap between left/right columns is
-        // Move one character to the left to sit in the gap
+        // Horizontal position: at the inter-gap between left/right columns
         let left_col_width = (usable_width as f32 * self.h_split_ratio) as u16;
-        let pivot_x = EDGE_GAP + left_col_width + SHADOW_SIZE - 1;
+        let pivot_x = EDGE_GAP + left_col_width + SHADOW_SIZE;
 
-        // Vertical position: always center vertically for all cases (2, 3, or 4 windows)
-        let pivot_y = buffer_height / 2;
+        // Vertical position depends on window count
+        let pivot_y = match visible_count {
+            2 => {
+                // 2 windows: side by side, pivot at vertical center
+                let top_y = 1 + EDGE_GAP;
+                let full_height = buffer_height.saturating_sub(1 + 2 * EDGE_GAP + SHADOW_SIZE);
+                top_y + full_height / 2
+            }
+            3 | 4 => {
+                // 3 or 4 windows: use v_split_ratio for vertical position
+                let top_height = (usable_height as f32 * self.v_split_ratio) as u16;
+                let top_y = 1 + EDGE_GAP;
+                top_y + top_height + SHADOW_SIZE / 2
+            }
+            _ => buffer_height / 2,
+        };
 
         Some((pivot_x, pivot_y))
     }
@@ -2188,6 +2217,9 @@ impl WindowManager {
         let Some(drag) = self.pivot_dragging else {
             return;
         };
+
+        // Clear double-click tracking when dragging (prevents false double-click after drag)
+        self.last_pivot_click = None;
 
         let visible_count = self.visible_window_count();
         if !(2..=4).contains(&visible_count) {
@@ -2352,6 +2384,68 @@ impl WindowManager {
     #[allow(dead_code)]
     pub fn is_dragging_pivot(&self) -> bool {
         self.pivot_dragging.is_some()
+    }
+
+    /// Swap windows between left and right columns (double-click pivot action)
+    pub fn swap_windows_horizontal(&mut self, buffer_width: u16, buffer_height: u16) {
+        let visible_count = self.visible_window_count();
+        if !(2..=4).contains(&visible_count) {
+            return;
+        }
+
+        // Get visible window IDs sorted by creation order
+        let mut visible_ids: Vec<u32> = self
+            .windows
+            .iter()
+            .filter(|w| !w.window.is_minimized)
+            .map(|w| w.id())
+            .collect();
+        visible_ids.sort();
+
+        // Swap window IDs between columns by swapping internal IDs
+        // This changes which window appears in which sorted position
+        match visible_count {
+            2 => {
+                // Swap IDs of windows 0 and 1
+                self.swap_window_ids(visible_ids[0], visible_ids[1]);
+            }
+            3 => {
+                // Treat same as 4-window: swap columns
+                // Left column (0,1) <-> Right column (2)
+                // After swap: right window becomes top-left, top-left becomes right
+                self.swap_window_ids(visible_ids[0], visible_ids[2]);
+                // Note: visible_ids[1] (bottom-left) stays in left column
+            }
+            4 => {
+                // Swap columns: [0,1] <-> [2,3]
+                self.swap_window_ids(visible_ids[0], visible_ids[2]);
+                self.swap_window_ids(visible_ids[1], visible_ids[3]);
+            }
+            _ => {}
+        }
+
+        // Rebuild cache and re-apply positions
+        self.rebuild_cache();
+        self.apply_split_ratios(buffer_width, buffer_height);
+
+        // Resize PTYs
+        for window in &mut self.windows {
+            if !window.window.is_minimized {
+                let _ = window.resize(window.window.width, window.window.height);
+            }
+        }
+    }
+
+    /// Helper: Swap the IDs of two windows
+    fn swap_window_ids(&mut self, id1: u32, id2: u32) {
+        let idx1 = self.get_window_index(id1);
+        let idx2 = self.get_window_index(id2);
+
+        if let (Some(i1), Some(i2)) = (idx1, idx2) {
+            // Swap the IDs in the window structs
+            self.windows[i1].window.id = id2;
+            self.windows[i2].window.id = id1;
+        }
     }
 
     /// Render the pivot character if conditions are met
