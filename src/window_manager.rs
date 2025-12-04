@@ -777,7 +777,8 @@ impl WindowManager {
 
                     // Find the window mutably and toggle maximize
                     if let Some(win) = self.get_window_by_id_mut(window_id) {
-                        win.window.toggle_maximize(buffer_width, buffer_height, gaps);
+                        win.window
+                            .toggle_maximize(buffer_width, buffer_height, gaps);
                         // Resize the terminal to match new window size
                         let _ = win.resize(win.window.width, win.window.height);
                     }
@@ -862,7 +863,8 @@ impl WindowManager {
                         // Double-click detected - toggle maximize
                         let (buffer_width, buffer_height) = buffer.dimensions();
                         if let Some(win) = self.get_window_by_id_mut(window_id) {
-                            win.window.toggle_maximize(buffer_width, buffer_height, gaps);
+                            win.window
+                                .toggle_maximize(buffer_width, buffer_height, gaps);
                             // Resize the terminal to match new window size
                             let _ = win.resize(win.window.width, win.window.height);
                         }
@@ -1397,7 +1399,8 @@ impl WindowManager {
         if let Some(win) = self.get_window_by_id_mut(id) {
             // Only maximize if not already maximized
             if !win.window.is_maximized {
-                win.window.toggle_maximize(buffer_width, buffer_height, gaps);
+                win.window
+                    .toggle_maximize(buffer_width, buffer_height, gaps);
                 // Resize the terminal to match new window size
                 let _ = win.resize(win.window.width, win.window.height);
             }
@@ -1879,7 +1882,8 @@ impl WindowManager {
         gaps: bool,
     ) -> bool {
         if let Some(win) = self.get_focused_window_mut() {
-            win.window.toggle_maximize(buffer_width, buffer_height, gaps);
+            win.window
+                .toggle_maximize(buffer_width, buffer_height, gaps);
             let _ = win.resize(win.window.width, win.window.height);
             true
         } else {

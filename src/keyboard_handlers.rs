@@ -348,6 +348,10 @@ pub fn forward_to_terminal(key_event: KeyEvent, window_manager: &mut WindowManag
         KeyCode::Tab => {
             let _ = window_manager.send_to_focused("\t");
         }
+        KeyCode::BackTab => {
+            // Shift+Tab - send ESC [ Z (reverse tab / backtab)
+            let _ = window_manager.send_to_focused("\x1b[Z");
+        }
         KeyCode::Up => {
             // Check application cursor keys mode (DECCKM)
             let seq = if window_manager.get_focused_application_cursor_keys() {
