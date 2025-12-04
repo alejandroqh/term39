@@ -8,6 +8,7 @@ use crate::theme::Theme;
 use crate::ui_render;
 use crate::video_buffer::{self, VideoBuffer};
 use crate::window_manager::WindowManager;
+use crate::window_number_overlay;
 use std::io::{self, Write};
 
 /// Renders a complete frame to the screen
@@ -57,6 +58,11 @@ pub fn render_frame(
 
     // Render snap preview overlay (if dragging and snap zone is active)
     window_manager.render_snap_preview(video_buffer, charset, theme);
+
+    // Render window number overlay (if Alt/Cmd held for 500ms+)
+    if app_state.show_window_number_overlay {
+        window_number_overlay::render_window_numbers(video_buffer, window_manager, theme);
+    }
 
     // Render the pivot for tiled window resizing (only when auto-tiling enabled with gaps and 2-4 windows)
     if app_state.auto_tiling_enabled {

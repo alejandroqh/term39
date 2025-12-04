@@ -63,6 +63,10 @@ pub struct AppState {
     // Double-backtick detection for literal backtick input
     pub last_backtick_time: Option<Instant>,
 
+    // Window number overlay (F10 toggle, Option+1-9 selection)
+    /// Whether to show window number overlay
+    pub show_window_number_overlay: bool,
+
     // Lockscreen
     pub lockscreen: LockScreen,
     pub active_pin_setup: Option<PinSetupDialog>,
@@ -160,6 +164,9 @@ impl AppState {
 
             // Double-backtick detection
             last_backtick_time: None,
+
+            // Window number overlay (F10 toggle)
+            show_window_number_overlay: false,
 
             // Lockscreen - initialize with config settings
             lockscreen: LockScreen::new_with_mode(

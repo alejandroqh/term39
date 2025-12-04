@@ -76,7 +76,10 @@ pub fn handle_desktop_keyboard(
     // Single backtick: toggle Window Mode (only from Desktop/Topbar focus, OR to EXIT from Window Mode)
     // Double backtick (within 300ms): send literal '`' to terminal
     // When terminal is focused and NOT in Window Mode: forward backtick directly to terminal
-    if key_event.code == KeyCode::Char('`') {
+    // Skip if Alt/Option is pressed (Alt+` is used for window number overlay)
+    let has_alt_modifier = key_event.modifiers.contains(KeyModifiers::ALT)
+        || key_event.modifiers.contains(KeyModifiers::SUPER);
+    if key_event.code == KeyCode::Char('`') && !has_alt_modifier {
         let now = Instant::now();
         let is_double_press = app_state
             .last_backtick_time
@@ -115,10 +118,62 @@ pub fn handle_desktop_keyboard(
         }
     }
 
+    // Platform-aware modifier detection for window selection
+    let is_window_select_modifier = if is_macos() {
+        key_event.modifiers.contains(KeyModifiers::ALT)
+            || key_event.modifiers.contains(KeyModifiers::SUPER)
+    } else {
+        key_event.modifiers.contains(KeyModifiers::ALT)
+    };
+
+    // Handle F10 to toggle window number overlay
+    // Shows numbers 1-9 on windows for quick Option+1-9 selection
+    if key_event.code == KeyCode::F(10) {
+        app_state.show_window_number_overlay = !app_state.show_window_number_overlay;
+        return true;
+    }
+
     // Handle ALT+TAB for window cycling (fallback, may be intercepted by OS)
     if key_event.code == KeyCode::Tab && key_event.modifiers.contains(KeyModifiers::ALT) {
         window_manager.cycle_to_next_window();
         return true;
+    }
+
+    // Handle Alt+1-9 (or Option+1-9 on macOS) for direct window selection
+    // On macOS, Option+number produces special characters WITHOUT the ALT modifier flag
+    // So we check for either: Alt modifier + digit, OR the special macOS characters directly
+    // Window selection matches the number in the window title (e.g., "Terminal 3" = 3)
+    if let KeyCode::Char(c) = key_event.code {
+        // Map macOS Option+number special characters to their number equivalents
+        // Option+1='¡', Option+2='™', Option+3='£', Option+4='¢', Option+5='∞',
+        // Option+6='§', Option+7='¶', Option+8='•', Option+9='ª'
+        let num: Option<u32> = match c {
+            // Regular digits with Alt/Cmd modifier (Linux/Windows, or Cmd on macOS)
+            '1'..='9' if is_window_select_modifier => c.to_digit(10),
+            // macOS Option+number special characters (no modifier check needed)
+            '¡' => Some(1), // Option+1 on macOS
+            '™' => Some(2), // Option+2 on macOS
+            '£' => Some(3), // Option+3 on macOS
+            '¢' => Some(4), // Option+4 on macOS
+            '∞' => Some(5), // Option+5 on macOS
+            '§' => Some(6), // Option+6 on macOS
+            '¶' => Some(7), // Option+7 on macOS
+            '•' => Some(8), // Option+8 on macOS
+            'ª' => Some(9), // Option+9 on macOS
+            _ => None,
+        };
+        if let Some(num) = num {
+            if (1..=9).contains(&num) {
+                // Find window by its title number (e.g., Option+3 selects "Terminal 3")
+                if let Some(window_id) = window_manager.find_window_by_title_number(num) {
+                    window_manager.restore_and_focus_window(window_id);
+                    // Hide overlay after selecting a window
+                    app_state.show_window_number_overlay = false;
+                }
+                // Silently ignore if window with that number doesn't exist
+                return true;
+            }
+        }
     }
 
     // Handle F3 to save session (more compatible than CTRL+S)

@@ -47,6 +47,7 @@ mod video_buffer;
 mod window;
 mod window_manager;
 mod window_mode_handlers;
+mod window_number_overlay;
 
 use app_state::AppState;
 use button::Button;
@@ -733,6 +734,7 @@ fn main() -> io::Result<()> {
                     if key_event.kind == KeyEventKind::Release {
                         continue;
                     }
+
 
                     // Skip Repeat events for character keys to prevent duplicates
                     // Allow Repeat for navigation/control keys (arrows, Page Up/Down, etc.)

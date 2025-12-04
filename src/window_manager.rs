@@ -1271,6 +1271,42 @@ impl WindowManager {
         self.windows.len()
     }
 
+    /// Find window ID by title number (e.g., "Terminal 3" matches number 3)
+    /// Returns None if no window with that number exists
+    pub fn find_window_by_title_number(&self, target_num: u32) -> Option<u32> {
+        for w in &self.windows {
+            // Extract number from "Terminal N" or "Terminal N [ > ... ]"
+            if let Some(rest) = w.window.title.strip_prefix("Terminal ") {
+                let num_str: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+                if let Ok(num) = num_str.parse::<u32>() {
+                    if num == target_num {
+                        return Some(w.id());
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Get window positions for overlay rendering
+    /// Returns: (window_id, x, y, width, height, is_minimized, title)
+    pub fn get_window_positions(&self) -> Vec<(u32, u16, u16, u16, u16, bool, String)> {
+        self.windows
+            .iter()
+            .map(|w| {
+                (
+                    w.id(),
+                    w.window.x,
+                    w.window.y,
+                    w.window.width,
+                    w.window.height,
+                    w.window.is_minimized,
+                    w.window.title.clone(),
+                )
+            })
+            .collect()
+    }
+
     /// Get window info for button bar rendering (id, title, is_focused, is_minimized)
     /// Returns windows sorted by creation order (ID), not z-order
     /// Optimized: uses sort_unstable for better performance on small arrays

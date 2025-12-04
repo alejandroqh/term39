@@ -490,6 +490,10 @@ pub struct Theme {
     pub mode_indicator_move_bg: Color,
     pub mode_indicator_resize_fg: Color,
     pub mode_indicator_resize_bg: Color,
+
+    // Window number overlay (Alt+1-9 selection)
+    pub overlay_number_fg: Color,
+    pub overlay_number_bg: Color,
 }
 
 impl Theme {
@@ -644,6 +648,10 @@ impl Theme {
             mode_indicator_move_bg: Color::Green,
             mode_indicator_resize_fg: Color::Black,
             mode_indicator_resize_bg: Color::Magenta,
+
+            // Window number overlay
+            overlay_number_fg: Color::White,
+            overlay_number_bg: Color::Rgb { r: 0, g: 0, b: 128 },
         }
     }
 
@@ -798,6 +806,10 @@ impl Theme {
             mode_indicator_move_bg: Color::Grey,
             mode_indicator_resize_fg: Color::White,
             mode_indicator_resize_bg: Color::DarkGrey,
+
+            // Window number overlay
+            overlay_number_fg: Color::White,
+            overlay_number_bg: Color::DarkGrey,
         }
     }
 
@@ -954,6 +966,10 @@ impl Theme {
             mode_indicator_move_bg: DRACULA_GREEN,
             mode_indicator_resize_fg: DRACULA_BACKGROUND,
             mode_indicator_resize_bg: DRACULA_PINK,
+
+            // Window number overlay
+            overlay_number_fg: DRACULA_FOREGROUND,
+            overlay_number_bg: DRACULA_SELECTION,
         }
     }
 
@@ -1122,6 +1138,10 @@ impl Theme {
             mode_indicator_move_bg: DARCULA_STRING_GREEN,
             mode_indicator_resize_fg: DARCULA_BACKGROUND,
             mode_indicator_resize_bg: DARCULA_ORANGE,
+
+            // Window number overlay
+            overlay_number_fg: DARCULA_FOREGROUND,
+            overlay_number_bg: DARCULA_UI_BACKGROUND,
         }
     }
 
@@ -1277,6 +1297,10 @@ impl Theme {
             mode_indicator_move_bg: MID_GREEN_PHOSPHOR,
             mode_indicator_resize_fg: Color::Black,
             mode_indicator_resize_bg: LIGHT_GREEN_PHOSPHOR,
+
+            // Window number overlay
+            overlay_number_fg: Color::Green,
+            overlay_number_bg: Color::Black,
         }
     }
 
@@ -1432,6 +1456,10 @@ impl Theme {
             mode_indicator_move_bg: MID_AMBER,
             mode_indicator_resize_fg: Color::Black,
             mode_indicator_resize_bg: LIGHT_AMBER,
+
+            // Window number overlay
+            overlay_number_fg: Color::Yellow,
+            overlay_number_bg: Color::Black,
         }
     }
 
@@ -1587,6 +1615,10 @@ impl Theme {
             mode_indicator_move_bg: Color::Green,
             mode_indicator_resize_fg: Color::Black,
             mode_indicator_resize_bg: Color::Magenta,
+
+            // Window number overlay
+            overlay_number_fg: Color::White,
+            overlay_number_bg: NDD_DARK_GRAY,
         }
     }
 
@@ -1742,6 +1774,10 @@ impl Theme {
             mode_indicator_move_bg: Color::Green,
             mode_indicator_resize_fg: Color::White,
             mode_indicator_resize_bg: QBASIC_ROYAL_BLUE,
+
+            // Window number overlay
+            overlay_number_fg: Color::White,
+            overlay_number_bg: QBASIC_ROYAL_BLUE,
         }
     }
 
@@ -1897,6 +1933,10 @@ impl Theme {
             mode_indicator_move_bg: TURBO_BEIGE,
             mode_indicator_resize_fg: Color::White,
             mode_indicator_resize_bg: TURBO_BLUE_PURPLE,
+
+            // Window number overlay
+            overlay_number_fg: Color::White,
+            overlay_number_bg: TURBO_DARK_BLUE,
         }
     }
 
@@ -2052,6 +2092,10 @@ impl Theme {
             mode_indicator_move_bg: NC_YELLOW,
             mode_indicator_resize_fg: Color::White,
             mode_indicator_resize_bg: NC_TEAL,
+
+            // Window number overlay
+            overlay_number_fg: NC_CYAN,
+            overlay_number_bg: NC_BLUE,
         }
     }
 
@@ -2207,6 +2251,10 @@ impl Theme {
             mode_indicator_move_bg: XT_YELLOW,
             mode_indicator_resize_fg: PURE_BLACK,
             mode_indicator_resize_bg: XT_ORANGE,
+
+            // Window number overlay
+            overlay_number_fg: XT_CYAN,
+            overlay_number_bg: XT_DARK_BLUE,
         }
     }
 
@@ -2362,6 +2410,10 @@ impl Theme {
             mode_indicator_move_bg: WP_BLUE,
             mode_indicator_resize_fg: Color::White,
             mode_indicator_resize_bg: WP_RED,
+
+            // Window number overlay
+            overlay_number_fg: Color::White,
+            overlay_number_bg: WP_BLUE,
         }
     }
 
@@ -2517,6 +2569,10 @@ impl Theme {
             mode_indicator_move_bg: DB_YELLOW,
             mode_indicator_resize_fg: Color::White,
             mode_indicator_resize_bg: DB_BRIGHT_RED,
+
+            // Window number overlay
+            overlay_number_fg: Color::White,
+            overlay_number_bg: DB_BLUE,
         }
     }
 
