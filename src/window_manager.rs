@@ -2351,7 +2351,10 @@ impl WindowManager {
                 (current_cell.fg_color, current_cell.bg_color)
             } else {
                 // Fallback if cell doesn't exist
-                (crossterm::style::Color::Black, crossterm::style::Color::White)
+                (
+                    crossterm::style::Color::Black,
+                    crossterm::style::Color::White,
+                )
             };
 
             buffer.set(x, y, Cell::new(charset.pivot, pivot_fg, pivot_bg));

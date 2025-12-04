@@ -612,7 +612,7 @@ fn handle_q_key(
     }
 }
 
-fn create_terminal_window(
+pub fn create_terminal_window(
     app_state: &mut AppState,
     window_manager: &mut WindowManager,
     backend: &dyn RenderBackend,

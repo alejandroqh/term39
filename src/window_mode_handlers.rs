@@ -45,6 +45,7 @@ pub fn handle_window_mode_keyboard(
             app_config,
             key_event,
             window_manager,
+            backend,
             cols,
             rows,
             top_y,
@@ -59,11 +60,13 @@ pub fn handle_window_mode_keyboard(
 }
 
 /// Handle keyboard in Navigation sub-mode (default Window Mode)
+#[allow(clippy::too_many_arguments)]
 fn handle_navigation_mode(
     app_state: &mut AppState,
     app_config: &mut AppConfig,
     key_event: KeyEvent,
     window_manager: &mut WindowManager,
+    backend: &dyn RenderBackend,
     cols: u16,
     rows: u16,
     top_y: u16,
@@ -196,13 +199,28 @@ fn handle_navigation_mode(
             true
         }
 
-        // New terminal window
-        KeyCode::Char('n') => {
-            // Signal to create new window (handled in main.rs)
-            // We return false to let main.rs handle creation
-            // Actually, we need a way to signal this... for now, skip
-            // The user can use 't' from desktop
-            false
+        // New terminal window (normal size)
+        KeyCode::Char('t') => {
+            crate::keyboard_handlers::create_terminal_window(
+                app_state,
+                window_manager,
+                backend,
+                false,
+                app_config.tiling_gaps,
+            );
+            true
+        }
+
+        // New maximized terminal window
+        KeyCode::Char('T') => {
+            crate::keyboard_handlers::create_terminal_window(
+                app_state,
+                window_manager,
+                backend,
+                true,
+                app_config.tiling_gaps,
+            );
+            true
         }
 
         // Numpad-style snap positions (1-9)
@@ -546,6 +564,8 @@ Press {Y}`{W} or {Y}F8{W} to toggle Window Mode
 
 {C}WINDOW ACTIONS{W}
 
+{Y}t{W}           New terminal window
+{Y}T{W}           New maximized terminal window
 {Y}m{W}           Enter Move mode
 {Y}r{W}           Enter Resize mode
 {Y}z{W}/{Y}+{W}/{Y}Space{W}   Toggle maximize
