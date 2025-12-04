@@ -1427,6 +1427,10 @@ impl WindowManager {
 
     /// Close window by ID
     /// Returns true if a window was actually closed
+    ///
+    /// Uses MRU (Most Recently Used) algorithm for focus selection:
+    /// After closing, focuses the top-most non-minimized window in z-order,
+    /// which represents the window the user most recently interacted with.
     pub fn close_window(&mut self, id: u32) -> bool {
         if let Some(pos) = self.get_window_index(id) {
             self.windows.remove(pos);
@@ -1434,9 +1438,29 @@ impl WindowManager {
             // Rebuild cache since indices after pos have shifted
             self.rebuild_cache();
 
-            // Update focus - if we closed the focused window, focus desktop
+            // MRU focus selection: find the top-most non-minimized window
+            // The windows Vec is ordered by z-order (last = top = most recently used)
             if self.focus == FocusState::Window(id) {
-                self.focus = FocusState::Desktop;
+                // Find next window to focus: iterate from top of z-order (end of vec)
+                // looking for a non-minimized window
+                let next_focus = self
+                    .windows
+                    .iter()
+                    .rev()
+                    .find(|w| !w.window.is_minimized)
+                    .map(|w| w.id());
+
+                if let Some(next_id) = next_focus {
+                    // Focus the MRU non-minimized window
+                    self.focus = FocusState::Window(next_id);
+                    // Mark it as focused
+                    if let Some(win) = self.get_window_by_id_mut(next_id) {
+                        win.set_focused(true);
+                    }
+                } else {
+                    // No non-minimized windows left, focus desktop
+                    self.focus = FocusState::Desktop;
+                }
             }
             true
         } else {
