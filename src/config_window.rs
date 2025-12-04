@@ -14,12 +14,29 @@ pub enum ConfigAction {
     ToggleTilingGaps,
     ToggleShowDate,
     CycleTheme,
+    CycleThemeBackward,
     CycleBackgroundChar,
+    CycleBackgroundCharBackward,
     ToggleTintTerminal,
     ToggleAutoSave,
     ToggleLockscreen,
     CycleLockscreenAuthMode,
     SetupPin,
+}
+
+/// Focusable options in the config window
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConfigOption {
+    AutoTiling,
+    TilingGaps,
+    ShowDate,
+    Theme,
+    BackgroundChar,
+    TintTerminal,
+    AutoSave,
+    Lockscreen,
+    AuthMode,
+    PinSetup,
 }
 
 /// Configuration modal window (centered, with border and title)
@@ -38,6 +55,7 @@ pub struct ConfigWindow {
     lockscreen_row: u16,      // Row where lockscreen toggle is rendered
     lockscreen_auth_row: u16, // Row where lockscreen auth mode is rendered
     pin_setup_row: u16,       // Row where PIN setup button is rendered
+    pub focused_option: Option<ConfigOption>, // Currently focused option for keyboard navigation
 }
 
 impl ConfigWindow {
@@ -78,6 +96,124 @@ impl ConfigWindow {
             lockscreen_row,
             lockscreen_auth_row,
             pin_setup_row,
+            focused_option: Some(ConfigOption::AutoTiling),
+        }
+    }
+
+    /// Returns the list of currently visible/navigable options based on config state
+    pub fn visible_options(&self, config: &AppConfig) -> Vec<ConfigOption> {
+        let mut options = vec![ConfigOption::AutoTiling];
+
+        if config.auto_tiling_on_startup {
+            options.push(ConfigOption::TilingGaps);
+        }
+
+        options.push(ConfigOption::ShowDate);
+        options.push(ConfigOption::Theme);
+        options.push(ConfigOption::BackgroundChar);
+        options.push(ConfigOption::TintTerminal);
+        options.push(ConfigOption::AutoSave);
+        options.push(ConfigOption::Lockscreen);
+
+        if config.lockscreen_enabled && is_os_auth_compiled() {
+            options.push(ConfigOption::AuthMode);
+        }
+
+        if config.lockscreen_enabled
+            && (config.lockscreen_auth_mode == LockscreenAuthMode::Pin || !is_os_auth_compiled())
+        {
+            options.push(ConfigOption::PinSetup);
+        }
+
+        options
+    }
+
+    /// Move focus to the next option (wrap around)
+    pub fn focus_next(&mut self, config: &AppConfig) {
+        let visible = self.visible_options(config);
+        if visible.is_empty() {
+            return;
+        }
+
+        self.focused_option = match self.focused_option {
+            None => Some(visible[0]),
+            Some(current) => {
+                if let Some(idx) = visible.iter().position(|&o| o == current) {
+                    Some(visible[(idx + 1) % visible.len()])
+                } else {
+                    Some(visible[0])
+                }
+            }
+        };
+    }
+
+    /// Move focus to the previous option (wrap around)
+    pub fn focus_previous(&mut self, config: &AppConfig) {
+        let visible = self.visible_options(config);
+        if visible.is_empty() {
+            return;
+        }
+
+        self.focused_option = match self.focused_option {
+            None => Some(visible[visible.len() - 1]),
+            Some(current) => {
+                if let Some(idx) = visible.iter().position(|&o| o == current) {
+                    let new_idx = if idx == 0 { visible.len() - 1 } else { idx - 1 };
+                    Some(visible[new_idx])
+                } else {
+                    Some(visible[visible.len() - 1])
+                }
+            }
+        };
+    }
+
+    /// Get the ConfigAction for the currently focused option
+    pub fn get_focused_action(&self) -> ConfigAction {
+        match self.focused_option {
+            Some(ConfigOption::AutoTiling) => ConfigAction::ToggleAutoTiling,
+            Some(ConfigOption::TilingGaps) => ConfigAction::ToggleTilingGaps,
+            Some(ConfigOption::ShowDate) => ConfigAction::ToggleShowDate,
+            Some(ConfigOption::Theme) => ConfigAction::CycleTheme,
+            Some(ConfigOption::BackgroundChar) => ConfigAction::CycleBackgroundChar,
+            Some(ConfigOption::TintTerminal) => ConfigAction::ToggleTintTerminal,
+            Some(ConfigOption::AutoSave) => ConfigAction::ToggleAutoSave,
+            Some(ConfigOption::Lockscreen) => ConfigAction::ToggleLockscreen,
+            Some(ConfigOption::AuthMode) => ConfigAction::CycleLockscreenAuthMode,
+            Some(ConfigOption::PinSetup) => ConfigAction::SetupPin,
+            None => ConfigAction::None,
+        }
+    }
+
+    /// Check if the focused option is a selector that can cycle with Left/Right keys
+    pub fn get_cycle_action(&self, forward: bool) -> ConfigAction {
+        match self.focused_option {
+            Some(ConfigOption::Theme) => {
+                if forward {
+                    ConfigAction::CycleTheme
+                } else {
+                    ConfigAction::CycleThemeBackward
+                }
+            }
+            Some(ConfigOption::BackgroundChar) => {
+                if forward {
+                    ConfigAction::CycleBackgroundChar
+                } else {
+                    ConfigAction::CycleBackgroundCharBackward
+                }
+            }
+            Some(ConfigOption::AuthMode) => ConfigAction::CycleLockscreenAuthMode,
+            _ => ConfigAction::None,
+        }
+    }
+
+    /// Ensure focus is on a visible option, adjusting if necessary
+    pub fn ensure_focus_valid(&mut self, config: &AppConfig) {
+        let visible = self.visible_options(config);
+        if let Some(current) = self.focused_option {
+            if !visible.contains(&current) {
+                // Focus moved to hidden option, find next visible one
+                self.focused_option = visible.first().copied();
+            }
         }
     }
 
@@ -202,6 +338,7 @@ impl ConfigWindow {
             config.auto_tiling_on_startup,
             charset,
             theme,
+            self.focused_option == Some(ConfigOption::AutoTiling),
         );
 
         // Render tiling gaps option (only when auto-tiling is enabled)
@@ -213,6 +350,7 @@ impl ConfigWindow {
                 config.tiling_gaps,
                 charset,
                 theme,
+                self.focused_option == Some(ConfigOption::TilingGaps),
             );
         }
 
@@ -223,13 +361,26 @@ impl ConfigWindow {
             config.show_date_in_clock,
             charset,
             theme,
+            self.focused_option == Some(ConfigOption::ShowDate),
         );
 
         // Render theme selector
-        self.render_theme_selector(buffer, self.theme_row, &config.theme, theme);
+        self.render_theme_selector(
+            buffer,
+            self.theme_row,
+            &config.theme,
+            theme,
+            self.focused_option == Some(ConfigOption::Theme),
+        );
 
         // Render background character selector
-        self.render_background_char_selector(buffer, self.background_char_row, config, theme);
+        self.render_background_char_selector(
+            buffer,
+            self.background_char_row,
+            config,
+            theme,
+            self.focused_option == Some(ConfigOption::BackgroundChar),
+        );
 
         // Render tint terminal toggle
         self.render_option(
@@ -239,6 +390,7 @@ impl ConfigWindow {
             tint_terminal,
             charset,
             theme,
+            self.focused_option == Some(ConfigOption::TintTerminal),
         );
 
         // Render auto-save toggle
@@ -249,6 +401,7 @@ impl ConfigWindow {
             config.auto_save,
             charset,
             theme,
+            self.focused_option == Some(ConfigOption::AutoSave),
         );
 
         // Render lockscreen toggle
@@ -259,6 +412,7 @@ impl ConfigWindow {
             config.lockscreen_enabled,
             charset,
             theme,
+            self.focused_option == Some(ConfigOption::Lockscreen),
         );
 
         // Render auth mode selector (only if lockscreen enabled AND OS auth is compiled)
@@ -269,6 +423,7 @@ impl ConfigWindow {
                 config.lockscreen_auth_mode,
                 os_auth_available,
                 theme,
+                self.focused_option == Some(ConfigOption::AuthMode),
             );
         }
 
@@ -281,11 +436,12 @@ impl ConfigWindow {
                 self.pin_setup_row,
                 config.has_pin_configured(),
                 theme,
+                self.focused_option == Some(ConfigOption::PinSetup),
             );
         }
 
         // Render instruction at bottom
-        let instruction = "Press ESC to close";
+        let instruction = "Up/Down: navigate | Enter: select | ESC: close";
         let instruction_x = self.x + (self.width - instruction.len() as u16) / 2;
         let instruction_y = self.y + self.height - 2;
 
@@ -318,11 +474,20 @@ impl ConfigWindow {
         enabled: bool,
         charset: &Charset,
         theme: &Theme,
+        focused: bool,
     ) {
-        let fg = theme.config_content_fg;
-        let bg = theme.config_content_bg;
+        // Swap colors if focused for visual feedback
+        let (fg, bg) = if focused {
+            (theme.config_content_bg, theme.config_content_fg)
+        } else {
+            (theme.config_content_fg, theme.config_content_bg)
+        };
 
-        let option_x = self.x + 3; // 3 spaces from left border
+        let option_x = self.x + 2; // 2 spaces from left border (1 for focus indicator)
+
+        // Render focus indicator
+        let indicator = if focused { '>' } else { ' ' };
+        buffer.set(self.x + 1, row, Cell::new(indicator, fg, bg));
 
         // Render label
         for (i, ch) in label.chars().enumerate() {
@@ -366,11 +531,20 @@ impl ConfigWindow {
         enabled: bool,
         charset: &Charset,
         theme: &Theme,
+        focused: bool,
     ) {
-        let fg = theme.config_content_fg;
-        let bg = theme.config_content_bg;
+        // Swap colors if focused for visual feedback
+        let (fg, bg) = if focused {
+            (theme.config_content_bg, theme.config_content_fg)
+        } else {
+            (theme.config_content_fg, theme.config_content_bg)
+        };
 
         let option_x = self.x + 6; // 6 spaces from left border (indented)
+
+        // Render focus indicator
+        let indicator = if focused { '>' } else { ' ' };
+        buffer.set(self.x + 1, row, Cell::new(indicator, fg, bg));
 
         // Render "└─" prefix for sub-option
         buffer.set(self.x + 4, row, Cell::new('└', fg, bg));
@@ -416,11 +590,20 @@ impl ConfigWindow {
         row: u16,
         current_theme: &str,
         theme: &Theme,
+        focused: bool,
     ) {
-        let fg = theme.config_content_fg;
-        let bg = theme.config_content_bg;
+        // Swap colors if focused for visual feedback
+        let (fg, bg) = if focused {
+            (theme.config_content_bg, theme.config_content_fg)
+        } else {
+            (theme.config_content_fg, theme.config_content_bg)
+        };
 
-        let option_x = self.x + 3; // 3 spaces from left border
+        let option_x = self.x + 2; // 2 spaces from left border (1 for focus indicator)
+
+        // Render focus indicator
+        let indicator = if focused { '>' } else { ' ' };
+        buffer.set(self.x + 1, row, Cell::new(indicator, fg, bg));
 
         // Render label
         let label = "Theme:";
@@ -461,11 +644,20 @@ impl ConfigWindow {
         row: u16,
         config: &AppConfig,
         theme: &Theme,
+        focused: bool,
     ) {
-        let fg = theme.config_content_fg;
-        let bg = theme.config_content_bg;
+        // Swap colors if focused for visual feedback
+        let (fg, bg) = if focused {
+            (theme.config_content_bg, theme.config_content_fg)
+        } else {
+            (theme.config_content_fg, theme.config_content_bg)
+        };
 
-        let option_x = self.x + 3; // 3 spaces from left border
+        let option_x = self.x + 2; // 2 spaces from left border (1 for focus indicator)
+
+        // Render focus indicator
+        let indicator = if focused { '>' } else { ' ' };
+        buffer.set(self.x + 1, row, Cell::new(indicator, fg, bg));
 
         // Render label
         let label = "Background character:";
@@ -493,11 +685,20 @@ impl ConfigWindow {
         mode: LockscreenAuthMode,
         os_auth_available: bool,
         theme: &Theme,
+        focused: bool,
     ) {
-        let fg = theme.config_content_fg;
-        let bg = theme.config_content_bg;
+        // Swap colors if focused for visual feedback
+        let (fg, bg) = if focused {
+            (theme.config_content_bg, theme.config_content_fg)
+        } else {
+            (theme.config_content_fg, theme.config_content_bg)
+        };
 
-        let option_x = self.x + 3;
+        let option_x = self.x + 2; // 2 spaces from left border (1 for focus indicator)
+
+        // Render focus indicator
+        let indicator = if focused { '>' } else { ' ' };
+        buffer.set(self.x + 1, row, Cell::new(indicator, fg, bg));
 
         let label = "Auth mode:";
         for (i, ch) in label.chars().enumerate() {
@@ -528,11 +729,20 @@ impl ConfigWindow {
         row: u16,
         has_pin: bool,
         theme: &Theme,
+        focused: bool,
     ) {
-        let fg = theme.config_content_fg;
-        let bg = theme.config_content_bg;
+        // Swap colors if focused for visual feedback
+        let (fg, bg) = if focused {
+            (theme.config_content_bg, theme.config_content_fg)
+        } else {
+            (theme.config_content_fg, theme.config_content_bg)
+        };
 
-        let option_x = self.x + 3;
+        let option_x = self.x + 2; // 2 spaces from left border (1 for focus indicator)
+
+        // Render focus indicator
+        let indicator = if focused { '>' } else { ' ' };
+        buffer.set(self.x + 1, row, Cell::new(indicator, fg, bg));
 
         let (button_text, status_text) = if has_pin {
             ("[ Change PIN ]", "   PIN is configured")

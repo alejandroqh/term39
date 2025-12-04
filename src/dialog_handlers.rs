@@ -1,6 +1,8 @@
 use crate::app_state::AppState;
 use crate::command_history::CommandHistory;
 use crate::command_indexer::CommandIndexer;
+use crate::config_manager::AppConfig;
+use crate::config_window::ConfigAction;
 use crate::error_dialog::ErrorDialog;
 use crate::prompt::PromptAction;
 use crate::render_backend::RenderBackend;
@@ -303,22 +305,63 @@ pub fn handle_winmode_help_window_keyboard(app_state: &mut AppState, key_event: 
 }
 
 /// Handles keyboard events when config window is active
-/// Returns true if event was handled
-pub fn handle_config_window_keyboard(app_state: &mut AppState, key_event: KeyEvent) -> bool {
-    if app_state.active_config_window.is_some() {
+/// Returns Some(ConfigAction) if event was handled, None otherwise
+pub fn handle_config_window_keyboard(
+    app_state: &mut AppState,
+    key_event: KeyEvent,
+    config: &AppConfig,
+) -> Option<ConfigAction> {
+    if let Some(ref mut config_win) = app_state.active_config_window {
         match key_event.code {
             KeyCode::Esc => {
                 // ESC dismisses the config window
                 app_state.active_config_window = None;
-                return true;
+                return Some(ConfigAction::Close);
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                config_win.focus_previous(config);
+                return Some(ConfigAction::None);
+            }
+            KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => {
+                if key_event.modifiers.contains(KeyModifiers::SHIFT) {
+                    config_win.focus_previous(config);
+                } else {
+                    config_win.focus_next(config);
+                }
+                return Some(ConfigAction::None);
+            }
+            KeyCode::BackTab => {
+                // Shift+Tab
+                config_win.focus_previous(config);
+                return Some(ConfigAction::None);
+            }
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                // Activate focused option
+                return Some(config_win.get_focused_action());
+            }
+            KeyCode::Left | KeyCode::Char('h') => {
+                // For selector options, cycle backward
+                let action = config_win.get_cycle_action(false);
+                if action != ConfigAction::None {
+                    return Some(action);
+                }
+                return Some(ConfigAction::None);
+            }
+            KeyCode::Right | KeyCode::Char('l') => {
+                // For selector options, cycle forward
+                let action = config_win.get_cycle_action(true);
+                if action != ConfigAction::None {
+                    return Some(action);
+                }
+                return Some(ConfigAction::None);
             }
             _ => {
-                // Ignore other keys when config window is active
-                return true;
+                // Consume other keys when config window is active
+                return Some(ConfigAction::None);
             }
         }
     }
-    false
+    None
 }
 
 /// Handles keyboard events when lockscreen is active

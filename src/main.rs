@@ -868,7 +868,122 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle config window keyboard events
-                    if dialog_handlers::handle_config_window_keyboard(&mut app_state, key_event) {
+                    if let Some(action) = dialog_handlers::handle_config_window_keyboard(
+                        &mut app_state,
+                        key_event,
+                        &app_config,
+                    ) {
+                        // Process the config action (same as mouse handling)
+                        match action {
+                            ConfigAction::Close => {
+                                // Already handled in the keyboard handler
+                            }
+                            ConfigAction::ToggleAutoTiling => {
+                                app_config.toggle_auto_tiling_on_startup();
+                                app_state.auto_tiling_enabled = app_config.auto_tiling_on_startup;
+                                let (_, rows) = backend.dimensions();
+                                let auto_tiling_text = if app_state.auto_tiling_enabled {
+                                    "█ on] Auto Tiling"
+                                } else {
+                                    "off ░] Auto Tiling"
+                                };
+                                app_state.auto_tiling_button =
+                                    Button::new(1, rows - 1, auto_tiling_text.to_string());
+                                // Ensure focus is still valid after toggling
+                                if let Some(ref mut config_win) = app_state.active_config_window {
+                                    config_win.ensure_focus_valid(&app_config);
+                                }
+                            }
+                            ConfigAction::ToggleTilingGaps => {
+                                app_config.toggle_tiling_gaps();
+                            }
+                            ConfigAction::ToggleShowDate => {
+                                app_config.toggle_show_date_in_clock();
+                            }
+                            ConfigAction::CycleTheme => {
+                                let next_theme = match app_config.theme.as_str() {
+                                    "classic" => "monochrome",
+                                    "monochrome" => "dark",
+                                    "dark" => "dracu",
+                                    "dracu" => "green_phosphor",
+                                    "green_phosphor" => "amber",
+                                    "amber" => "ndd",
+                                    "ndd" => "qbasic",
+                                    "qbasic" => "turbo",
+                                    "turbo" => "norton_commander",
+                                    "norton_commander" => "xtree",
+                                    "xtree" => "wordperfect",
+                                    "wordperfect" => "dbase",
+                                    "dbase" => "classic",
+                                    _ => "classic",
+                                };
+                                app_config.theme = next_theme.to_string();
+                                let _ = app_config.save();
+                                theme = Theme::from_name(&app_config.theme);
+                            }
+                            ConfigAction::CycleThemeBackward => {
+                                let prev_theme = match app_config.theme.as_str() {
+                                    "classic" => "dbase",
+                                    "monochrome" => "classic",
+                                    "dark" => "monochrome",
+                                    "dracu" => "dark",
+                                    "green_phosphor" => "dracu",
+                                    "amber" => "green_phosphor",
+                                    "ndd" => "amber",
+                                    "qbasic" => "ndd",
+                                    "turbo" => "qbasic",
+                                    "norton_commander" => "turbo",
+                                    "xtree" => "norton_commander",
+                                    "wordperfect" => "xtree",
+                                    "dbase" => "wordperfect",
+                                    _ => "classic",
+                                };
+                                app_config.theme = prev_theme.to_string();
+                                let _ = app_config.save();
+                                theme = Theme::from_name(&app_config.theme);
+                            }
+                            ConfigAction::CycleBackgroundChar => {
+                                app_config.cycle_background_char();
+                                charset.set_background(app_config.get_background_char());
+                            }
+                            ConfigAction::CycleBackgroundCharBackward => {
+                                app_config.cycle_background_char_backward();
+                                charset.set_background(app_config.get_background_char());
+                            }
+                            ConfigAction::ToggleTintTerminal => {
+                                app_config.toggle_tint_terminal();
+                                app_state.tint_terminal = app_config.tint_terminal;
+                            }
+                            ConfigAction::ToggleAutoSave => {
+                                app_config.toggle_auto_save();
+                                if !app_config.auto_save {
+                                    let _ = WindowManager::clear_session_file();
+                                }
+                            }
+                            ConfigAction::ToggleLockscreen => {
+                                app_config.toggle_lockscreen_enabled();
+                                // Ensure focus is still valid after toggling
+                                if let Some(ref mut config_win) = app_state.active_config_window {
+                                    config_win.ensure_focus_valid(&app_config);
+                                }
+                            }
+                            ConfigAction::CycleLockscreenAuthMode => {
+                                app_config.cycle_lockscreen_auth_mode(is_os_auth_available());
+                                app_state.update_lockscreen_auth(&app_config);
+                                // Ensure focus is still valid after cycling
+                                if let Some(ref mut config_win) = app_state.active_config_window {
+                                    config_win.ensure_focus_valid(&app_config);
+                                }
+                            }
+                            ConfigAction::SetupPin => {
+                                app_state.active_config_window = None;
+                                let salt = app_config.get_or_create_salt();
+                                app_state.start_pin_setup(salt);
+                            }
+                            ConfigAction::None => {
+                                // Just navigation, no action needed
+                            }
+                        }
                         continue;
                     }
 
@@ -1100,6 +1215,10 @@ fn main() -> io::Result<()> {
                                         // Keep config window open (silent save)
                                         handled = true;
                                     }
+                                    ConfigAction::CycleThemeBackward => {
+                                        // Backward cycling not triggered by mouse, but handle for completeness
+                                        handled = true;
+                                    }
                                     ConfigAction::CycleBackgroundChar => {
                                         // Cycle to the next background character
                                         app_config.cycle_background_char();
@@ -1107,6 +1226,10 @@ fn main() -> io::Result<()> {
                                         charset.set_background(app_config.get_background_char());
 
                                         // Keep config window open (silent save)
+                                        handled = true;
+                                    }
+                                    ConfigAction::CycleBackgroundCharBackward => {
+                                        // Backward cycling not triggered by mouse, but handle for completeness
                                         handled = true;
                                     }
                                     ConfigAction::ToggleTintTerminal => {

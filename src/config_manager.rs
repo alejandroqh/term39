@@ -199,6 +199,16 @@ impl AppConfig {
         let _ = self.save();
     }
 
+    /// Cycle to the previous background character and save
+    pub fn cycle_background_char_backward(&mut self) {
+        if self.background_char_index == 0 {
+            self.background_char_index = Self::BACKGROUND_CHARS.len() - 1;
+        } else {
+            self.background_char_index -= 1;
+        }
+        let _ = self.save();
+    }
+
     /// Toggle terminal tinting setting and save
     pub fn toggle_tint_terminal(&mut self) {
         self.tint_terminal = !self.tint_terminal;
