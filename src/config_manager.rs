@@ -14,6 +14,8 @@ pub enum LockscreenAuthMode {
 pub struct AppConfig {
     #[serde(default = "default_auto_tiling_on_startup")]
     pub auto_tiling_on_startup: bool,
+    #[serde(default = "default_tiling_gaps")]
+    pub tiling_gaps: bool,
     #[serde(default = "default_show_date_in_clock")]
     pub show_date_in_clock: bool,
     #[serde(default = "default_theme")]
@@ -36,6 +38,10 @@ pub struct AppConfig {
 
 fn default_auto_tiling_on_startup() -> bool {
     false // Default to false (disabled at startup)
+}
+
+fn default_tiling_gaps() -> bool {
+    false // Default to false (no gaps between tiled windows)
 }
 
 fn default_show_date_in_clock() -> bool {
@@ -66,6 +72,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             auto_tiling_on_startup: false,
+            tiling_gaps: false,
             show_date_in_clock: true,
             theme: default_theme(),
             background_char_index: default_background_char_index(),
@@ -130,6 +137,12 @@ impl AppConfig {
     /// Toggle auto tiling on startup setting and save
     pub fn toggle_auto_tiling_on_startup(&mut self) {
         self.auto_tiling_on_startup = !self.auto_tiling_on_startup;
+        let _ = self.save();
+    }
+
+    /// Toggle tiling gaps setting and save
+    pub fn toggle_tiling_gaps(&mut self) {
+        self.tiling_gaps = !self.tiling_gaps;
         let _ = self.save();
     }
 

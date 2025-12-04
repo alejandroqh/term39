@@ -90,6 +90,7 @@ pub fn handle_slight_input_keyboard(
     command_history: &mut CommandHistory,
     window_manager: &mut WindowManager,
     backend: &dyn RenderBackend,
+    tiling_gaps: bool,
 ) -> bool {
     if let Some(ref mut slight_input) = app_state.active_slight_input {
         match key_event.code {
@@ -174,7 +175,7 @@ pub fn handle_slight_input_keyboard(
                         Ok(_terminal_id) => {
                             // Auto-position all windows based on the snap pattern
                             if app_state.auto_tiling_enabled {
-                                window_manager.auto_position_windows(cols, rows);
+                                window_manager.auto_position_windows(cols, rows, tiling_gaps);
                             }
                         }
                         Err(error_msg) => {

@@ -269,7 +269,7 @@ fn handle_navigation_mode(
                 crate::button::Button::new(1, bar_y, auto_tiling_text.to_string());
             // Auto-position windows if enabling
             if app_state.auto_tiling_enabled {
-                window_manager.auto_position_windows(cols, rows);
+                window_manager.auto_position_windows(cols, rows, app_config.tiling_gaps);
             }
             true
         }

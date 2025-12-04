@@ -544,7 +544,7 @@ fn main() -> io::Result<()> {
 
             // Reposition windows to fit the new screen dimensions
             if app_state.auto_tiling_enabled {
-                window_manager.auto_position_windows(new_cols, new_rows);
+                window_manager.auto_position_windows(new_cols, new_rows, app_config.tiling_gaps);
             } else {
                 // Clamp windows to new screen bounds
                 window_manager.clamp_windows_to_bounds(new_cols, new_rows);
@@ -574,7 +574,7 @@ fn main() -> io::Result<()> {
         // Auto-reposition remaining windows if any were closed
         if windows_closed && app_state.auto_tiling_enabled {
             let (cols, rows) = backend.dimensions();
-            window_manager.auto_position_windows(cols, rows);
+            window_manager.auto_position_windows(cols, rows, app_config.tiling_gaps);
         }
 
         // Poll unified mouse input manager for raw input events (TTY mode only)
@@ -805,7 +805,11 @@ fn main() -> io::Result<()> {
                                 window_manager.close_window(window_id);
                                 if app_state.auto_tiling_enabled {
                                     let (cols, rows) = backend.dimensions();
-                                    window_manager.auto_position_windows(cols, rows);
+                                    window_manager.auto_position_windows(
+                                        cols,
+                                        rows,
+                                        app_config.tiling_gaps,
+                                    );
                                 }
                             }
                             continue; // Handled
@@ -843,6 +847,7 @@ fn main() -> io::Result<()> {
                         &mut command_history,
                         &mut window_manager,
                         backend.as_ref(),
+                        app_config.tiling_gaps,
                     ) {
                         continue;
                     }
@@ -1055,6 +1060,11 @@ fn main() -> io::Result<()> {
                                         app_state.auto_tiling_button =
                                             Button::new(1, rows - 1, auto_tiling_text.to_string());
 
+                                        // Keep config window open (silent save)
+                                        handled = true;
+                                    }
+                                    ConfigAction::ToggleTilingGaps => {
+                                        app_config.toggle_tiling_gaps();
                                         // Keep config window open (silent save)
                                         handled = true;
                                     }
@@ -1333,7 +1343,11 @@ fn main() -> io::Result<()> {
                             Ok(_) => {
                                 // Auto-position all windows based on the snap pattern
                                 if app_state.auto_tiling_enabled {
-                                    window_manager.auto_position_windows(cols, rows);
+                                    window_manager.auto_position_windows(
+                                        cols,
+                                        rows,
+                                        app_config.tiling_gaps,
+                                    );
                                 }
                             }
                             Err(error_msg) => {
@@ -1885,7 +1899,11 @@ fn main() -> io::Result<()> {
                         // Auto-reposition remaining windows if a window was closed
                         if window_closed && app_state.auto_tiling_enabled {
                             let (cols, rows) = backend.dimensions();
-                            window_manager.auto_position_windows(cols, rows);
+                            window_manager.auto_position_windows(
+                                cols,
+                                rows,
+                                app_config.tiling_gaps,
+                            );
                         }
                     }
 

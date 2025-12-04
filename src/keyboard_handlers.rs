@@ -295,11 +295,23 @@ pub fn handle_desktop_keyboard(
             return true;
         }
         KeyCode::Char('t') if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) => {
-            create_terminal_window(app_state, window_manager, backend, false);
+            create_terminal_window(
+                app_state,
+                window_manager,
+                backend,
+                false,
+                app_config.tiling_gaps,
+            );
             return true;
         }
         KeyCode::Char('T') if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) => {
-            create_terminal_window(app_state, window_manager, backend, true);
+            create_terminal_window(
+                app_state,
+                window_manager,
+                backend,
+                true,
+                app_config.tiling_gaps,
+            );
             return true;
         }
         _ => {}
@@ -601,6 +613,7 @@ fn create_terminal_window(
     window_manager: &mut WindowManager,
     backend: &dyn RenderBackend,
     maximized: bool,
+    tiling_gaps: bool,
 ) {
     let (cols, rows) = backend.dimensions();
 
@@ -629,7 +642,7 @@ fn create_terminal_window(
             if maximized {
                 window_manager.maximize_window(window_id, cols, rows);
             } else if app_state.auto_tiling_enabled {
-                window_manager.auto_position_windows(cols, rows);
+                window_manager.auto_position_windows(cols, rows, tiling_gaps);
             }
         }
         Err(error_msg) => {

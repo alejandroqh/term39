@@ -268,7 +268,8 @@ impl WindowManager {
 
     /// Automatically position windows based on count (snap corners pattern)
     /// Called when buffer size is known
-    pub fn auto_position_windows(&mut self, buffer_width: u16, buffer_height: u16) {
+    /// If `gaps` is true, adds spacing between windows and screen edges
+    pub fn auto_position_windows(&mut self, buffer_width: u16, buffer_height: u16, gaps: bool) {
         let visible_count = self
             .windows
             .iter()
@@ -289,7 +290,8 @@ impl WindowManager {
         visible_ids.sort();
 
         // Calculate positions based on pattern
-        let positions = self.calculate_auto_positions(visible_count, buffer_width, buffer_height);
+        let positions =
+            self.calculate_auto_positions(visible_count, buffer_width, buffer_height, gaps);
 
         // Apply positions to windows
         for (idx, &window_id) in visible_ids.iter().enumerate() {
@@ -309,67 +311,167 @@ impl WindowManager {
     }
 
     /// Calculate positions for all windows based on the snap pattern
+    /// If `gaps` is true, adds spacing between windows and screen edges
     fn calculate_auto_positions(
         &self,
         count: usize,
         buffer_width: u16,
         buffer_height: u16,
+        gaps: bool,
     ) -> Vec<(u16, u16, u16, u16)> {
+        // Gap constants (only used when gaps is true)
+        const EDGE_GAP: u16 = 1; // Gap from screen edges
+        const INTER_GAP: u16 = 1; // Gap between windows (after shadow)
+        const SHADOW_SIZE: u16 = 2; // Shadow width/height
+
         let usable_height = buffer_height.saturating_sub(2); // -1 for top bar, -1 for button bar
-        let half_width = buffer_width / 2;
-        let half_height = usable_height / 2;
 
-        match count {
-            1 => {
-                // Center position with dynamic size
-                let (width, height) = Self::calculate_window_size(buffer_width, buffer_height);
-                let x = (buffer_width.saturating_sub(width)) / 2;
-                let y = 1 + (usable_height.saturating_sub(height)) / 2;
-                vec![(x, y, width, height)]
-            }
-            2 => {
-                // Split screen: full left, full right
-                vec![
-                    (0, 1, half_width, usable_height),          // Window 1: Full left
-                    (half_width, 1, half_width, usable_height), // Window 2: Full right
-                ]
-            }
-            3 => {
-                // Split left, full right
-                vec![
-                    (0, 1, half_width, half_height),               // Window 1: Top-left
-                    (0, 1 + half_height, half_width, half_height), // Window 2: Bottom-left
-                    (half_width, 1, half_width, usable_height),    // Window 3: Full right
-                ]
-            }
-            4 => {
-                // All four quarters
-                vec![
-                    (0, 1, half_width, half_height),               // Window 1: Top-left
-                    (0, 1 + half_height, half_width, half_height), // Window 2: Bottom-left
-                    (half_width, 1, half_width, half_height),      // Window 3: Top-right
-                    (half_width, 1 + half_height, half_width, half_height), // Window 4: Bottom-right
-                ]
-            }
-            _ => {
-                // 5+ windows: first 4 in quarters, rest centered
-                let mut positions = vec![
-                    (0, 1, half_width, half_height),               // Window 1: Top-left
-                    (0, 1 + half_height, half_width, half_height), // Window 2: Bottom-left
-                    (half_width, 1, half_width, half_height),      // Window 3: Top-right
-                    (half_width, 1 + half_height, half_width, half_height), // Window 4: Bottom-right
-                ];
+        if gaps {
+            // With gaps: calculate dimensions accounting for shadows and gaps
+            // Horizontal: left_gap + w + shadow + inter_gap + w + shadow + right_gap = buffer_width
+            // So: 2w = buffer_width - 2*EDGE_GAP - 2*SHADOW_SIZE - INTER_GAP
+            let total_h_overhead = 2 * EDGE_GAP + 2 * SHADOW_SIZE + INTER_GAP;
+            let window_width = buffer_width.saturating_sub(total_h_overhead) / 2;
 
-                // Add center positions for remaining windows (with slight offset)
-                for i in 4..count {
+            // Vertical: top_bar(1) + top_gap + h + shadow + h + shadow + bottom_gap = buffer_height
+            // No inter-gap vertically - shadow provides enough separation
+            // So: 2h = buffer_height - 1 - 2*EDGE_GAP - 2*SHADOW_SIZE
+            let total_v_overhead = 1 + 2 * EDGE_GAP + 2 * SHADOW_SIZE;
+            let window_height = buffer_height.saturating_sub(total_v_overhead) / 2;
+
+            // Positions with gaps
+            let left_x = EDGE_GAP;
+            let right_x = EDGE_GAP + window_width + SHADOW_SIZE + INTER_GAP;
+            let top_y = 1 + EDGE_GAP; // 1 for top bar + gap
+            let bottom_y = 1 + EDGE_GAP + window_height + SHADOW_SIZE; // No inter-gap vertically
+
+            match count {
+                1 => {
+                    // Center position with dynamic size (no gaps for single window)
                     let (width, height) = Self::calculate_window_size(buffer_width, buffer_height);
-                    let offset = ((i - 4) * 2) as u16; // Slight offset for each additional window
-                    let x = ((buffer_width.saturating_sub(width)) / 2).saturating_add(offset);
-                    let y = 1 + ((usable_height.saturating_sub(height)) / 2).saturating_add(offset);
-                    positions.push((x, y, width, height));
+                    let x = (buffer_width.saturating_sub(width)) / 2;
+                    let y = 1 + (usable_height.saturating_sub(height)) / 2;
+                    vec![(x, y, width, height)]
                 }
+                2 => {
+                    // Two windows: left and right with full height
+                    let full_height = buffer_height.saturating_sub(1 + 2 * EDGE_GAP + SHADOW_SIZE);
+                    vec![
+                        (left_x, top_y, window_width, full_height), // Window 1: Left
+                        (right_x, top_y, window_width, full_height), // Window 2: Right
+                    ]
+                }
+                3 => {
+                    // Three windows: top-left, bottom-left, full-right
+                    let full_height = buffer_height.saturating_sub(1 + 2 * EDGE_GAP + SHADOW_SIZE);
+                    // Calculate bottom window height to fill remaining space
+                    // bottom_y + bottom_height + SHADOW_SIZE + EDGE_GAP = buffer_height
+                    // So: bottom_height = buffer_height - bottom_y - SHADOW_SIZE - EDGE_GAP
+                    let bottom_height =
+                        buffer_height.saturating_sub(bottom_y + SHADOW_SIZE + EDGE_GAP);
+                    vec![
+                        (left_x, top_y, window_width, window_height), // Window 1: Top-left
+                        (left_x, bottom_y, window_width, bottom_height), // Window 2: Bottom-left
+                        (right_x, top_y, window_width, full_height),  // Window 3: Full-right
+                    ]
+                }
+                4 => {
+                    // Four equal windows in 2x2 grid
+                    // Calculate bottom window height to fill remaining space
+                    let bottom_height =
+                        buffer_height.saturating_sub(bottom_y + SHADOW_SIZE + EDGE_GAP);
+                    vec![
+                        (left_x, top_y, window_width, window_height), // Window 1: Top-left
+                        (left_x, bottom_y, window_width, bottom_height), // Window 2: Bottom-left
+                        (right_x, top_y, window_width, window_height), // Window 3: Top-right
+                        (right_x, bottom_y, window_width, bottom_height), // Window 4: Bottom-right
+                    ]
+                }
+                _ => {
+                    // 5+ windows: first 4 in quarters with gaps, rest centered
+                    // Calculate bottom window height to fill remaining space
+                    let bottom_height =
+                        buffer_height.saturating_sub(bottom_y + SHADOW_SIZE + EDGE_GAP);
+                    let mut positions = vec![
+                        (left_x, top_y, window_width, window_height), // Window 1: Top-left
+                        (left_x, bottom_y, window_width, bottom_height), // Window 2: Bottom-left
+                        (right_x, top_y, window_width, window_height), // Window 3: Top-right
+                        (right_x, bottom_y, window_width, bottom_height), // Window 4: Bottom-right
+                    ];
 
-                positions
+                    // Add center positions for remaining windows (with slight offset)
+                    for i in 4..count {
+                        let (width, height) =
+                            Self::calculate_window_size(buffer_width, buffer_height);
+                        let offset = ((i - 4) * 2) as u16;
+                        let x = ((buffer_width.saturating_sub(width)) / 2).saturating_add(offset);
+                        let y =
+                            1 + ((usable_height.saturating_sub(height)) / 2).saturating_add(offset);
+                        positions.push((x, y, width, height));
+                    }
+
+                    positions
+                }
+            }
+        } else {
+            // Without gaps: original behavior
+            let half_width = buffer_width / 2;
+            let half_height = usable_height / 2;
+
+            match count {
+                1 => {
+                    // Center position with dynamic size
+                    let (width, height) = Self::calculate_window_size(buffer_width, buffer_height);
+                    let x = (buffer_width.saturating_sub(width)) / 2;
+                    let y = 1 + (usable_height.saturating_sub(height)) / 2;
+                    vec![(x, y, width, height)]
+                }
+                2 => {
+                    // Split screen: full left, full right
+                    vec![
+                        (0, 1, half_width, usable_height),          // Window 1: Full left
+                        (half_width, 1, half_width, usable_height), // Window 2: Full right
+                    ]
+                }
+                3 => {
+                    // Split left, full right
+                    vec![
+                        (0, 1, half_width, half_height),               // Window 1: Top-left
+                        (0, 1 + half_height, half_width, half_height), // Window 2: Bottom-left
+                        (half_width, 1, half_width, usable_height),    // Window 3: Full right
+                    ]
+                }
+                4 => {
+                    // All four quarters
+                    vec![
+                        (0, 1, half_width, half_height),               // Window 1: Top-left
+                        (0, 1 + half_height, half_width, half_height), // Window 2: Bottom-left
+                        (half_width, 1, half_width, half_height),      // Window 3: Top-right
+                        (half_width, 1 + half_height, half_width, half_height), // Window 4: Bottom-right
+                    ]
+                }
+                _ => {
+                    // 5+ windows: first 4 in quarters, rest centered
+                    let mut positions = vec![
+                        (0, 1, half_width, half_height),               // Window 1: Top-left
+                        (0, 1 + half_height, half_width, half_height), // Window 2: Bottom-left
+                        (half_width, 1, half_width, half_height),      // Window 3: Top-right
+                        (half_width, 1 + half_height, half_width, half_height), // Window 4: Bottom-right
+                    ];
+
+                    // Add center positions for remaining windows (with slight offset)
+                    for i in 4..count {
+                        let (width, height) =
+                            Self::calculate_window_size(buffer_width, buffer_height);
+                        let offset = ((i - 4) * 2) as u16;
+                        let x = ((buffer_width.saturating_sub(width)) / 2).saturating_add(offset);
+                        let y =
+                            1 + ((usable_height.saturating_sub(height)) / 2).saturating_add(offset);
+                        positions.push((x, y, width, height));
+                    }
+
+                    positions
+                }
             }
         }
     }

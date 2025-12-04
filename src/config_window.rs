@@ -11,6 +11,7 @@ pub enum ConfigAction {
     #[allow(dead_code)]
     Close,
     ToggleAutoTiling,
+    ToggleTilingGaps,
     ToggleShowDate,
     CycleTheme,
     CycleBackgroundChar,
@@ -28,6 +29,7 @@ pub struct ConfigWindow {
     pub x: u16,
     pub y: u16,
     auto_arrange_row: u16,    // Row where auto arrange toggle is rendered
+    tiling_gaps_row: u16,     // Row where tiling gaps toggle is rendered (only when auto-tiling on)
     show_date_row: u16,       // Row where show date toggle is rendered
     theme_row: u16,           // Row where theme selector is rendered
     background_char_row: u16, // Row where background character selector is rendered
@@ -43,7 +45,7 @@ impl ConfigWindow {
     pub fn new(buffer_width: u16, buffer_height: u16) -> Self {
         // Fixed dimensions for config window
         let width = 60;
-        let height = 24; // Increased to fit lockscreen options
+        let height = 26; // Increased to fit tiling gaps option
 
         // Center on screen
         let x = (buffer_width.saturating_sub(width)) / 2;
@@ -51,14 +53,15 @@ impl ConfigWindow {
 
         // Calculate row positions for options
         let auto_arrange_row = y + 3; // Title at y+1, blank at y+2, first option at y+3
-        let show_date_row = y + 5; // Blank at y+4, second option at y+5
-        let theme_row = y + 7; // Blank at y+6, third option at y+7
-        let background_char_row = y + 9; // Blank at y+8, fourth option at y+9
-        let tint_terminal_row = y + 11; // Blank at y+10, fifth option at y+11
-        let auto_save_row = y + 13; // Blank at y+12, sixth option at y+13
-        let lockscreen_row = y + 15; // Blank at y+14, seventh option at y+15
-        let lockscreen_auth_row = y + 17; // Blank at y+16, eighth option at y+17
-        let pin_setup_row = y + 19; // Blank at y+18, ninth option at y+19
+        let tiling_gaps_row = y + 4; // Sub-option for gaps (indented, only when auto-tiling on)
+        let show_date_row = y + 6; // Blank at y+5, show date option at y+6
+        let theme_row = y + 8; // Blank at y+7, theme option at y+8
+        let background_char_row = y + 10; // Blank at y+9, background char option at y+10
+        let tint_terminal_row = y + 12; // Blank at y+11, tint terminal option at y+12
+        let auto_save_row = y + 14; // Blank at y+13, auto-save option at y+14
+        let lockscreen_row = y + 16; // Blank at y+15, lockscreen option at y+16
+        let lockscreen_auth_row = y + 18; // Blank at y+17, auth mode option at y+18
+        let pin_setup_row = y + 20; // Blank at y+19, PIN setup at y+20
 
         Self {
             width,
@@ -66,6 +69,7 @@ impl ConfigWindow {
             x,
             y,
             auto_arrange_row,
+            tiling_gaps_row,
             show_date_row,
             theme_row,
             background_char_row,
@@ -199,6 +203,18 @@ impl ConfigWindow {
             charset,
             theme,
         );
+
+        // Render tiling gaps option (only when auto-tiling is enabled)
+        if config.auto_tiling_on_startup {
+            self.render_sub_option(
+                buffer,
+                self.tiling_gaps_row,
+                "Window gaps:",
+                config.tiling_gaps,
+                charset,
+                theme,
+            );
+        }
 
         self.render_option(
             buffer,
@@ -336,6 +352,58 @@ impl ConfigWindow {
                 } else {
                     fg
                 }; // Shade character in theme color
+                buffer.set(toggle_x + i as u16, row, Cell::new(ch, color, bg));
+            }
+        }
+    }
+
+    /// Render a sub-option (indented, for nested settings)
+    fn render_sub_option(
+        &self,
+        buffer: &mut VideoBuffer,
+        row: u16,
+        label: &str,
+        enabled: bool,
+        charset: &Charset,
+        theme: &Theme,
+    ) {
+        let fg = theme.config_content_fg;
+        let bg = theme.config_content_bg;
+
+        let option_x = self.x + 6; // 6 spaces from left border (indented)
+
+        // Render "└─" prefix for sub-option
+        buffer.set(self.x + 4, row, Cell::new('└', fg, bg));
+        buffer.set(self.x + 5, row, Cell::new('─', fg, bg));
+
+        // Render label
+        for (i, ch) in label.chars().enumerate() {
+            buffer.set(option_x + i as u16, row, Cell::new(ch, fg, bg));
+        }
+
+        // Render toggle indicator
+        let toggle_x = option_x + label.len() as u16 + 1;
+
+        if enabled {
+            // [█ on]
+            let toggle_on = format!("[{} on]", charset.block());
+            for (i, ch) in toggle_on.chars().enumerate() {
+                let color = if i == 1 {
+                    theme.config_toggle_on_color
+                } else {
+                    fg
+                };
+                buffer.set(toggle_x + i as u16, row, Cell::new(ch, color, bg));
+            }
+        } else {
+            // [off ░]
+            let toggle_off = format!("[off {}]", charset.shade());
+            for (i, ch) in toggle_off.chars().enumerate() {
+                let color = if i == 4 {
+                    theme.config_toggle_off_color
+                } else {
+                    fg
+                };
                 buffer.set(toggle_x + i as u16, row, Cell::new(ch, color, bg));
             }
         }
@@ -495,6 +563,13 @@ impl ConfigWindow {
             // Click anywhere on the row toggles the option
             if x >= self.x && x < self.x + self.width {
                 return ConfigAction::ToggleAutoTiling;
+            }
+        }
+
+        // Check if click is on tiling gaps row (only when auto-tiling is enabled)
+        if config.auto_tiling_on_startup && y == self.tiling_gaps_row {
+            if x >= self.x && x < self.x + self.width {
+                return ConfigAction::ToggleTilingGaps;
             }
         }
 
