@@ -40,6 +40,13 @@ pub struct WindowManager {
 
     // Shell configuration for new terminal windows
     shell_config: ShellConfig,
+
+    // Pivot state for tiled window resizing
+    pivot_dragging: Option<PivotDragState>,
+    /// Current split ratio for horizontal division (left column width / total)
+    h_split_ratio: f32,
+    /// Current split ratio for vertical division (top row height / total)
+    v_split_ratio: f32,
 }
 
 /// Snap zones for window positioning
@@ -90,6 +97,19 @@ struct LastClick {
     time: Instant,
 }
 
+/// State for tracking pivot dragging
+#[derive(Clone, Copy, Debug)]
+struct PivotDragState {
+    /// Initial mouse X position when drag started
+    start_x: u16,
+    /// Initial mouse Y position when drag started
+    start_y: u16,
+    /// Initial split ratio for horizontal division (0.0-1.0)
+    start_h_ratio: f32,
+    /// Initial split ratio for vertical division (0.0-1.0)
+    start_v_ratio: f32,
+}
+
 impl WindowManager {
     pub fn new() -> Self {
         Self {
@@ -105,6 +125,9 @@ impl WindowManager {
             last_window_x: None,
             last_window_y: None,
             shell_config: ShellConfig::default(),
+            pivot_dragging: None,
+            h_split_ratio: 0.5,
+            v_split_ratio: 0.5,
         }
     }
 
@@ -269,6 +292,7 @@ impl WindowManager {
     /// Automatically position windows based on count (snap corners pattern)
     /// Called when buffer size is known
     /// If `gaps` is true, adds spacing between windows and screen edges
+    /// For 2-4 windows with gaps, uses current split ratios (for pivot support)
     pub fn auto_position_windows(&mut self, buffer_width: u16, buffer_height: u16, gaps: bool) {
         let visible_count = self
             .windows
@@ -277,6 +301,18 @@ impl WindowManager {
             .count();
 
         if visible_count == 0 {
+            return;
+        }
+
+        // For 2-4 windows with gaps, use split ratios (pivot-aware positioning)
+        if gaps && (2..=4).contains(&visible_count) {
+            self.apply_split_ratios(buffer_width, buffer_height);
+            // Resize PTYs after applying ratios
+            for window in &mut self.windows {
+                if !window.window.is_minimized {
+                    let _ = window.resize(window.window.width, window.window.height);
+                }
+            }
             return;
         }
 
@@ -688,6 +724,31 @@ impl WindowManager {
                 }
                 // Block all other events on windows with confirmation dialogs
                 return false;
+            }
+        }
+
+        // Handle pivot interactions first (highest priority when visible)
+        if gaps {
+            match event.kind {
+                MouseEventKind::Down(MouseButton::Left) => {
+                    if self.is_point_on_pivot(x, y, buffer_width, buffer_height, gaps) {
+                        self.start_pivot_drag(x, y);
+                        return false;
+                    }
+                }
+                MouseEventKind::Drag(MouseButton::Left) => {
+                    if self.pivot_dragging.is_some() {
+                        self.handle_pivot_drag(x, y, buffer_width, buffer_height);
+                        return false;
+                    }
+                }
+                MouseEventKind::Up(MouseButton::Left) => {
+                    if self.pivot_dragging.is_some() {
+                        self.end_pivot_drag();
+                        return false;
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -2017,6 +2078,292 @@ impl WindowManager {
         };
 
         Ok(manager)
+    }
+
+    // =========================================================================
+    // Pivot Operations for Tiled Window Resizing
+    // =========================================================================
+
+    /// Get visible (non-minimized) window count
+    fn visible_window_count(&self) -> usize {
+        self.windows
+            .iter()
+            .filter(|w| !w.window.is_minimized)
+            .count()
+    }
+
+    /// Check if pivot should be visible
+    pub fn should_show_pivot(&self, gaps: bool) -> bool {
+        let visible_count = self.visible_window_count();
+        gaps && (2..=4).contains(&visible_count)
+    }
+
+    /// Calculate the pivot position based on current split ratios
+    /// Returns (x, y) position of pivot center, or None if pivot shouldn't be shown
+    pub fn calculate_pivot_position(
+        &self,
+        buffer_width: u16,
+        buffer_height: u16,
+        gaps: bool,
+    ) -> Option<(u16, u16)> {
+        let visible_count = self.visible_window_count();
+
+        // Pivot only shown for 2-4 windows with gaps enabled
+        if !gaps || !(2..=4).contains(&visible_count) {
+            return None;
+        }
+
+        const EDGE_GAP: u16 = 1;
+        const SHADOW_SIZE: u16 = 2;
+        const INTER_GAP: u16 = 1;
+
+        // Calculate usable area (excluding edge gaps, shadows, and inter-gap)
+        let usable_width = buffer_width.saturating_sub(2 * EDGE_GAP + 2 * SHADOW_SIZE + INTER_GAP);
+        let usable_height = buffer_height.saturating_sub(1 + 2 * EDGE_GAP + 2 * SHADOW_SIZE); // -1 for top bar
+
+        // Horizontal position: where the inter-gap between left/right columns is
+        // Move one character to the left to sit in the gap
+        let left_col_width = (usable_width as f32 * self.h_split_ratio) as u16;
+        let pivot_x = EDGE_GAP + left_col_width + SHADOW_SIZE - 1;
+
+        // Vertical position (meaningful for 4 windows, center for 2-3 windows)
+        let top_row_height = (usable_height as f32 * self.v_split_ratio) as u16;
+        let pivot_y = if visible_count == 4 {
+            // For 4 windows, show pivot at the vertical split line
+            1 + EDGE_GAP + top_row_height + SHADOW_SIZE
+        } else {
+            // For 2-3 windows, center vertically
+            buffer_height / 2
+        };
+
+        Some((pivot_x, pivot_y))
+    }
+
+    /// Check if a point is on the pivot (1-char hit area)
+    pub fn is_point_on_pivot(
+        &self,
+        x: u16,
+        y: u16,
+        buffer_width: u16,
+        buffer_height: u16,
+        gaps: bool,
+    ) -> bool {
+        if let Some((px, py)) = self.calculate_pivot_position(buffer_width, buffer_height, gaps) {
+            x == px && y == py
+        } else {
+            false
+        }
+    }
+
+    /// Start pivot drag operation
+    pub fn start_pivot_drag(&mut self, x: u16, y: u16) {
+        self.pivot_dragging = Some(PivotDragState {
+            start_x: x,
+            start_y: y,
+            start_h_ratio: self.h_split_ratio,
+            start_v_ratio: self.v_split_ratio,
+        });
+    }
+
+    /// Handle pivot drag movement
+    pub fn handle_pivot_drag(&mut self, x: u16, y: u16, buffer_width: u16, buffer_height: u16) {
+        let Some(drag) = self.pivot_dragging else {
+            return;
+        };
+
+        let visible_count = self.visible_window_count();
+        if !(2..=4).contains(&visible_count) {
+            return;
+        }
+
+        const EDGE_GAP: u16 = 1;
+        const SHADOW_SIZE: u16 = 2;
+        const INTER_GAP: u16 = 1;
+        const MIN_RATIO: f32 = 0.2; // Minimum 20% for any column/row
+        const MAX_RATIO: f32 = 0.8; // Maximum 80%
+
+        let usable_width = buffer_width.saturating_sub(2 * EDGE_GAP + 2 * SHADOW_SIZE + INTER_GAP);
+        let usable_height = buffer_height.saturating_sub(1 + 2 * EDGE_GAP + 2 * SHADOW_SIZE);
+
+        // Calculate horizontal ratio change (all 2-4 window layouts)
+        let delta_x = x as i32 - drag.start_x as i32;
+        let ratio_delta_h = delta_x as f32 / usable_width as f32;
+        self.h_split_ratio = (drag.start_h_ratio + ratio_delta_h).clamp(MIN_RATIO, MAX_RATIO);
+
+        // Calculate vertical ratio change (only for 4 windows)
+        if visible_count == 4 {
+            let delta_y = y as i32 - drag.start_y as i32;
+            let ratio_delta_v = delta_y as f32 / usable_height as f32;
+            self.v_split_ratio = (drag.start_v_ratio + ratio_delta_v).clamp(MIN_RATIO, MAX_RATIO);
+        }
+
+        // Apply new ratios to window positions
+        self.apply_split_ratios(buffer_width, buffer_height);
+    }
+
+    /// End pivot drag and resize PTYs
+    pub fn end_pivot_drag(&mut self) {
+        if self.pivot_dragging.is_some() {
+            self.pivot_dragging = None;
+
+            // Resize all terminal PTYs to match new window dimensions
+            for window in &mut self.windows {
+                if !window.window.is_minimized {
+                    let _ = window.resize(window.window.width, window.window.height);
+                }
+            }
+        }
+    }
+
+    /// Apply current split ratios to window positions
+    fn apply_split_ratios(&mut self, buffer_width: u16, buffer_height: u16) {
+        const EDGE_GAP: u16 = 1;
+        const SHADOW_SIZE: u16 = 2;
+        const INTER_GAP: u16 = 1;
+
+        let visible_count = self.visible_window_count();
+        if !(2..=4).contains(&visible_count) {
+            return;
+        }
+
+        // Get visible windows sorted by ID (creation order)
+        let mut visible_ids: Vec<u32> = self
+            .windows
+            .iter()
+            .filter(|w| !w.window.is_minimized)
+            .map(|w| w.id())
+            .collect();
+        visible_ids.sort();
+
+        // Calculate dimensions based on ratios
+        let usable_width = buffer_width.saturating_sub(2 * EDGE_GAP + 2 * SHADOW_SIZE + INTER_GAP);
+        let usable_height = buffer_height.saturating_sub(1 + 2 * EDGE_GAP + 2 * SHADOW_SIZE);
+
+        let left_width = (usable_width as f32 * self.h_split_ratio) as u16;
+        let right_width = usable_width.saturating_sub(left_width);
+        let top_height = (usable_height as f32 * self.v_split_ratio) as u16;
+
+        let left_x = EDGE_GAP;
+        let right_x = EDGE_GAP + left_width + SHADOW_SIZE + INTER_GAP;
+        let top_y = 1 + EDGE_GAP;
+        let bottom_y = 1 + EDGE_GAP + top_height + SHADOW_SIZE;
+
+        let full_height = buffer_height.saturating_sub(1 + 2 * EDGE_GAP + SHADOW_SIZE);
+        let bottom_height = buffer_height.saturating_sub(bottom_y + SHADOW_SIZE + EDGE_GAP);
+
+        // Apply positions based on window count
+        match visible_count {
+            2 => {
+                // Window 1: Left (full height)
+                // Window 2: Right (full height)
+                if let Some(w) = self.get_window_by_id_mut(visible_ids[0]) {
+                    w.window.x = left_x;
+                    w.window.y = top_y;
+                    w.window.width = left_width;
+                    w.window.height = full_height;
+                }
+                if let Some(w) = self.get_window_by_id_mut(visible_ids[1]) {
+                    w.window.x = right_x;
+                    w.window.y = top_y;
+                    w.window.width = right_width;
+                    w.window.height = full_height;
+                }
+            }
+            3 => {
+                // Window 1: Top-left
+                // Window 2: Bottom-left
+                // Window 3: Full-right
+                if let Some(w) = self.get_window_by_id_mut(visible_ids[0]) {
+                    w.window.x = left_x;
+                    w.window.y = top_y;
+                    w.window.width = left_width;
+                    w.window.height = top_height;
+                }
+                if let Some(w) = self.get_window_by_id_mut(visible_ids[1]) {
+                    w.window.x = left_x;
+                    w.window.y = bottom_y;
+                    w.window.width = left_width;
+                    w.window.height = bottom_height;
+                }
+                if let Some(w) = self.get_window_by_id_mut(visible_ids[2]) {
+                    w.window.x = right_x;
+                    w.window.y = top_y;
+                    w.window.width = right_width;
+                    w.window.height = full_height;
+                }
+            }
+            4 => {
+                // 2x2 grid
+                if let Some(w) = self.get_window_by_id_mut(visible_ids[0]) {
+                    w.window.x = left_x;
+                    w.window.y = top_y;
+                    w.window.width = left_width;
+                    w.window.height = top_height;
+                }
+                if let Some(w) = self.get_window_by_id_mut(visible_ids[1]) {
+                    w.window.x = left_x;
+                    w.window.y = bottom_y;
+                    w.window.width = left_width;
+                    w.window.height = bottom_height;
+                }
+                if let Some(w) = self.get_window_by_id_mut(visible_ids[2]) {
+                    w.window.x = right_x;
+                    w.window.y = top_y;
+                    w.window.width = right_width;
+                    w.window.height = top_height;
+                }
+                if let Some(w) = self.get_window_by_id_mut(visible_ids[3]) {
+                    w.window.x = right_x;
+                    w.window.y = bottom_y;
+                    w.window.width = right_width;
+                    w.window.height = bottom_height;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Reset split ratios to default (50/50)
+    #[allow(dead_code)]
+    pub fn reset_split_ratios(&mut self) {
+        self.h_split_ratio = 0.5;
+        self.v_split_ratio = 0.5;
+    }
+
+    /// Check if currently dragging pivot
+    #[allow(dead_code)]
+    pub fn is_dragging_pivot(&self) -> bool {
+        self.pivot_dragging.is_some()
+    }
+
+    /// Render the pivot character if conditions are met
+    pub fn render_pivot(
+        &self,
+        buffer: &mut VideoBuffer,
+        charset: &Charset,
+        _theme: &Theme,
+        gaps: bool,
+    ) {
+        use crate::video_buffer::Cell;
+
+        if !self.should_show_pivot(gaps) {
+            return;
+        }
+
+        let (buffer_width, buffer_height) = buffer.dimensions();
+
+        if let Some((x, y)) = self.calculate_pivot_position(buffer_width, buffer_height, gaps) {
+            // Get the current cell at this position and invert its colors
+            let (pivot_fg, pivot_bg) = if let Some(current_cell) = buffer.get(x, y) {
+                // Invert: current fg becomes bg, current bg becomes fg
+                (current_cell.fg_color, current_cell.bg_color)
+            } else {
+                // Fallback if cell doesn't exist
+                (crossterm::style::Color::Black, crossterm::style::Color::White)
+            };
+
+            buffer.set(x, y, Cell::new(charset.pivot, pivot_fg, pivot_bg));
+        }
     }
 }
 

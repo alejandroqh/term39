@@ -29,6 +29,9 @@ pub struct Charset {
     // Configuration window toggles
     pub block: char, // Full block for "on" state
     pub shade: char, // Light shade for "off" state
+
+    // Pivot for tiled window resizing
+    pub pivot: char,
 }
 
 impl Charset {
@@ -47,6 +50,7 @@ impl Charset {
             shadow: '▓',                // U+2593 dark shade
             block: '█',                 // U+2588 full block
             shade: '░',                 // U+2591 light shade
+            pivot: '◉',                 // U+25C9 fisheye
         }
     }
 
@@ -66,6 +70,7 @@ impl Charset {
             shadow: '▓',                // U+2593 dark shade
             block: '█',                 // U+2588 full block
             shade: '░',                 // U+2591 light shade
+            pivot: '◉',                 // U+25C9 fisheye
         }
     }
 
@@ -84,6 +89,7 @@ impl Charset {
             shadow: '#',                // Hash for shadow
             block: '#',                 // Hash for "on" state in ASCII mode
             shade: ' ',                 // Space for "off" state in ASCII mode
+            pivot: '+',                 // Plus for ASCII mode
         }
     }
 
