@@ -466,6 +466,7 @@ impl ConfigWindow {
     }
 
     /// Render a single configuration option with toggle
+    #[allow(clippy::too_many_arguments)]
     fn render_option(
         &self,
         buffer: &mut VideoBuffer,
@@ -523,6 +524,7 @@ impl ConfigWindow {
     }
 
     /// Render a sub-option (indented, for nested settings)
+    #[allow(clippy::too_many_arguments)]
     fn render_sub_option(
         &self,
         buffer: &mut VideoBuffer,
