@@ -2001,11 +2001,22 @@ impl WindowManager {
         false
     }
 
-    /// Close the currently focused window
-    /// Returns true if a window was closed
-    pub fn close_focused_window(&mut self) -> bool {
-        if let FocusState::Window(id) = self.focus {
-            self.close_window(id)
+    /// Request to close the focused window, checking dirty state first
+    /// Returns true if a window was closed, false if confirmation dialog was shown or no window focused
+    pub fn request_close_focused_window(&mut self) -> bool {
+        if let Some(window) = self.get_focused_window_mut() {
+            if window.is_dirty() {
+                // Show confirmation dialog
+                window.show_close_confirmation();
+                false
+            } else {
+                // Clean window - close immediately
+                if let FocusState::Window(id) = self.focus {
+                    self.close_window(id)
+                } else {
+                    false
+                }
+            }
         } else {
             false
         }

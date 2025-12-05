@@ -8,7 +8,7 @@ use crate::config_manager::AppConfig;
 use crate::info_window::InfoWindow;
 use crate::keyboard_mode::{KeyboardMode, ResizeDirection, SnapPosition, WindowSubMode};
 use crate::render_backend::RenderBackend;
-use crate::window_manager::WindowManager;
+use crate::window_manager::{FocusState, WindowManager};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::time::{Duration, Instant};
 
@@ -177,14 +177,30 @@ fn handle_navigation_mode(
             true
         }
 
-        // Close focused window
-        KeyCode::Char('x') | KeyCode::Char('q') => {
-            let closed = window_manager.close_focused_window();
+        // Close focused window (with dirty check) - 'x' always closes window
+        KeyCode::Char('x') => {
+            let closed = window_manager.request_close_focused_window();
             // Auto-exit Window Mode if no windows remain
             if closed && window_manager.window_count() == 0 {
                 app_state.keyboard_mode.exit_to_normal();
             }
             true
+        }
+
+        // 'q' closes window if focused, or triggers exit prompt if on desktop/topbar
+        KeyCode::Char('q') => {
+            let focus = window_manager.get_focus();
+            if matches!(focus, FocusState::Desktop | FocusState::Topbar) {
+                // Let the main handler show exit prompt
+                false
+            } else {
+                let closed = window_manager.request_close_focused_window();
+                // Auto-exit Window Mode if no windows remain
+                if closed && window_manager.window_count() == 0 {
+                    app_state.keyboard_mode.exit_to_normal();
+                }
+                true
+            }
         }
 
         // Toggle maximize

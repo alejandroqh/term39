@@ -735,7 +735,6 @@ fn main() -> io::Result<()> {
                         continue;
                     }
 
-
                     // Skip Repeat events for character keys to prevent duplicates
                     // Allow Repeat for navigation/control keys (arrows, Page Up/Down, etc.)
                     if key_event.kind == KeyEventKind::Repeat {
