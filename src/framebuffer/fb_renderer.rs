@@ -5,7 +5,7 @@
 
 use super::font_manager::FontManager;
 use super::text_modes::TextMode;
-use crate::video_buffer::{Cell, VideoBuffer};
+use crate::rendering::{Cell, VideoBuffer};
 use crossterm::style::Color;
 use framebuffer::Framebuffer;
 use std::io;

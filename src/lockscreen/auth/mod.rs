@@ -20,7 +20,7 @@ mod windows_auth;
 
 pub use pin_auth::{MAX_PIN_LENGTH, MIN_PIN_LENGTH, PinAuthenticator, secure_clear};
 
-use crate::config_manager::LockscreenAuthMode;
+use crate::app::config_manager::LockscreenAuthMode;
 
 /// Result of an authentication attempt
 #[derive(Debug, Clone, PartialEq)]

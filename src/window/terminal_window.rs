@@ -1,0 +1,1449 @@
+use crate::ui::prompt::{Prompt, PromptAction, PromptButton, PromptType, TextAlign};
+use crate::rendering::{Cell, Charset, CharsetMode, Theme, VideoBuffer};
+use crate::term_emu::{
+    Color as TermColor, NamedColor, Position, Selection, SelectionType, ShellConfig,
+    TerminalCell, TerminalEmulator, TerminalGrid,
+};
+use super::base::Window;
+use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::style::Color;
+use std::sync::MutexGuard;
+use std::time::Instant;
+
+/// Close confirmation dialog for a terminal window
+pub(crate) struct CloseConfirmation {
+    prompt: Prompt,
+}
+
+impl CloseConfirmation {
+    fn new(content_x: u16, content_y: u16, content_width: u16, content_height: u16) -> Self {
+        // Create buttons for the dialog
+        let buttons = vec![
+            PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false),
+            PromptButton::new("Close".to_string(), PromptAction::Confirm, true),
+        ];
+
+        // Create the prompt centered in the terminal content area
+        let prompt = Prompt::new_with_alignment(
+            PromptType::Danger,
+            "Close this terminal?\n\nActive content may be lost.".to_string(),
+            buttons,
+            content_width,
+            content_height,
+            TextAlign::Center,
+        )
+        .with_selection_indicators(true)
+        .centered_in_region(content_x, content_y, content_width, content_height)
+        .with_selected_button(0); // Default to Cancel (safe choice)
+
+        Self { prompt }
+    }
+}
+
+/// A window containing a terminal emulator
+pub struct TerminalWindow {
+    pub window: Window,
+    emulator: TerminalEmulator,
+    scroll_offset: usize,         // For scrollback navigation
+    selection: Option<Selection>, // Current text selection
+    // Cached foreground process name to avoid spawning ps every frame
+    cached_process_name: Option<String>,
+    process_name_last_update: Instant,
+    // Close confirmation state
+    pub(crate) pending_close_confirmation: Option<CloseConfirmation>,
+    // Track user input (for dirty state detection)
+    created_at: Instant,
+    has_user_input: bool,
+}
+
+/// Mouse tracking state - all flags retrieved with a single mutex lock
+/// Used internally to avoid multiple lock acquisitions in hot path
+struct MouseTrackingState {
+    /// Whether any mouse tracking mode is enabled
+    tracking_enabled: bool,
+    /// Whether button/drag tracking is enabled (1002 or 1003)
+    button_tracking: bool,
+    /// SGR extended mouse mode (1006)
+    sgr_mode: bool,
+    /// URXVT mouse mode (1015)
+    urxvt_mode: bool,
+}
+
+impl TerminalWindow {
+    /// Create a new terminal window
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        id: u32,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+        title: String,
+        initial_command: Option<String>,
+        shell_config: &ShellConfig,
+    ) -> std::io::Result<Self> {
+        // Calculate content area (excluding 2-char borders and title bar)
+        let content_width = width.saturating_sub(4).max(1); // -2 left, -2 right
+        let content_height = height.saturating_sub(2).max(1); // -1 title, -1 bottom
+
+        let window = Window::new(id, x, y, width, height, title);
+
+        // Parse initial_command into program + args for direct execution
+        let parsed_command = initial_command.as_ref().map(|cmd| Self::parse_command(cmd));
+
+        let emulator = TerminalEmulator::new(
+            content_width as usize,
+            content_height as usize,
+            1000, // 1000 lines of scrollback
+            parsed_command,
+            shell_config,
+        )?;
+
+        Ok(Self {
+            window,
+            emulator,
+            scroll_offset: 0,
+            selection: None,
+            cached_process_name: None,
+            process_name_last_update: Instant::now(),
+            pending_close_confirmation: None,
+            created_at: Instant::now(),
+            has_user_input: false,
+        })
+    }
+
+    /// Parse a command string into (program, args)
+    /// Simple shell-like parsing: splits on whitespace, respects quotes
+    fn parse_command(cmd: &str) -> (String, Vec<String>) {
+        let mut parts = Vec::new();
+        let mut current = String::new();
+        let mut in_quotes = false;
+
+        for ch in cmd.chars() {
+            match ch {
+                '"' | '\'' => {
+                    in_quotes = !in_quotes;
+                }
+                ' ' | '\t' if !in_quotes => {
+                    if !current.is_empty() {
+                        parts.push(current.clone());
+                        current.clear();
+                    }
+                }
+                _ => {
+                    current.push(ch);
+                }
+            }
+        }
+
+        if !current.is_empty() {
+            parts.push(current);
+        }
+
+        if parts.is_empty() {
+            // Empty command, return a safe default
+            ("sh".to_string(), vec![])
+        } else {
+            let program = parts[0].clone();
+            let args = parts.into_iter().skip(1).collect();
+            (program, args)
+        }
+    }
+
+    /// Process terminal output (call this regularly in the event loop)
+    pub fn process_output(&mut self) -> std::io::Result<bool> {
+        self.emulator.process_output()
+    }
+
+    /// Send input to the terminal
+    pub fn send_str(&mut self, s: &str) -> std::io::Result<()> {
+        // Only track user input after initial shell setup (1 second grace period)
+        if self.created_at.elapsed().as_secs() >= 1 {
+            self.has_user_input = true;
+        }
+        self.emulator.send_str(s)
+    }
+
+    /// Send a character to the terminal
+    pub fn send_char(&mut self, c: char) -> std::io::Result<()> {
+        // Only track user input after initial shell setup (1 second grace period)
+        if self.created_at.elapsed().as_secs() >= 1 {
+            self.has_user_input = true;
+        }
+        self.emulator.send_char(c)
+    }
+
+    /// Flush any buffered terminal input
+    /// Call this after processing a batch of keyboard events
+    pub fn flush_input(&mut self) -> std::io::Result<()> {
+        self.emulator.flush_input()
+    }
+
+    /// Resize the window (also resizes the terminal)
+    pub fn resize(&mut self, new_width: u16, new_height: u16) -> std::io::Result<()> {
+        self.window.width = new_width;
+        self.window.height = new_height;
+
+        // Calculate new content dimensions (accounting for 2-char borders)
+        let content_width = new_width.saturating_sub(4).max(1); // -2 left, -2 right
+        let content_height = new_height.saturating_sub(2).max(1); // -1 title, -1 bottom
+
+        self.emulator
+            .resize(content_width as usize, content_height as usize)
+    }
+
+    /// Scroll up in the scrollback buffer
+    #[allow(dead_code)]
+    pub fn scroll_up(&mut self, lines: usize) {
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+        let max_offset = grid.scrollback_len();
+
+        self.scroll_offset = (self.scroll_offset + lines).min(max_offset);
+    }
+
+    /// Scroll down in the scrollback buffer
+    #[allow(dead_code)]
+    pub fn scroll_down(&mut self, lines: usize) {
+        self.scroll_offset = self.scroll_offset.saturating_sub(lines);
+    }
+
+    /// Reset scroll to bottom (showing current output)
+    #[allow(dead_code)]
+    pub fn scroll_to_bottom(&mut self) {
+        self.scroll_offset = 0;
+    }
+
+    /// Render the terminal window
+    /// If keyboard_mode_active is true and window is focused, uses keyboard mode colors
+    pub fn render(
+        &mut self,
+        buffer: &mut VideoBuffer,
+        charset: &Charset,
+        theme: &Theme,
+        tint_terminal: bool,
+        keyboard_mode_active: bool,
+    ) {
+        // Get dynamic title with cached process name
+        let dynamic_title = self.get_dynamic_title_cached();
+
+        // Render the window frame and title bar with dynamic title
+        self.window.render_with_title(
+            buffer,
+            charset,
+            theme,
+            Some(&dynamic_title),
+            keyboard_mode_active,
+        );
+
+        // Acquire grid lock once for both content and scrollbar rendering
+        let grid_arc = self.emulator.grid();
+        let grid = grid_arc.lock().unwrap();
+
+        // Render the terminal content
+        self.render_terminal_content_with_grid(buffer, theme, tint_terminal, &grid);
+
+        // Render the scrollbar
+        self.render_scrollbar_with_grid(buffer, charset, theme, &grid);
+
+        // Render close confirmation on top of window content (if active)
+        self.render_close_confirmation(buffer, charset, theme);
+    }
+
+    fn render_terminal_content_with_grid(
+        &self,
+        buffer: &mut VideoBuffer,
+        theme: &Theme,
+        tint_terminal: bool,
+        grid: &MutexGuard<'_, TerminalGrid>,
+    ) {
+        if self.window.is_minimized {
+            return;
+        }
+
+        // Content area starts after 2-char left border and title bar
+        let content_x = self.window.x + 2; // After 2-char left border
+        let content_y = self.window.y + 1; // After title bar
+        let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
+        let content_height = self.window.height.saturating_sub(2); // -1 title, -1 bottom
+
+        let scrollback_len = grid.scrollback_len();
+        let visible_rows = grid.rows();
+
+        // Render terminal grid cells
+        for row in 0..content_height {
+            for col in 0..content_width {
+                let grid_col = col as usize;
+                let row_idx = row as usize;
+
+                // Calculate which line to display based on scroll offset
+                let term_cell = if self.scroll_offset > 0 {
+                    // We're scrolled back, need to fetch from scrollback or visible rows
+                    let total_lines = scrollback_len + visible_rows;
+                    let line_idx =
+                        total_lines.saturating_sub(self.scroll_offset + visible_rows) + row_idx;
+
+                    if line_idx < scrollback_len {
+                        // Fetch from scrollback
+                        grid.get_scrollback_line(line_idx)
+                            .and_then(|line| line.get(grid_col))
+                    } else {
+                        // Fetch from visible rows
+                        let visible_row = line_idx - scrollback_len;
+                        grid.get_cell(grid_col, visible_row)
+                    }
+                } else {
+                    // Not scrolled, show current visible rows
+                    // Use get_render_cell to respect synchronized output snapshot
+                    grid.get_render_cell(grid_col, row_idx)
+                };
+
+                // Render the cell
+                let mut cell = if let Some(term_cell) = term_cell {
+                    convert_terminal_cell(term_cell, theme, tint_terminal)
+                } else {
+                    // Grid doesn't have data for this cell (window is larger than grid)
+                    // Use default terminal background to maintain visual consistency
+                    Cell::new_unchecked(' ', theme.window_content_fg, theme.window_content_bg)
+                };
+
+                // Apply selection highlighting if this cell is selected
+                if let Some(selection) = &self.selection {
+                    let pos = Position::new(col, row);
+                    if selection.contains(pos) {
+                        // Invert colors for DOS-style selection
+                        cell = cell.inverted();
+                    }
+                }
+
+                buffer.set(content_x + col, content_y + row, cell);
+            }
+        }
+
+        // Render cursor if visible and not scrolled
+        // Applications like Claude hide the cursor to draw their own
+        // Use get_render_cursor to respect synchronized output snapshot
+        let render_cursor = grid.get_render_cursor();
+        if render_cursor.visible && self.scroll_offset == 0 {
+            let cursor_x = content_x + render_cursor.x as u16;
+            let cursor_y = content_y + render_cursor.y as u16;
+
+            // Check if cursor is within window bounds
+            if cursor_x < content_x + content_width && cursor_y < content_y + content_height {
+                // Get the current cell at cursor position
+                if let Some(current_cell) = buffer.get(cursor_x, cursor_y) {
+                    // Create cursor based on cursor shape
+                    let cursor_cell = match render_cursor.shape {
+                        crate::term_emu::CursorShape::Block => {
+                            // For block cursor, show as inverted colors
+                            if current_cell.character == ' ' || current_cell.character == '\0' {
+                                // For empty space, show a solid block using the foreground color
+                                // This makes the cursor visible as a colored block
+                                Cell::new('█', current_cell.fg_color, current_cell.bg_color)
+                            } else {
+                                // For text, invert the colors (swap fg and bg)
+                                Cell::new(
+                                    current_cell.character,
+                                    current_cell.bg_color, // Use bg as fg (inverted)
+                                    current_cell.fg_color, // Use fg as bg (inverted)
+                                )
+                            }
+                        }
+                        crate::term_emu::CursorShape::Underline => {
+                            // For underline cursor, show underscore in foreground color
+                            Cell::new('_', current_cell.fg_color, current_cell.bg_color)
+                        }
+                        crate::term_emu::CursorShape::Bar => {
+                            // For bar cursor, show vertical bar in foreground color
+                            Cell::new('│', current_cell.fg_color, current_cell.bg_color)
+                        }
+                    };
+                    buffer.set(cursor_x, cursor_y, cursor_cell);
+                }
+            }
+        }
+    }
+
+    fn render_scrollbar_with_grid(
+        &self,
+        buffer: &mut VideoBuffer,
+        charset: &Charset,
+        theme: &Theme,
+        grid: &MutexGuard<'_, TerminalGrid>,
+    ) {
+        if self.window.is_minimized {
+            return;
+        }
+
+        let scrollback_len = grid.scrollback_len();
+
+        // Only show scrollbar if there's scrollback content
+        if scrollback_len == 0 {
+            return;
+        }
+
+        let scrollbar_x = self.window.x + self.window.width - 2; // Inner char of 2-char right border
+        let (track_start, track_end) = self.get_scrollbar_bounds();
+
+        // Calculate thumb bounds inline to avoid re-locking the grid
+        let visible_rows = grid.rows();
+        let total_lines = scrollback_len + visible_rows;
+        let (thumb_start, thumb_end) = if total_lines <= visible_rows {
+            (0, 0)
+        } else {
+            let track_height = (track_end - track_start) as usize;
+            let thumb_size = ((visible_rows as f64 / total_lines as f64) * track_height as f64)
+                .max(1.0) as usize;
+            let max_scroll = total_lines.saturating_sub(visible_rows);
+            // Invert the scroll ratio so thumb is at bottom when at current output (scroll_offset=0)
+            let scroll_ratio = if max_scroll > 0 {
+                (max_scroll - self.scroll_offset) as f64 / max_scroll as f64
+            } else {
+                1.0
+            };
+            let thumb_offset = (scroll_ratio * (track_height - thumb_size) as f64) as usize;
+            let thumb_start = track_start + thumb_offset as u16;
+            let thumb_end = thumb_start + thumb_size as u16;
+            (thumb_start, thumb_end)
+        };
+
+        // Choose characters based on charset mode
+        let track_char = match charset.mode {
+            CharsetMode::Unicode | CharsetMode::UnicodeSingleLine => '░', // Light shade for track
+            CharsetMode::Ascii => '.',
+        };
+        let thumb_char = match charset.mode {
+            CharsetMode::Unicode | CharsetMode::UnicodeSingleLine => '█',
+            CharsetMode::Ascii => '#',
+        };
+
+        // Render the scrollbar track and thumb
+        for y in track_start..track_end {
+            let (ch, fg_color) = if y >= thumb_start && y < thumb_end {
+                // Scrollbar thumb
+                (thumb_char, theme.scrollbar_thumb_fg)
+            } else {
+                // Scrollbar track
+                (track_char, theme.scrollbar_track_fg)
+            };
+
+            let cell = Cell::new(ch, fg_color, theme.window_content_bg);
+            buffer.set(scrollbar_x, y, cell);
+        }
+    }
+
+    /// Render close confirmation dialog centered in window
+    fn render_close_confirmation(
+        &self,
+        buffer: &mut VideoBuffer,
+        charset: &Charset,
+        theme: &Theme,
+    ) {
+        if let Some(confirmation) = &self.pending_close_confirmation {
+            confirmation.prompt.render(buffer, charset, theme);
+        }
+    }
+
+    /// Get the window's ID
+    pub fn id(&self) -> u32 {
+        self.window.id
+    }
+
+    /// Set focus state
+    pub fn set_focused(&mut self, focused: bool) {
+        self.window.is_focused = focused;
+    }
+
+    /// Check if a point is within the window
+    pub fn contains_point(&self, x: u16, y: u16) -> bool {
+        if self.window.is_minimized {
+            return false;
+        }
+        self.window.contains_point(x, y)
+    }
+
+    /// Check if point is in title bar
+    pub fn is_in_title_bar(&self, x: u16, y: u16) -> bool {
+        if self.window.is_minimized {
+            return false;
+        }
+        self.window.is_in_title_bar(x, y)
+    }
+
+    /// Check if point is in close button
+    pub fn is_in_close_button(&self, x: u16, y: u16) -> bool {
+        if self.window.is_minimized {
+            return false;
+        }
+        self.window.is_in_close_button(x, y)
+    }
+
+    /// Check if window has unsaved work (user input or non-shell process running)
+    /// Ignores shell processes and common shell helpers
+    pub fn is_dirty(&self) -> bool {
+        // Check if user has typed anything (after initial 1 second grace period)
+        if self.has_user_input {
+            return true;
+        }
+
+        // Check if there's a non-shell process running
+        if let Some(process_name) = self.get_foreground_process_name() {
+            // List of shell processes and common shell-related tools to ignore
+            let ignore_list = [
+                // Shells (regular and login shell variants with - prefix)
+                "bash",
+                "-bash",
+                "zsh",
+                "-zsh",
+                "sh",
+                "-sh",
+                "fish",
+                "-fish",
+                "dash",
+                "-dash",
+                "ksh",
+                "-ksh",
+                "csh",
+                "-csh",
+                "tcsh",
+                "-tcsh",
+                "nu",
+                "-nu",
+                "elvish",
+                "-elvish",
+                "xonsh",
+                "-xonsh",
+                // Shell prompt tools
+                "starship",
+                "gitstatus",
+                "powerlevel10k",
+                // Environment tools
+                "direnv",
+                "asdf",
+                "mise",
+                "rtx",
+                "fnm",
+                "nvm",
+                // Common shell integrations
+                "zsh-autocomplete",
+                "zsh-autosuggestions",
+                "zsh-syntax-highlighting",
+            ];
+            !ignore_list.contains(&process_name.as_str())
+        } else {
+            false
+        }
+    }
+
+    /// Check if close confirmation dialog is currently shown
+    pub fn has_close_confirmation(&self) -> bool {
+        self.pending_close_confirmation.is_some()
+    }
+
+    /// Show the close confirmation dialog
+    pub fn show_close_confirmation(&mut self) {
+        // Calculate content area for centering the dialog
+        let content_x = self.window.x + 2;
+        let content_y = self.window.y + 1;
+        let content_width = self.window.width.saturating_sub(4);
+        let content_height = self.window.height.saturating_sub(2);
+
+        self.pending_close_confirmation = Some(CloseConfirmation::new(
+            content_x,
+            content_y,
+            content_width,
+            content_height,
+        ));
+    }
+
+    /// Get total number of lines (scrollback + visible)
+    #[allow(dead_code)]
+    pub fn get_total_lines(&self) -> usize {
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+        grid.scrollback_len() + grid.rows()
+    }
+
+    /// Get the bounds of the scrollbar track (y_start, y_end)
+    pub fn get_scrollbar_bounds(&self) -> (u16, u16) {
+        let y_start = self.window.y + 1; // After title bar
+        let y_end = self.window.y + self.window.height - 1; // Before bottom border
+        (y_start, y_end)
+    }
+
+    /// Get the bounds of the scrollbar thumb (y_start, y_end)
+    pub fn get_scrollbar_thumb_bounds(&self) -> (u16, u16) {
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+
+        let scrollback_len = grid.scrollback_len();
+        let visible_rows = grid.rows();
+        let total_lines = scrollback_len + visible_rows;
+
+        if total_lines <= visible_rows {
+            // No scrollbar needed
+            return (0, 0);
+        }
+
+        let (track_start, track_end) = self.get_scrollbar_bounds();
+        let track_height = (track_end - track_start) as usize;
+
+        // Calculate thumb size (proportional to visible area)
+        let thumb_size =
+            ((visible_rows as f64 / total_lines as f64) * track_height as f64).max(1.0) as usize;
+
+        // Calculate thumb position based on scroll offset
+        // Invert the scroll ratio so thumb is at bottom when at current output (scroll_offset=0)
+        let max_scroll = total_lines.saturating_sub(visible_rows);
+        let scroll_ratio = if max_scroll > 0 {
+            (max_scroll - self.scroll_offset) as f64 / max_scroll as f64
+        } else {
+            1.0
+        };
+
+        let thumb_offset = (scroll_ratio * (track_height - thumb_size) as f64) as usize;
+        let thumb_start = track_start + thumb_offset as u16;
+        let thumb_end = thumb_start + thumb_size as u16;
+
+        (thumb_start, thumb_end)
+    }
+
+    /// Check if a point is on the scrollbar
+    pub fn is_point_on_scrollbar(&self, x: u16, y: u16) -> bool {
+        if self.window.is_minimized {
+            return false;
+        }
+        let scrollbar_x = self.window.x + self.window.width - 2; // Inner char of 2-char right border
+        let (y_start, y_end) = self.get_scrollbar_bounds();
+
+        x == scrollbar_x && y >= y_start && y < y_end
+    }
+
+    /// Check if a point is on the scrollbar thumb
+    pub fn is_point_on_scrollbar_thumb(&self, x: u16, y: u16) -> bool {
+        if self.window.is_minimized {
+            return false;
+        }
+        if !self.is_point_on_scrollbar(x, y) {
+            return false;
+        }
+
+        let (thumb_start, thumb_end) = self.get_scrollbar_thumb_bounds();
+        y >= thumb_start && y < thumb_end
+    }
+
+    /// Scroll to a specific offset based on mouse position on scrollbar
+    pub fn scroll_to_position(&mut self, y: u16) {
+        let (track_start, track_end) = self.get_scrollbar_bounds();
+        let track_height = (track_end - track_start) as usize;
+
+        if track_height == 0 {
+            return;
+        }
+
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+        let total_lines = grid.scrollback_len() + grid.rows();
+        let visible_rows = grid.rows();
+        let max_scroll = total_lines.saturating_sub(visible_rows);
+
+        // Calculate position ratio (inverted: top = old content, bottom = current)
+        let click_offset = y.saturating_sub(track_start) as usize;
+        let ratio = click_offset as f64 / track_height as f64;
+
+        // Invert the ratio so clicking at bottom shows current output (scroll_offset=0)
+        self.scroll_offset = ((1.0 - ratio) * max_scroll as f64) as usize;
+        self.scroll_offset = self.scroll_offset.min(max_scroll);
+    }
+
+    /// Get the current scroll offset
+    pub fn get_scroll_offset(&self) -> usize {
+        self.scroll_offset
+    }
+
+    /// Convert screen coordinates to terminal grid position
+    fn screen_to_grid_pos(&self, screen_x: u16, screen_y: u16) -> Option<Position> {
+        let content_x = self.window.x + 2; // After 2-char left border
+        let content_y = self.window.y + 1; // After title bar
+        let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
+        let content_height = self.window.height.saturating_sub(2); // -1 title, -1 bottom
+
+        // Check if coordinates are within content area
+        if screen_x < content_x
+            || screen_x >= content_x + content_width
+            || screen_y < content_y
+            || screen_y >= content_y + content_height
+        {
+            return None;
+        }
+
+        let col = screen_x - content_x;
+        let row = screen_y - content_y;
+
+        Some(Position::new(col, row))
+    }
+
+    /// Start a new selection
+    pub fn start_selection(&mut self, screen_x: u16, screen_y: u16, selection_type: SelectionType) {
+        if let Some(pos) = self.screen_to_grid_pos(screen_x, screen_y) {
+            self.selection = Some(Selection::new(pos, selection_type));
+        }
+    }
+
+    /// Update selection end position
+    pub fn update_selection(&mut self, screen_x: u16, screen_y: u16) {
+        if let Some(pos) = self.screen_to_grid_pos(screen_x, screen_y) {
+            if let Some(selection) = &mut self.selection {
+                selection.update_end(pos);
+            }
+        }
+    }
+
+    /// Complete the selection
+    /// Clears the selection if it's too small (less than 2 characters)
+    pub fn complete_selection(&mut self) {
+        if let Some(selection) = &mut self.selection {
+            // Clear selection if it's too small (single character click)
+            if selection.is_too_small() {
+                self.selection = None;
+            } else {
+                selection.complete();
+            }
+        }
+    }
+
+    /// Clear the selection
+    pub fn clear_selection(&mut self) {
+        self.selection = None;
+    }
+
+    /// Expand selection to word boundaries
+    pub fn expand_selection_to_word(&mut self) {
+        if let Some(selection) = &mut self.selection {
+            let grid = self.emulator.grid();
+            let grid = grid.lock().unwrap();
+
+            selection.expand_to_word(|pos| {
+                grid.get_cell(pos.col as usize, pos.row as usize)
+                    .map(|cell| cell.c)
+            });
+        }
+    }
+
+    /// Expand selection to line
+    pub fn expand_selection_to_line(&mut self) {
+        if let Some(selection) = &mut self.selection {
+            let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
+            selection.expand_to_line(content_width);
+        }
+    }
+
+    /// Select all content in the terminal
+    pub fn select_all(&mut self) {
+        let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
+        let content_height = self.window.height.saturating_sub(3); // -1 title, -1 top border, -1 bottom border
+
+        let start = Position::new(0, 0);
+        let end = Position::new(
+            content_width.saturating_sub(1),
+            content_height.saturating_sub(1),
+        );
+
+        let mut selection = Selection::new(start, SelectionType::Character);
+        selection.update_end(end);
+        selection.complete();
+        self.selection = Some(selection);
+    }
+
+    /// Get selected text
+    pub fn get_selected_text(&self) -> Option<String> {
+        let selection = self.selection.as_ref()?;
+        if selection.is_empty() {
+            return None;
+        }
+
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+
+        let (start, end) = selection.normalized_bounds();
+
+        let mut result = String::new();
+
+        match selection.selection_type {
+            SelectionType::Block => {
+                // Rectangle selection
+                let min_col = start.col.min(end.col);
+                let max_col = start.col.max(end.col);
+                let min_row = start.row.min(end.row);
+                let max_row = start.row.max(end.row);
+
+                for row in min_row..=max_row {
+                    for col in min_col..=max_col {
+                        if let Some(cell) = grid.get_cell(col as usize, row as usize) {
+                            result.push(cell.c);
+                        }
+                    }
+                    if row < max_row {
+                        result.push('\n');
+                    }
+                }
+            }
+            _ => {
+                // Linear selection (character, word, line)
+                if start.row == end.row {
+                    // Single line
+                    for col in start.col..=end.col {
+                        if let Some(cell) = grid.get_cell(col as usize, start.row as usize) {
+                            result.push(cell.c);
+                        }
+                    }
+                } else {
+                    // Multiple lines
+                    // First line (from start.col to end of line)
+                    let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
+                    for col in start.col..content_width {
+                        if let Some(cell) = grid.get_cell(col as usize, start.row as usize) {
+                            result.push(cell.c);
+                        }
+                    }
+                    result.push('\n');
+
+                    // Middle lines (full lines)
+                    for row in (start.row + 1)..end.row {
+                        for col in 0..content_width {
+                            if let Some(cell) = grid.get_cell(col as usize, row as usize) {
+                                result.push(cell.c);
+                            }
+                        }
+                        result.push('\n');
+                    }
+
+                    // Last line (from start to end.col)
+                    for col in 0..=end.col {
+                        if let Some(cell) = grid.get_cell(col as usize, end.row as usize) {
+                            result.push(cell.c);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Clean up trailing spaces and return
+        let result = result.trim_end().to_string();
+        if result.is_empty() {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    /// Paste text to terminal
+    pub fn paste_text(&mut self, text: &str) -> std::io::Result<()> {
+        self.emulator.send_str(text)
+    }
+
+    /// Check if there's an active selection
+    pub fn has_selection(&self) -> bool {
+        self.selection.is_some()
+    }
+
+    /// Get the content area bounds (for hit testing)
+    #[allow(dead_code)]
+    pub fn get_content_bounds(&self) -> (u16, u16, u16, u16) {
+        let content_x = self.window.x + 2; // After 2-char left border
+        let content_y = self.window.y + 1; // After title bar
+        let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
+        let content_height = self.window.height.saturating_sub(2); // -1 title, -1 bottom
+        (content_x, content_y, content_width, content_height)
+    }
+
+    /// Set scroll offset (for session restoration)
+    pub fn set_scroll_offset(&mut self, offset: usize) {
+        self.scroll_offset = offset;
+    }
+
+    /// Extract terminal content for session persistence
+    pub fn get_terminal_content(
+        &self,
+    ) -> (
+        Vec<crate::app::session::SerializableTerminalLine>,
+        crate::app::session::SerializableCursor,
+    ) {
+        self.emulator.get_terminal_content()
+    }
+
+    /// Restore terminal content from session
+    pub fn restore_terminal_content(
+        &mut self,
+        lines: Vec<crate::app::session::SerializableTerminalLine>,
+        cursor: &crate::app::session::SerializableCursor,
+    ) {
+        self.emulator.restore_terminal_content(lines, cursor);
+    }
+
+    /// Get the name of the foreground process running in the terminal
+    pub fn get_foreground_process_name(&self) -> Option<String> {
+        self.emulator.get_foreground_process_name()
+    }
+
+    /// Get the cached foreground process name, updating cache every 500ms
+    /// This avoids spawning ps processes every frame (60fps = 60 times/second)
+    fn get_foreground_process_name_cached(&mut self) -> Option<String> {
+        use std::time::Duration;
+
+        // Update cache every 500ms (2 times per second instead of 60)
+        let elapsed = self.process_name_last_update.elapsed();
+        if elapsed >= Duration::from_millis(500) || self.cached_process_name.is_none() {
+            self.cached_process_name = self.emulator.get_foreground_process_name();
+            self.process_name_last_update = Instant::now();
+        }
+
+        self.cached_process_name.clone()
+    }
+
+    /// Get the dynamic title including the running process name (with caching)
+    /// Format: "Terminal N [ > process ]" where > is a running indicator
+    fn get_dynamic_title_cached(&mut self) -> String {
+        if let Some(process_name) = self.get_foreground_process_name_cached() {
+            // Use '>' as an ASCII-compatible "running" indicator with spacing
+            format!("{} [ > {} ]", self.window.title, process_name)
+        } else {
+            self.window.title.clone()
+        }
+    }
+
+    /// Get the dynamic title including the running process name
+    /// Format: "Terminal N [ > process ]" where > is a running indicator
+    #[allow(dead_code)]
+    pub fn get_dynamic_title(&self) -> String {
+        if let Some(process_name) = self.get_foreground_process_name() {
+            // Use '>' as an ASCII-compatible "running" indicator with spacing
+            format!("{} [ > {} ]", self.window.title, process_name)
+        } else {
+            self.window.title.clone()
+        }
+    }
+
+    /// Update the window's display title with process info
+    #[allow(dead_code)]
+    pub fn update_title_with_process(&mut self) {
+        // Store the base title if not already stored
+        if !self.window.title.contains(" [>") {
+            // Title is still the base title, keep it
+        }
+    }
+
+    /// Get the base title (without process info)
+    #[allow(dead_code)]
+    pub fn get_base_title(&self) -> &str {
+        // If the title contains process info, extract base title
+        if let Some(idx) = self.window.title.find(" [>") {
+            &self.window.title[..idx]
+        } else {
+            &self.window.title
+        }
+    }
+
+    /// Get application cursor keys mode state (DECCKM)
+    pub fn get_application_cursor_keys(&self) -> bool {
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+        grid.application_cursor_keys
+    }
+
+    /// Handle keyboard input for close confirmation dialog
+    /// Returns Some(true) if should close, Some(false) if canceled, None if not handled
+    pub fn handle_close_confirmation_key(&mut self, key: KeyEvent) -> Option<bool> {
+        let confirmation = self.pending_close_confirmation.as_mut()?;
+
+        match key.code {
+            KeyCode::Left | KeyCode::Char('h') => {
+                confirmation.prompt.select_previous_button();
+                None // Just update UI, don't trigger action
+            }
+            KeyCode::Right | KeyCode::Char('l') | KeyCode::Tab => {
+                confirmation.prompt.select_next_button();
+                None // Just update UI, don't trigger action
+            }
+            KeyCode::Enter => {
+                let action = confirmation.prompt.get_selected_action();
+                self.pending_close_confirmation = None;
+                Some(matches!(action, Some(PromptAction::Confirm)))
+            }
+            KeyCode::Esc | KeyCode::Char('q') => {
+                self.pending_close_confirmation = None;
+                Some(false) // Cancel
+            }
+            _ => None, // Ignore other keys
+        }
+    }
+
+    /// Handle mouse click for close confirmation dialog
+    /// Returns Some(true) if should close, Some(false) if canceled, None if not in dialog
+    pub fn handle_close_confirmation_click(
+        &mut self,
+        x: u16,
+        y: u16,
+        charset: &Charset,
+    ) -> Option<bool> {
+        let confirmation = self.pending_close_confirmation.as_ref()?;
+
+        // Check if click is within dialog bounds
+        if !confirmation.prompt.contains_point(x, y) {
+            return None; // Click outside dialog
+        }
+
+        // Check if click is on a button
+        if let Some(action) = confirmation.prompt.handle_click(x, y, charset) {
+            self.pending_close_confirmation = None;
+            Some(matches!(action, PromptAction::Confirm))
+        } else {
+            None // Click inside dialog but not on a button
+        }
+    }
+
+    /// Get all mouse tracking state with a single mutex lock acquisition
+    /// This is more efficient than separate calls that each acquire the lock
+    fn get_mouse_tracking_state(&self) -> MouseTrackingState {
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+        MouseTrackingState {
+            tracking_enabled: grid.mouse_normal_tracking
+                || grid.mouse_button_tracking
+                || grid.mouse_any_event_tracking,
+            button_tracking: grid.mouse_button_tracking || grid.mouse_any_event_tracking,
+            sgr_mode: grid.mouse_sgr_mode,
+            urxvt_mode: grid.mouse_urxvt_mode,
+        }
+    }
+
+    /// Check if the terminal has mouse tracking enabled
+    /// Returns true if the child process has requested mouse events
+    pub fn has_mouse_tracking_enabled(&self) -> bool {
+        let grid = self.emulator.grid();
+        let grid = grid.lock().unwrap();
+        grid.mouse_normal_tracking || grid.mouse_button_tracking || grid.mouse_any_event_tracking
+    }
+
+    /// Convert screen coordinates to terminal-relative coordinates
+    /// Returns None if the point is outside the content area
+    pub fn screen_to_terminal_coords(&self, screen_x: u16, screen_y: u16) -> Option<(u16, u16)> {
+        // Content area starts after 2-char left border and title bar
+        let content_x = self.window.x + 2;
+        let content_y = self.window.y + 1;
+        // Content area ends before 2-char right border and bottom border
+        // But we need to account for the scrollbar on the right side
+        let content_width = self.window.width.saturating_sub(5); // -2 left, -2 right, -1 scrollbar
+        let content_height = self.window.height.saturating_sub(2); // -1 title, -1 bottom
+
+        // Check if point is within content area
+        if screen_x >= content_x
+            && screen_x < content_x + content_width
+            && screen_y >= content_y
+            && screen_y < content_y + content_height
+        {
+            let term_x = screen_x - content_x;
+            let term_y = screen_y - content_y;
+            Some((term_x, term_y))
+        } else {
+            None
+        }
+    }
+
+    /// Send a mouse event to the terminal using pre-fetched tracking state
+    /// Uses stack-allocated buffer to avoid heap allocation in hot path
+    /// button: 0=left, 1=middle, 2=right, 3=release, 64=scroll up, 65=scroll down
+    /// action: 0=press, 1=release, 2=drag/motion
+    /// term_x, term_y: 0-indexed terminal coordinates
+    fn send_mouse_event_with_state(
+        &mut self,
+        state: &MouseTrackingState,
+        button: u8,
+        action: u8,
+        term_x: u16,
+        term_y: u16,
+    ) -> std::io::Result<()> {
+        // Terminal coordinates are 1-indexed for mouse reporting
+        let x = term_x + 1;
+        let y = term_y + 1;
+
+        // Stack-allocated buffer - 24 bytes is sufficient for any mouse sequence
+        // SGR max: \x1b[<999;999;999M = ~18 bytes
+        // URXVT max: \x1b[999;999;999M = ~17 bytes
+        // Normal: \x1b[Mccc = 6 bytes
+        let mut buf = [0u8; 24];
+        let len = if state.sgr_mode {
+            // SGR extended mouse mode (CSI < Cb ; Cx ; Cy M/m)
+            // Cb = button number (0-2 for press, +32 for motion)
+            // M for press, m for release
+            let cb = match action {
+                1 => button,      // release
+                2 => button + 32, // motion/drag
+                _ => button,      // press
+            };
+            let suffix = if action == 1 { b'm' } else { b'M' };
+            // Write escape sequence manually to avoid format! allocation
+            let mut pos = 0;
+            buf[pos..pos + 3].copy_from_slice(b"\x1b[<");
+            pos += 3;
+            pos += write_u16_to_buf(&mut buf[pos..], cb as u16);
+            buf[pos] = b';';
+            pos += 1;
+            pos += write_u16_to_buf(&mut buf[pos..], x);
+            buf[pos] = b';';
+            pos += 1;
+            pos += write_u16_to_buf(&mut buf[pos..], y);
+            buf[pos] = suffix;
+            pos + 1
+        } else if state.urxvt_mode {
+            // URXVT mouse mode (CSI Cb ; Cx ; Cy M)
+            // Cb = 32 + button + modifiers
+            let cb = 32
+                + match action {
+                    1 => 3,           // release (button 3 means release)
+                    2 => button + 32, // motion
+                    _ => button,      // press
+                };
+            let mut pos = 0;
+            buf[pos..pos + 2].copy_from_slice(b"\x1b[");
+            pos += 2;
+            pos += write_u16_to_buf(&mut buf[pos..], cb as u16);
+            buf[pos] = b';';
+            pos += 1;
+            pos += write_u16_to_buf(&mut buf[pos..], x);
+            buf[pos] = b';';
+            pos += 1;
+            pos += write_u16_to_buf(&mut buf[pos..], y);
+            buf[pos] = b'M';
+            pos + 1
+        } else {
+            // Normal X10/X11 mouse mode (CSI M Cb Cx Cy)
+            // Cb = 32 + button, Cx/Cy = 32 + coordinate
+            // Coordinates are limited to 223 (255-32)
+            let cb = 32
+                + match action {
+                    1 => 3,           // release
+                    2 => button + 32, // motion
+                    _ => button,      // press
+                };
+            buf[0..3].copy_from_slice(b"\x1b[M");
+            buf[3] = cb;
+            buf[4] = (32 + x.min(223)) as u8;
+            buf[5] = (32 + y.min(223)) as u8;
+            6
+        };
+
+        self.emulator.write_input(&buf[..len])
+    }
+
+    /// Handle a mouse event from the parent application
+    /// Returns true if the event was consumed (forwarded to terminal)
+    pub fn handle_mouse_for_terminal(
+        &mut self,
+        screen_x: u16,
+        screen_y: u16,
+        button: u8,
+        action: u8,
+    ) -> bool {
+        // Get all mouse tracking state with a single mutex lock
+        let state = self.get_mouse_tracking_state();
+
+        // Check if this terminal wants mouse events
+        if !state.tracking_enabled {
+            return false;
+        }
+
+        // For motion events, check if motion tracking is enabled
+        if action == 2 && !state.button_tracking {
+            return false;
+        }
+
+        // Convert to terminal coordinates
+        if let Some((term_x, term_y)) = self.screen_to_terminal_coords(screen_x, screen_y) {
+            // Send the event using pre-fetched state (no additional lock needed)
+            if self
+                .send_mouse_event_with_state(&state, button, action, term_x, term_y)
+                .is_ok()
+            {
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+/// Write a u16 value as decimal ASCII to a buffer, returning bytes written
+/// This avoids format! allocation for number formatting
+#[inline]
+fn write_u16_to_buf(buf: &mut [u8], value: u16) -> usize {
+    if value == 0 {
+        buf[0] = b'0';
+        return 1;
+    }
+
+    let mut n = value;
+    let mut digits = [0u8; 5]; // u16 max is 65535 = 5 digits
+    let mut len = 0;
+
+    while n > 0 {
+        digits[len] = b'0' + (n % 10) as u8;
+        n /= 10;
+        len += 1;
+    }
+
+    // Reverse digits into buffer
+    for i in 0..len {
+        buf[i] = digits[len - 1 - i];
+    }
+
+    len
+}
+
+/// Convert a terminal cell to a video buffer cell
+fn convert_terminal_cell(term_cell: &TerminalCell, theme: &Theme, tint_terminal: bool) -> Cell {
+    let mut fg = convert_color(&term_cell.fg);
+    let mut bg = convert_color(&term_cell.bg);
+
+    // Handle reverse video attribute - swap fg and bg
+    if term_cell.attrs.reverse {
+        std::mem::swap(&mut fg, &mut bg);
+    }
+
+    // Apply theme-based tinting if enabled
+    if tint_terminal {
+        fg = apply_theme_tint(fg, theme, true);
+        bg = apply_theme_tint(bg, theme, false);
+        // Apply contrast checking when tinting is enabled
+        Cell::new(term_cell.c, fg, bg)
+    } else {
+        // Preserve original terminal colors without contrast adjustments
+        Cell::new_unchecked(term_cell.c, fg, bg)
+    }
+}
+
+/// Convert terminal color to crossterm color
+fn convert_color(color: &TermColor) -> Color {
+    match color {
+        TermColor::Named(named) => match named {
+            NamedColor::Black => Color::Black,
+            NamedColor::Red => Color::DarkRed,
+            NamedColor::Green => Color::DarkGreen,
+            NamedColor::Yellow => Color::DarkYellow,
+            NamedColor::Blue => Color::DarkBlue,
+            NamedColor::Magenta => Color::DarkMagenta,
+            NamedColor::Cyan => Color::DarkCyan,
+            NamedColor::White => Color::Grey,
+            NamedColor::BrightBlack => Color::DarkGrey,
+            NamedColor::BrightRed => Color::Red,
+            NamedColor::BrightGreen => Color::Green,
+            NamedColor::BrightYellow => Color::Yellow,
+            NamedColor::BrightBlue => Color::Blue,
+            NamedColor::BrightMagenta => Color::Magenta,
+            NamedColor::BrightCyan => Color::Cyan,
+            NamedColor::BrightWhite => Color::White,
+        },
+        TermColor::Indexed(idx) => Color::AnsiValue(*idx),
+        TermColor::Rgb(r, g, b) => Color::Rgb {
+            r: *r,
+            g: *g,
+            b: *b,
+        },
+    }
+}
+
+/// Apply theme-based color tinting to terminal colors
+fn apply_theme_tint(color: Color, theme: &Theme, is_foreground: bool) -> Color {
+    // Map terminal colors to theme colors
+    match color {
+        // Background colors - map to theme background
+        Color::Black | Color::DarkGrey if !is_foreground => theme.window_content_bg,
+
+        // Foreground colors - map to theme foreground variations
+        Color::Black | Color::DarkGrey if is_foreground => {
+            // Dark colors map to a darker version of foreground
+            darken_color(theme.window_content_fg, 0.6)
+        }
+
+        // Bright colors - keep as foreground
+        Color::White | Color::Grey => theme.window_content_fg,
+
+        // Red colors - map to theme button close or a red-ish tint
+        Color::Red | Color::DarkRed => theme.button_close_color,
+
+        // Green colors - map to theme button maximize or a green-ish tint
+        Color::Green | Color::DarkGreen => theme.button_maximize_color,
+
+        // Yellow colors - improve contrast for monochrome theme
+        Color::Yellow | Color::DarkYellow => {
+            // Monochrome uses DarkGrey which has poor contrast on Black
+            // Use Grey instead for better visibility
+            match theme.button_minimize_color {
+                Color::DarkGrey => Color::Grey,
+                _ => theme.button_minimize_color,
+            }
+        }
+
+        // Blue colors - use border color for visibility (avoid mapping to Black)
+        // This ensures blue text is visible across all themes
+        Color::Blue | Color::DarkBlue => theme.window_border_unfocused_fg,
+
+        // Cyan colors - map to content foreground for differentiation from blue
+        Color::Cyan | Color::DarkCyan => theme.window_content_fg,
+
+        // Magenta colors - map to a magenta-ish variation
+        Color::Magenta | Color::DarkMagenta => theme.resize_handle_active_fg,
+
+        // RGB colors - apply a theme-based tint transformation
+        Color::Rgb { r, g, b } => {
+            if is_foreground {
+                // For foreground, blend with theme foreground color
+                // Use 0.3 blend factor: 30% original color, 70% theme color for strong tinting
+                blend_with_theme_color(Color::Rgb { r, g, b }, theme.window_content_fg, 0.3)
+            } else {
+                // For background, blend with theme background color
+                // Use 0.3 blend factor: 30% original color, 70% theme color for strong tinting
+                blend_with_theme_color(Color::Rgb { r, g, b }, theme.window_content_bg, 0.3)
+            }
+        }
+
+        // Indexed colors (256-color palette)
+        Color::AnsiValue(idx) => {
+            // Map 256-color palette to theme colors based on brightness
+            if idx < 8 {
+                // Standard colors (0-7): map to theme colors
+                match idx {
+                    0 => theme.window_content_bg,     // Black
+                    1 => theme.button_close_color,    // Red
+                    2 => theme.button_maximize_color, // Green
+                    3 => {
+                        // Yellow - improve contrast for monochrome theme
+                        match theme.button_minimize_color {
+                            Color::DarkGrey => Color::Grey,
+                            _ => theme.button_minimize_color,
+                        }
+                    }
+                    4 => theme.window_border_unfocused_fg, // Blue - use border for visibility
+                    5 => theme.resize_handle_active_fg,    // Magenta
+                    6 => theme.window_content_fg,          // Cyan - differentiate from blue
+                    7 => theme.window_content_fg,          // White
+                    _ => color,
+                }
+            } else if idx < 16 {
+                // Bright colors (8-15): map to brighter theme variations
+                theme.window_content_fg
+            } else {
+                // Extended colors: blend with theme
+                if is_foreground {
+                    theme.window_content_fg
+                } else {
+                    theme.window_content_bg
+                }
+            }
+        }
+
+        // Catch-all: tint any unhandled colors to prevent full-brightness rendering
+        // This ensures consistent tinting across all color types
+        _ => {
+            if is_foreground {
+                theme.window_content_fg
+            } else {
+                theme.window_content_bg
+            }
+        }
+    }
+}
+
+/// Darken a color by a factor (0.0 = black, 1.0 = original)
+fn darken_color(color: Color, factor: f32) -> Color {
+    match color {
+        Color::Rgb { r, g, b } => Color::Rgb {
+            r: (r as f32 * factor) as u8,
+            g: (g as f32 * factor) as u8,
+            b: (b as f32 * factor) as u8,
+        },
+        _ => color,
+    }
+}
+
+/// Blend a color with a theme color
+fn blend_with_theme_color(original: Color, theme_color: Color, blend_factor: f32) -> Color {
+    // Convert both colors to RGB for blending
+    let (r1, g1, b1) = color_to_rgb(original);
+    let (r2, g2, b2) = color_to_rgb(theme_color);
+
+    Color::Rgb {
+        r: (r1 as f32 * blend_factor + r2 as f32 * (1.0 - blend_factor)) as u8,
+        g: (g1 as f32 * blend_factor + g2 as f32 * (1.0 - blend_factor)) as u8,
+        b: (b1 as f32 * blend_factor + b2 as f32 * (1.0 - blend_factor)) as u8,
+    }
+}
+
+/// Convert any Color to RGB values
+fn color_to_rgb(color: Color) -> (u8, u8, u8) {
+    match color {
+        Color::Rgb { r, g, b } => (r, g, b),
+        Color::Black => (0, 0, 0),
+        Color::DarkGrey => (128, 128, 128),
+        Color::Red => (255, 0, 0),
+        Color::DarkRed => (128, 0, 0),
+        Color::Green => (0, 255, 0),
+        Color::DarkGreen => (0, 128, 0),
+        Color::Yellow => (255, 255, 0),
+        Color::DarkYellow => (128, 128, 0),
+        Color::Blue => (0, 0, 255),
+        Color::DarkBlue => (0, 0, 128),
+        Color::Magenta => (255, 0, 255),
+        Color::DarkMagenta => (128, 0, 128),
+        Color::Cyan => (0, 255, 255),
+        Color::DarkCyan => (0, 128, 128),
+        Color::White => (255, 255, 255),
+        Color::Grey => (192, 192, 192),
+        // For indexed colors, use approximate RGB values
+        Color::AnsiValue(idx) => ansi_to_rgb(idx),
+        // Default to white for reset and unknown
+        _ => (255, 255, 255),
+    }
+}
+
+/// Convert ANSI 256-color palette index to approximate RGB
+fn ansi_to_rgb(idx: u8) -> (u8, u8, u8) {
+    match idx {
+        // Standard 16 colors (0-15)
+        0 => (0, 0, 0),        // Black
+        1 => (128, 0, 0),      // Dark Red
+        2 => (0, 128, 0),      // Dark Green
+        3 => (128, 128, 0),    // Dark Yellow
+        4 => (0, 0, 128),      // Dark Blue
+        5 => (128, 0, 128),    // Dark Magenta
+        6 => (0, 128, 128),    // Dark Cyan
+        7 => (192, 192, 192),  // Grey
+        8 => (128, 128, 128),  // Dark Grey
+        9 => (255, 0, 0),      // Red
+        10 => (0, 255, 0),     // Green
+        11 => (255, 255, 0),   // Yellow
+        12 => (0, 0, 255),     // Blue
+        13 => (255, 0, 255),   // Magenta
+        14 => (0, 255, 255),   // Cyan
+        15 => (255, 255, 255), // White
+
+        // 216-color cube (16-231): 6x6x6 RGB cube
+        16..=231 => {
+            let idx = idx - 16;
+            let r = (idx / 36) % 6;
+            let g = (idx / 6) % 6;
+            let b = idx % 6;
+            (
+                if r > 0 { 55 + r * 40 } else { 0 },
+                if g > 0 { 55 + g * 40 } else { 0 },
+                if b > 0 { 55 + b * 40 } else { 0 },
+            )
+        }
+
+        // Grayscale ramp (232-255): 24 shades of gray
+        232..=255 => {
+            let gray = 8 + (idx - 232) * 10;
+            (gray, gray, gray)
+        }
+    }
+}

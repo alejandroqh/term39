@@ -1,85 +1,38 @@
 #![allow(clippy::collapsible_if)]
 
-mod ansi_handler;
-mod app_state;
-mod button;
-mod charset;
-mod cli;
-mod clipboard_manager;
-mod color_utils;
-mod command_history;
-mod command_indexer;
-mod config;
-mod config_manager;
-mod config_window;
-mod context_menu;
-mod dialog_handlers;
-mod error_dialog;
-#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
-mod fb_config;
-#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
-mod fb_setup_window;
+mod app;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 mod framebuffer;
-mod fuzzy_matcher;
-#[cfg(any(
-    target_os = "linux",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-))]
-mod gpm_control;
-mod info_window;
-mod initialization;
-mod keyboard_handlers;
-mod keyboard_mode;
+mod input;
 mod lockscreen;
-mod mouse_input;
-mod platform;
-mod prompt;
-mod render_backend;
-mod render_frame;
-mod selection;
-mod session;
-mod slight_input;
-mod splash_screen;
-mod term_grid;
-mod terminal_emulator;
-mod terminal_window;
-mod theme;
-mod toast;
-mod ui_render;
-mod video_buffer;
+mod rendering;
+mod term_emu;
+mod ui;
+mod utils;
 mod window;
-mod window_manager;
-mod window_mode_handlers;
-mod window_number_overlay;
 
-use app_state::AppState;
-use button::Button;
+use app::{AppState, AppConfig};
 use chrono::Local;
-use clipboard_manager::ClipboardManager;
-use command_history::CommandHistory;
-use command_indexer::CommandIndexer;
-use config_manager::AppConfig;
-use config_window::ConfigAction;
-use context_menu::MenuAction;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind},
     terminal::{self, ClearType},
 };
-use error_dialog::ErrorDialog;
 use lockscreen::PinSetupState;
 use lockscreen::auth::is_os_auth_available;
-use prompt::{Prompt, PromptAction, PromptButton, PromptType};
-use selection::SelectionType;
-use slight_input::SlightInput;
+use rendering::Theme;
 use std::io;
 use std::panic;
 use std::time::{Duration, Instant};
-use theme::Theme;
-use ui_render::CalendarState;
-use window_manager::{FocusState, WindowManager};
+use term_emu::SelectionType;
+use ui::button::Button;
+use ui::config_window::ConfigAction;
+use ui::context_menu::MenuAction;
+use ui::error_dialog::ErrorDialog;
+use ui::prompt::{Prompt, PromptAction, PromptButton, PromptType};
+use ui::slight_input::SlightInput;
+use ui::ui_render::CalendarState;
+use utils::{ClipboardManager, CommandHistory, CommandIndexer};
+use window::{FocusState, WindowManager};
 
 /// Send SIGUSR1 to all other running term39 instances to trigger lockscreen
 #[cfg(unix)]
@@ -159,7 +112,7 @@ fn send_lock_signal() -> io::Result<()> {
 
 fn main() -> io::Result<()> {
     // Parse command-line arguments
-    let cli_args = cli::Cli::parse_args();
+    let cli_args = app::cli::Cli::parse_args();
 
     // Handle --lock flag: send SIGUSR1 to running term39 instance and exit
     #[cfg(unix)]
@@ -229,12 +182,12 @@ fn main() -> io::Result<()> {
     // Handle --fb-setup flag (run setup wizard)
     #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     if cli_args.fb_setup {
-        use charset::Charset;
+        use rendering::Charset;
         use crossterm::execute;
-        use fb_setup_window::{FbSetupAction, FbSetupWindow};
+        use framebuffer::fb_setup_window::{FbSetupAction, FbSetupWindow};
         use framebuffer::font_manager::FontManager;
-        use render_backend::RenderBackend;
-        use video_buffer::VideoBuffer;
+        use rendering::RenderBackend;
+        use rendering::VideoBuffer;
 
         // Set up terminal for setup wizard
         let mut stdout = io::stdout();
@@ -261,7 +214,7 @@ fn main() -> io::Result<()> {
         let theme = Theme::from_name("classic");
 
         // Create terminal backend for rendering
-        let mut term_backend = render_backend::TerminalBackend::new()?;
+        let mut term_backend = rendering::TerminalBackend::new()?;
 
         // Setup wizard event loop
         let mut should_launch = false;
@@ -462,22 +415,22 @@ fn main() -> io::Result<()> {
     // Load framebuffer configuration (for swap_buttons, etc.)
     #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     #[allow(unused_variables)] // Only used on Linux with framebuffer
-    let fb_config = fb_config::FramebufferConfig::load();
+    let fb_config = framebuffer::fb_config::FramebufferConfig::load();
 
     // Create charset and theme
-    let mut charset = initialization::initialize_charset(&cli_args, &app_config);
-    let mut theme = initialization::initialize_theme(&cli_args, &app_config);
+    let mut charset = app::initialization::initialize_charset(&cli_args, &app_config);
+    let mut theme = app::initialization::initialize_theme(&cli_args, &app_config);
 
     // Validate shell configuration early (before terminal setup) so warnings are visible
-    let shell_config = initialization::validate_shell_config(&cli_args);
+    let shell_config = app::initialization::validate_shell_config(&cli_args);
 
     // Initialize rendering backend (framebuffer or terminal)
-    let mut backend = initialization::initialize_backend(&cli_args)?;
+    let mut backend = app::initialization::initialize_backend(&cli_args)?;
 
     let mut stdout = io::stdout();
 
     // Set up terminal modes and mouse capture
-    initialization::setup_terminal(&mut stdout)?;
+    app::initialization::setup_terminal(&mut stdout)?;
 
     // Initialize unified mouse input manager (will try to disable GPM cursor if needed)
     #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
@@ -486,7 +439,7 @@ fn main() -> io::Result<()> {
     let is_framebuffer_mode = false;
 
     let (cols_for_mouse, rows_for_mouse) = backend.dimensions();
-    let (mut mouse_input_manager, _gpm_disable_connection) = initialization::initialize_mouse_input(
+    let (mut mouse_input_manager, _gpm_disable_connection) = app::initialization::initialize_mouse_input(
         &cli_args,
         cols_for_mouse,
         rows_for_mouse,
@@ -494,9 +447,9 @@ fn main() -> io::Result<()> {
     );
 
     // Initialize video buffer and window manager
-    let mut video_buffer = initialization::initialize_video_buffer(backend.as_ref());
+    let mut video_buffer = app::initialization::initialize_video_buffer(backend.as_ref());
     let mut window_manager =
-        initialization::initialize_window_manager(&cli_args, &mut app_config, shell_config)?;
+        app::initialization::initialize_window_manager(&cli_args, &mut app_config, shell_config)?;
 
     // Initialize application state
     let (cols, rows) = backend.dimensions();
@@ -519,7 +472,7 @@ fn main() -> io::Result<()> {
     let mut clipboard_manager = ClipboardManager::new();
 
     // Show splash screen for 1 second
-    splash_screen::show_splash_screen(&mut video_buffer, &mut backend, &charset, &theme)?;
+    ui::splash_screen::show_splash_screen(&mut video_buffer, &mut backend, &charset, &theme)?;
 
     // Set up signal handler for external lockscreen trigger (Unix only)
     lockscreen::signal_handler::setup();
@@ -543,7 +496,7 @@ fn main() -> io::Result<()> {
             // Clear the terminal screen to remove artifacts
             use crossterm::execute;
             execute!(stdout, terminal::Clear(ClearType::All))?;
-            video_buffer = initialization::initialize_video_buffer(backend.as_ref());
+            video_buffer = app::initialization::initialize_video_buffer(backend.as_ref());
             app_state.update_auto_tiling_button_position(new_rows);
 
             // Update mouse input manager bounds for the new size
@@ -567,7 +520,7 @@ fn main() -> io::Result<()> {
         app_state.update_button_states(cols, has_clipboard_content, has_selection);
 
         // Render the complete frame
-        let windows_closed = render_frame::render_frame(
+        let windows_closed = rendering::render_frame(
             &mut video_buffer,
             &mut backend,
             &mut stdout,
@@ -765,7 +718,7 @@ fn main() -> io::Result<()> {
                     let current_focus = window_manager.get_focus();
 
                     // Handle lockscreen keyboard events (highest priority - blocks all other input)
-                    if dialog_handlers::handle_lockscreen_keyboard(&mut app_state, key_event) {
+                    if ui::dialog_handlers::handle_lockscreen_keyboard(&mut app_state, key_event) {
                         continue;
                     }
 
@@ -775,7 +728,7 @@ fn main() -> io::Result<()> {
                             app_state.lockscreen.lock();
                         } else {
                             // Show toast: "To lock the screen, configure in Settings"
-                            app_state.active_toast = Some(toast::Toast::new(
+                            app_state.active_toast = Some(ui::toast::Toast::new(
                                 "To lock the screen, configure in Settings",
                             ));
                         }
@@ -793,7 +746,7 @@ fn main() -> io::Result<()> {
 
                     // Handle prompt keyboard navigation
                     if let Some(should_exit) =
-                        dialog_handlers::handle_prompt_keyboard(&mut app_state, key_event)
+                        ui::dialog_handlers::handle_prompt_keyboard(&mut app_state, key_event)
                     {
                         if should_exit {
                             should_break_main_loop = true;
@@ -824,7 +777,7 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle error dialog keyboard events
-                    if dialog_handlers::handle_error_dialog_keyboard(&mut app_state, key_event) {
+                    if ui::dialog_handlers::handle_error_dialog_keyboard(&mut app_state, key_event) {
                         continue;
                     }
 
@@ -847,7 +800,7 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle Slight input keyboard events
-                    if dialog_handlers::handle_slight_input_keyboard(
+                    if ui::dialog_handlers::handle_slight_input_keyboard(
                         &mut app_state,
                         key_event,
                         &command_indexer,
@@ -860,22 +813,22 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle calendar keyboard navigation
-                    if dialog_handlers::handle_calendar_keyboard(&mut app_state, key_event) {
+                    if ui::dialog_handlers::handle_calendar_keyboard(&mut app_state, key_event) {
                         continue;
                     }
 
                     // Handle help window keyboard events
-                    if dialog_handlers::handle_help_window_keyboard(&mut app_state, key_event) {
+                    if ui::dialog_handlers::handle_help_window_keyboard(&mut app_state, key_event) {
                         continue;
                     }
 
                     // Handle about window keyboard events
-                    if dialog_handlers::handle_about_window_keyboard(&mut app_state, key_event) {
+                    if ui::dialog_handlers::handle_about_window_keyboard(&mut app_state, key_event) {
                         continue;
                     }
 
                     // Handle config window keyboard events
-                    if let Some(action) = dialog_handlers::handle_config_window_keyboard(
+                    if let Some(action) = ui::dialog_handlers::handle_config_window_keyboard(
                         &mut app_state,
                         key_event,
                         &app_config,
@@ -997,7 +950,7 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle Window Mode help window keyboard events
-                    if dialog_handlers::handle_winmode_help_window_keyboard(
+                    if ui::dialog_handlers::handle_winmode_help_window_keyboard(
                         &mut app_state,
                         key_event,
                     ) {
@@ -1005,7 +958,7 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle Window Mode keyboard events (vim-like window control)
-                    if window_mode_handlers::handle_window_mode_keyboard(
+                    if window::mode_handlers::handle_window_mode_keyboard(
                         &mut app_state,
                         &mut app_config,
                         key_event,
@@ -1033,7 +986,7 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle desktop keyboard shortcuts (F1-F7, ESC, 'q', 'h', 'l', 'c', 's', 't', 'T', copy/paste)
-                    if keyboard_handlers::handle_desktop_keyboard(
+                    if input::keyboard_handlers::handle_desktop_keyboard(
                         &mut app_state,
                         key_event,
                         current_focus,
@@ -1053,7 +1006,7 @@ fn main() -> io::Result<()> {
 
                     // Forward input to terminal window if a window is focused
                     if matches!(current_focus, FocusState::Window(_)) {
-                        keyboard_handlers::forward_to_terminal(key_event, &mut window_manager);
+                        input::keyboard_handlers::forward_to_terminal(key_event, &mut window_manager);
                     }
                 }
                 Event::Mouse(mut mouse_event) => {
@@ -1306,43 +1259,43 @@ fn main() -> io::Result<()> {
                             // Reset all top bar buttons
                             app_state
                                 .new_terminal_button
-                                .set_state(button::ButtonState::Normal);
+                                .set_state(ui::button::ButtonState::Normal);
                             app_state
                                 .paste_button
-                                .set_state(button::ButtonState::Normal);
+                                .set_state(ui::button::ButtonState::Normal);
                             app_state
                                 .clear_clipboard_button
-                                .set_state(button::ButtonState::Normal);
-                            app_state.copy_button.set_state(button::ButtonState::Normal);
+                                .set_state(ui::button::ButtonState::Normal);
+                            app_state.copy_button.set_state(ui::button::ButtonState::Normal);
                             app_state
                                 .clear_selection_button
-                                .set_state(button::ButtonState::Normal);
-                            app_state.exit_button.set_state(button::ButtonState::Normal);
+                                .set_state(ui::button::ButtonState::Normal);
+                            app_state.exit_button.set_state(ui::button::ButtonState::Normal);
                             app_state.battery_hovered = false;
                             // Reset bottom bar button
                             app_state
                                 .auto_tiling_button
-                                .set_state(button::ButtonState::Normal);
+                                .set_state(ui::button::ButtonState::Normal);
                         } else if mouse_row == 0 {
                             // Top bar - check top bar buttons only
                             if app_state.new_terminal_button.contains(mouse_col, mouse_row) {
                                 app_state
                                     .new_terminal_button
-                                    .set_state(button::ButtonState::Hovered);
+                                    .set_state(ui::button::ButtonState::Hovered);
                             } else {
                                 app_state
                                     .new_terminal_button
-                                    .set_state(button::ButtonState::Normal);
+                                    .set_state(ui::button::ButtonState::Normal);
                             }
 
                             if app_state.paste_button.contains(mouse_col, mouse_row) {
                                 app_state
                                     .paste_button
-                                    .set_state(button::ButtonState::Hovered);
+                                    .set_state(ui::button::ButtonState::Hovered);
                             } else {
                                 app_state
                                     .paste_button
-                                    .set_state(button::ButtonState::Normal);
+                                    .set_state(ui::button::ButtonState::Normal);
                             }
 
                             if app_state
@@ -1351,19 +1304,19 @@ fn main() -> io::Result<()> {
                             {
                                 app_state
                                     .clear_clipboard_button
-                                    .set_state(button::ButtonState::Hovered);
+                                    .set_state(ui::button::ButtonState::Hovered);
                             } else {
                                 app_state
                                     .clear_clipboard_button
-                                    .set_state(button::ButtonState::Normal);
+                                    .set_state(ui::button::ButtonState::Normal);
                             }
 
                             if app_state.copy_button.contains(mouse_col, mouse_row) {
                                 app_state
                                     .copy_button
-                                    .set_state(button::ButtonState::Hovered);
+                                    .set_state(ui::button::ButtonState::Hovered);
                             } else {
-                                app_state.copy_button.set_state(button::ButtonState::Normal);
+                                app_state.copy_button.set_state(ui::button::ButtonState::Normal);
                             }
 
                             if app_state
@@ -1372,19 +1325,19 @@ fn main() -> io::Result<()> {
                             {
                                 app_state
                                     .clear_selection_button
-                                    .set_state(button::ButtonState::Hovered);
+                                    .set_state(ui::button::ButtonState::Hovered);
                             } else {
                                 app_state
                                     .clear_selection_button
-                                    .set_state(button::ButtonState::Normal);
+                                    .set_state(ui::button::ButtonState::Normal);
                             }
 
                             if app_state.exit_button.contains(mouse_col, mouse_row) {
                                 app_state
                                     .exit_button
-                                    .set_state(button::ButtonState::Hovered);
+                                    .set_state(ui::button::ButtonState::Hovered);
                             } else {
-                                app_state.exit_button.set_state(button::ButtonState::Normal);
+                                app_state.exit_button.set_state(ui::button::ButtonState::Normal);
                             }
 
                             // Battery indicator hover state (top bar, right side before clock)
@@ -1402,7 +1355,7 @@ fn main() -> io::Result<()> {
                             // Reset bottom bar button when on top bar
                             app_state
                                 .auto_tiling_button
-                                .set_state(button::ButtonState::Normal);
+                                .set_state(ui::button::ButtonState::Normal);
                         } else {
                             // Bottom bar - check bottom bar button only
                             let button_start_x = 1u16;
@@ -1413,28 +1366,28 @@ fn main() -> io::Result<()> {
                             if mouse_col >= button_start_x && mouse_col < button_end_x {
                                 app_state
                                     .auto_tiling_button
-                                    .set_state(button::ButtonState::Hovered);
+                                    .set_state(ui::button::ButtonState::Hovered);
                             } else {
                                 app_state
                                     .auto_tiling_button
-                                    .set_state(button::ButtonState::Normal);
+                                    .set_state(ui::button::ButtonState::Normal);
                             }
 
                             // Reset top bar buttons when on bottom bar
                             app_state
                                 .new_terminal_button
-                                .set_state(button::ButtonState::Normal);
+                                .set_state(ui::button::ButtonState::Normal);
                             app_state
                                 .paste_button
-                                .set_state(button::ButtonState::Normal);
+                                .set_state(ui::button::ButtonState::Normal);
                             app_state
                                 .clear_clipboard_button
-                                .set_state(button::ButtonState::Normal);
-                            app_state.copy_button.set_state(button::ButtonState::Normal);
+                                .set_state(ui::button::ButtonState::Normal);
+                            app_state.copy_button.set_state(ui::button::ButtonState::Normal);
                             app_state
                                 .clear_selection_button
-                                .set_state(button::ButtonState::Normal);
-                            app_state.exit_button.set_state(button::ButtonState::Normal);
+                                .set_state(ui::button::ButtonState::Normal);
+                            app_state.exit_button.set_state(ui::button::ButtonState::Normal);
                             app_state.battery_hovered = false;
                         }
                     }
@@ -1449,7 +1402,7 @@ fn main() -> io::Result<()> {
                     {
                         app_state
                             .new_terminal_button
-                            .set_state(button::ButtonState::Pressed);
+                            .set_state(ui::button::ButtonState::Pressed);
 
                         // Create a new terminal window (same as pressing 't')
                         let (cols, rows) = backend.dimensions();
@@ -1503,7 +1456,7 @@ fn main() -> io::Result<()> {
                     {
                         app_state
                             .copy_button
-                            .set_state(button::ButtonState::Pressed);
+                            .set_state(ui::button::ButtonState::Pressed);
 
                         // Copy selected text to clipboard and clear selection
                         if let FocusState::Window(window_id) = window_manager.get_focus() {
@@ -1527,7 +1480,7 @@ fn main() -> io::Result<()> {
                     {
                         app_state
                             .clear_selection_button
-                            .set_state(button::ButtonState::Pressed);
+                            .set_state(ui::button::ButtonState::Pressed);
 
                         // Clear the selection
                         if let FocusState::Window(window_id) = window_manager.get_focus() {
@@ -1547,7 +1500,7 @@ fn main() -> io::Result<()> {
                     {
                         app_state
                             .paste_button
-                            .set_state(button::ButtonState::Pressed);
+                            .set_state(ui::button::ButtonState::Pressed);
 
                         // Paste clipboard content to focused window
                         if let FocusState::Window(window_id) = window_manager.get_focus() {
@@ -1569,7 +1522,7 @@ fn main() -> io::Result<()> {
                     {
                         app_state
                             .clear_clipboard_button
-                            .set_state(button::ButtonState::Pressed);
+                            .set_state(ui::button::ButtonState::Pressed);
 
                         // Clear the clipboard
                         clipboard_manager.clear();
@@ -1588,7 +1541,7 @@ fn main() -> io::Result<()> {
                     {
                         app_state
                             .exit_button
-                            .set_state(button::ButtonState::Pressed);
+                            .set_state(ui::button::ButtonState::Pressed);
 
                         // Determine message based on window count
                         let message = if window_manager.window_count() > 0 {
@@ -1672,7 +1625,7 @@ fn main() -> io::Result<()> {
                         {
                             app_state
                                 .auto_tiling_button
-                                .set_state(button::ButtonState::Pressed);
+                                .set_state(ui::button::ButtonState::Pressed);
 
                             // Toggle the auto-tiling state and save to config
                             app_config.toggle_auto_tiling_on_startup();
@@ -2074,7 +2027,7 @@ fn main() -> io::Result<()> {
     }
 
     // Cleanup: restore terminal
-    initialization::cleanup(&mut stdout);
+    app::initialization::cleanup(&mut stdout);
 
     Ok(())
 }
