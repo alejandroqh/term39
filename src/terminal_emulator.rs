@@ -493,8 +493,183 @@ impl TerminalEmulator {
         None
     }
 
+    /// Get the name of the foreground process running in the terminal (FreeBSD)
+    ///
+    /// FreeBSD supports procfs but it's not mounted by default.
+    /// Falls back to using the `ps` command similar to macOS.
+    #[cfg(target_os = "freebsd")]
+    pub fn get_foreground_process_name(&self) -> Option<String> {
+        let child_pid = self.child.process_id()?;
+
+        // First try procfs if mounted (may not be available)
+        if let Ok(status) = std::fs::read_to_string(format!("/proc/{}/status", child_pid)) {
+            // FreeBSD procfs status file has different format than Linux
+            // First line is the process name
+            if let Some(first_line) = status.lines().next() {
+                let name = first_line.split_whitespace().next()?.to_string();
+                if !name.is_empty() {
+                    return Some(name);
+                }
+            }
+        }
+
+        // Fallback to ps command (similar to macOS)
+        let output = Command::new("ps")
+            .args(["-o", "tpgid=", "-p", &child_pid.to_string()])
+            .output()
+            .ok()?;
+
+        let tpgid = String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .parse::<u32>()
+            .ok()?;
+
+        let output = Command::new("ps")
+            .args(["-o", "comm=", "-p", &tpgid.to_string()])
+            .output()
+            .ok()?;
+
+        let process_name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+        if process_name.is_empty() {
+            // Fall back to child process name
+            let output = Command::new("ps")
+                .args(["-o", "comm=", "-p", &child_pid.to_string()])
+                .output()
+                .ok()?;
+
+            let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if name.is_empty() {
+                None
+            } else {
+                Some(name.rsplit('/').next().unwrap_or(&name).to_string())
+            }
+        } else {
+            Some(
+                process_name
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(&process_name)
+                    .to_string(),
+            )
+        }
+    }
+
+    /// Get the name of the foreground process running in the terminal (NetBSD)
+    ///
+    /// NetBSD has procfs similar to FreeBSD. Falls back to `ps` command.
+    #[cfg(target_os = "netbsd")]
+    pub fn get_foreground_process_name(&self) -> Option<String> {
+        let child_pid = self.child.process_id()?;
+
+        // Try procfs first
+        if let Ok(status) = std::fs::read_to_string(format!("/proc/{}/status", child_pid)) {
+            if let Some(first_line) = status.lines().next() {
+                let name = first_line.split_whitespace().next()?.to_string();
+                if !name.is_empty() {
+                    return Some(name);
+                }
+            }
+        }
+
+        // Fallback to ps command
+        let output = Command::new("ps")
+            .args(["-o", "tpgid=", "-p", &child_pid.to_string()])
+            .output()
+            .ok()?;
+
+        let tpgid = String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .parse::<u32>()
+            .ok()?;
+
+        let output = Command::new("ps")
+            .args(["-o", "comm=", "-p", &tpgid.to_string()])
+            .output()
+            .ok()?;
+
+        let process_name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+        if process_name.is_empty() {
+            let output = Command::new("ps")
+                .args(["-o", "comm=", "-p", &child_pid.to_string()])
+                .output()
+                .ok()?;
+
+            let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if name.is_empty() {
+                None
+            } else {
+                Some(name.rsplit('/').next().unwrap_or(&name).to_string())
+            }
+        } else {
+            Some(
+                process_name
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(&process_name)
+                    .to_string(),
+            )
+        }
+    }
+
+    /// Get the name of the foreground process running in the terminal (OpenBSD)
+    ///
+    /// OpenBSD does not have procfs. Uses `ps` command exclusively.
+    #[cfg(target_os = "openbsd")]
+    pub fn get_foreground_process_name(&self) -> Option<String> {
+        let child_pid = self.child.process_id()?;
+
+        // Use ps command (no procfs on OpenBSD)
+        let output = Command::new("ps")
+            .args(["-o", "tpgid=", "-p", &child_pid.to_string()])
+            .output()
+            .ok()?;
+
+        let tpgid = String::from_utf8_lossy(&output.stdout)
+            .trim()
+            .parse::<u32>()
+            .ok()?;
+
+        let output = Command::new("ps")
+            .args(["-o", "comm=", "-p", &tpgid.to_string()])
+            .output()
+            .ok()?;
+
+        let process_name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+        if process_name.is_empty() {
+            let output = Command::new("ps")
+                .args(["-o", "comm=", "-p", &child_pid.to_string()])
+                .output()
+                .ok()?;
+
+            let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if name.is_empty() {
+                None
+            } else {
+                Some(name.rsplit('/').next().unwrap_or(&name).to_string())
+            }
+        } else {
+            Some(
+                process_name
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or(&process_name)
+                    .to_string(),
+            )
+        }
+    }
+
     /// Get the name of the foreground process (fallback for other platforms)
-    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "linux",
+        target_os = "windows",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    )))]
     pub fn get_foreground_process_name(&self) -> Option<String> {
         None
     }

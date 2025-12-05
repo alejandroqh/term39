@@ -2,12 +2,17 @@
 //!
 //! This module handles detection and disabling of the GPM daemon to prevent
 //! cursor conflicts when using raw mouse input in TTY or framebuffer mode.
+//!
+//! GPM (General Purpose Mouse) is Linux-specific. BSD systems (FreeBSD, NetBSD, OpenBSD)
+//! do not have GPM - their kernel drivers handle console mouse input directly.
+//! This module provides no-op stubs for BSD platforms.
 
 #[cfg(target_os = "linux")]
 use std::io::{self, Write};
 #[cfg(target_os = "linux")]
 use std::os::unix::net::UnixStream;
 
+#[cfg(target_os = "linux")]
 const GPM_SOCKET: &str = "/dev/gpmctl";
 
 /// Check if GPM daemon is running by looking for its control socket
@@ -16,7 +21,19 @@ pub fn is_gpm_running() -> bool {
     std::path::Path::new(GPM_SOCKET).exists()
 }
 
-#[cfg(not(target_os = "linux"))]
+/// BSD systems don't have GPM - kernel handles mouse directly
+#[cfg(any(target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+pub fn is_gpm_running() -> bool {
+    false
+}
+
+/// Fallback for other non-Linux platforms
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+)))]
 pub fn is_gpm_running() -> bool {
     false
 }
@@ -27,7 +44,17 @@ pub struct GpmConnection {
     _stream: UnixStream,
 }
 
-#[cfg(not(target_os = "linux"))]
+/// Empty struct for BSD systems (no GPM functionality)
+#[cfg(any(target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+pub struct GpmConnection;
+
+/// Empty struct for other non-Linux platforms
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+)))]
 pub struct GpmConnection;
 
 #[cfg(target_os = "linux")]
@@ -78,9 +105,23 @@ impl GpmConnection {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+/// BSD implementation - no-op since BSD doesn't have GPM
+#[cfg(any(target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 impl GpmConnection {
-    pub fn disable_cursor() -> io::Result<Self> {
+    pub fn disable_cursor() -> std::io::Result<Self> {
+        Ok(GpmConnection)
+    }
+}
+
+/// Fallback for other non-Linux platforms
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+)))]
+impl GpmConnection {
+    pub fn disable_cursor() -> std::io::Result<Self> {
         Ok(GpmConnection)
     }
 }

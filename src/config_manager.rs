@@ -282,6 +282,42 @@ impl AppConfig {
             return salt;
         }
 
+        // Try to read hostid (FreeBSD/NetBSD)
+        #[cfg(any(target_os = "freebsd", target_os = "netbsd"))]
+        {
+            // First try /etc/hostid
+            if let Ok(hostid) = std::fs::read_to_string("/etc/hostid") {
+                let salt = hostid.trim().to_string();
+                if !salt.is_empty() {
+                    self.lockscreen_salt = Some(salt.clone());
+                    let _ = self.save();
+                    return salt;
+                }
+            }
+
+            // FreeBSD: Try kern.hostuuid sysctl
+            #[cfg(target_os = "freebsd")]
+            {
+                use std::process::Command;
+                if let Ok(output) = Command::new("sysctl")
+                    .args(["-n", "kern.hostuuid"])
+                    .output()
+                {
+                    if output.status.success() {
+                        let uuid = String::from_utf8_lossy(&output.stdout);
+                        let salt = uuid.trim().to_string();
+                        if !salt.is_empty() {
+                            self.lockscreen_salt = Some(salt.clone());
+                            let _ = self.save();
+                            return salt;
+                        }
+                    }
+                }
+            }
+        }
+
+        // OpenBSD: No standard machine-id, fall through to random salt
+
         // Try to read machine UUID (macOS)
         #[cfg(target_os = "macos")]
         {

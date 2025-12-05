@@ -29,6 +29,10 @@ tty = ["clipboard", "battery"]                                          # TTY te
 minimal = []                                                            # Bare minimum
 full = ["clipboard", "framebuffer-backend", "battery", "lockscreen"]    # Everything
 
+# BSD-specific profiles (framebuffer is Linux-only)
+bsd = ["clipboard", "battery", "lockscreen"]                            # FreeBSD/NetBSD with PAM
+bsd-minimal = ["clipboard", "battery"]                                  # BSD without lockscreen (OpenBSD)
+
 [profile.release]
 strip = true
 lto = true
@@ -51,11 +55,14 @@ arboard = { version = "3.4", optional = true }
 starship-battery = { version = "0.10", optional = true }
 sha2 = "0.10"
 
-# Framebuffer backend and lockscreen dependencies (Linux only)
+# Framebuffer backend dependencies (Linux only)
 [target.'cfg(target_os = "linux")'.dependencies]
 framebuffer = { version = "0.3", optional = true }
 memmap2 = { version = "0.9", optional = true }
 flate2 = { version = "1.0", optional = true }
+
+# PAM lockscreen dependencies (Linux and BSD)
+[target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "netbsd"))'.dependencies]
 pam = { version = "0.8", optional = true }
 
 # Windows lockscreen dependencies

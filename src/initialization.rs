@@ -1,6 +1,7 @@
 use crate::charset::Charset;
 use crate::cli::Cli;
 use crate::config_manager::AppConfig;
+use crate::platform::is_console_environment;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 use crate::fb_config::FramebufferConfig;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
@@ -143,14 +144,11 @@ pub fn setup_terminal(stdout: &mut io::Stdout) -> io::Result<()> {
 
     // Enter alternate screen buffer to prevent scrolling the parent terminal
     // Hide cursor and enable mouse capture
-    // Skip EnableMouseCapture on Linux console (TERM=linux) since GPM handles mouse there
-    #[cfg(target_os = "linux")]
-    let is_linux_console = std::env::var("TERM").map(|t| t == "linux").unwrap_or(false);
-    #[cfg(not(target_os = "linux"))]
-    let is_linux_console = false;
+    // Skip EnableMouseCapture on console/TTY since raw device input handles mouse there
+    let is_console = is_console_environment();
 
-    if is_linux_console {
-        // On Linux console, GPM provides mouse support - don't send ANSI mouse escape sequences
+    if is_console {
+        // On console/TTY, raw input provides mouse support - don't send ANSI mouse escape sequences
         execute!(stdout, terminal::EnterAlternateScreen, cursor::Hide)?;
     } else {
         // On terminal emulators, enable mouse capture via ANSI escape sequences
@@ -244,7 +242,14 @@ pub fn initialize_video_buffer(backend: &dyn RenderBackend) -> VideoBuffer {
 /// Initializes the unified mouse input manager
 ///
 /// Returns a MouseInputManager and optionally a GpmConnection if GPM needed disabling
-#[cfg(target_os = "linux")]
+/// On Linux, also handles GPM daemon interaction.
+/// On BSD, uses sysmouse/wsmouse for raw console input.
+#[cfg(any(
+    target_os = "linux",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 pub fn initialize_mouse_input(
     cli_args: &Cli,
     cols: u16,
@@ -259,7 +264,7 @@ pub fn initialize_mouse_input(
     // Detect the mouse input mode
     let mode = MouseInputMode::detect(is_framebuffer_mode);
 
-    // Try to disable GPM if it's running and we're using raw input
+    // Try to disable GPM if it's running and we're using raw input (Linux only)
     let gpm_connection = if mode.uses_raw_input() {
         crate::gpm_control::try_disable_gpm()
     } else {
@@ -303,8 +308,13 @@ pub fn initialize_mouse_input(
     (manager, gpm_connection)
 }
 
-/// Initializes the unified mouse input manager (non-Linux version)
-#[cfg(not(target_os = "linux"))]
+/// Initializes the unified mouse input manager (macOS/Windows/other platforms)
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+)))]
 pub fn initialize_mouse_input(
     _cli_args: &Cli,
     cols: u16,
@@ -338,13 +348,10 @@ pub fn try_cleanup(stdout: &mut io::Stdout) -> io::Result<()> {
     // 2. Leave alternate screen and show cursor
     execute!(stdout, terminal::LeaveAlternateScreen, cursor::Show)?;
 
-    // 3. Disable mouse capture (only if not on Linux console)
-    #[cfg(target_os = "linux")]
-    let is_linux_console = std::env::var("TERM").map(|t| t == "linux").unwrap_or(false);
-    #[cfg(not(target_os = "linux"))]
-    let is_linux_console = false;
+    // 3. Disable mouse capture (only if not on console/TTY)
+    let is_console = is_console_environment();
 
-    if !is_linux_console {
+    if !is_console {
         execute!(stdout, event::DisableMouseCapture)?;
     }
 

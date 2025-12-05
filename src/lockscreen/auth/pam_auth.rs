@@ -1,18 +1,21 @@
-//! Linux PAM authentication backend.
+//! PAM authentication backend.
+//!
+//! Supports Linux, FreeBSD, and NetBSD which all have PAM implementations.
+//! OpenBSD uses BSD Auth instead (not PAM).
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "netbsd"))]
 use super::{AuthResult, Authenticator};
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "netbsd"))]
 use pam::client::Client as PamClient;
 
-/// PAM-based authenticator for Linux systems.
-#[cfg(target_os = "linux")]
+/// PAM-based authenticator for Linux and BSD systems.
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "netbsd"))]
 pub struct PamAuthenticator {
     service_name: String,
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "netbsd"))]
 impl PamAuthenticator {
     /// Create a new PAM authenticator.
     /// Uses "login" as the PAM service name for compatibility.
@@ -28,15 +31,30 @@ impl PamAuthenticator {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "netbsd"))]
 impl Authenticator for PamAuthenticator {
     fn is_available(&self) -> bool {
-        // Check if PAM library is available
-        std::path::Path::new("/lib/x86_64-linux-gnu/libpam.so.0").exists()
-            || std::path::Path::new("/lib64/libpam.so.0").exists()
-            || std::path::Path::new("/usr/lib/libpam.so").exists()
-            || std::path::Path::new("/usr/lib/x86_64-linux-gnu/libpam.so.0").exists()
-            || std::path::Path::new("/lib/libpam.so.0").exists()
+        // Check if PAM library is available (platform-specific paths)
+        #[cfg(target_os = "linux")]
+        {
+            std::path::Path::new("/lib/x86_64-linux-gnu/libpam.so.0").exists()
+                || std::path::Path::new("/lib64/libpam.so.0").exists()
+                || std::path::Path::new("/usr/lib/libpam.so").exists()
+                || std::path::Path::new("/usr/lib/x86_64-linux-gnu/libpam.so.0").exists()
+                || std::path::Path::new("/lib/libpam.so.0").exists()
+        }
+
+        #[cfg(target_os = "freebsd")]
+        {
+            std::path::Path::new("/usr/lib/libpam.so").exists()
+                || std::path::Path::new("/usr/lib/libpam.so.6").exists()
+        }
+
+        #[cfg(target_os = "netbsd")]
+        {
+            std::path::Path::new("/usr/lib/libpam.so").exists()
+                || std::path::Path::new("/usr/lib/libpam.so.3").exists()
+        }
     }
 
     fn authenticate(&self, username: &str, password: &str) -> AuthResult {
@@ -84,13 +102,13 @@ impl Authenticator for PamAuthenticator {
     }
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, any(target_os = "linux", target_os = "freebsd", target_os = "netbsd")))]
 mod tests {
     use super::*;
 
     #[test]
     fn test_pam_new() {
-        // Should succeed on most Linux systems
+        // Should succeed on most systems with PAM
         let result = PamAuthenticator::new();
         // Don't assert success as CI might not have PAM
         let _ = result;
