@@ -3,6 +3,7 @@ pub mod cli;
 pub mod config;
 pub mod config_manager;
 pub mod initialization;
+pub mod panic_handler;
 pub mod platform;
 pub mod session;
 

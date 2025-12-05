@@ -10,6 +10,8 @@
 //! - 80x50 (8x8 character cells) - high density mode
 
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
+pub mod cli_handlers;
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 pub mod fb_config;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 pub mod fb_renderer;
@@ -17,6 +19,8 @@ pub mod fb_renderer;
 pub mod fb_setup_window;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 pub mod font_manager;
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
+pub mod setup_wizard;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 pub mod text_modes;
 

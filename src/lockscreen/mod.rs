@@ -8,6 +8,8 @@ pub mod auth;
 #[allow(clippy::module_inception)]
 mod lockscreen;
 mod pin_setup;
+#[cfg(unix)]
+pub mod signal_sender;
 
 pub use lockscreen::LockScreen;
 pub use pin_setup::{PinSetupDialog, PinSetupState};

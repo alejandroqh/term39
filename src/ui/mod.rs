@@ -1,4 +1,5 @@
 pub mod button;
+pub mod config_action_handler;
 pub mod config_window;
 pub mod context_menu;
 pub mod dialog_handlers;

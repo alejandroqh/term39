@@ -18,13 +18,11 @@ use crossterm::{
     terminal::{self, ClearType},
 };
 use lockscreen::PinSetupState;
-use lockscreen::auth::is_os_auth_available;
-use rendering::Theme;
 use std::io;
-use std::panic;
 use std::time::{Duration, Instant};
 use term_emu::SelectionType;
 use ui::button::Button;
+use ui::config_action_handler::{apply_config_result, process_config_action};
 use ui::config_window::ConfigAction;
 use ui::context_menu::MenuAction;
 use ui::error_dialog::ErrorDialog;
@@ -34,82 +32,6 @@ use ui::ui_render::CalendarState;
 use utils::{ClipboardManager, CommandHistory, CommandIndexer};
 use window::{FocusState, WindowManager};
 
-/// Send SIGUSR1 to all other running term39 instances to trigger lockscreen
-#[cfg(unix)]
-fn send_lock_signal() -> io::Result<()> {
-    use std::process::Command;
-
-    let current_pid = std::process::id();
-
-    // Use pgrep to find term39 processes
-    let output = Command::new("pgrep").arg("-x").arg("term39").output();
-
-    match output {
-        Ok(result) => {
-            let pids_str = String::from_utf8_lossy(&result.stdout);
-            let mut found = false;
-
-            for line in pids_str.lines() {
-                if let Ok(pid) = line.trim().parse::<u32>() {
-                    // Don't signal ourselves
-                    if pid != current_pid {
-                        // Send SIGUSR1 to the process
-                        unsafe {
-                            if libc::kill(pid as i32, libc::SIGUSR1) == 0 {
-                                println!("Sent lock signal to term39 (PID: {})", pid);
-                                found = true;
-                            }
-                        }
-                    }
-                }
-            }
-
-            if !found {
-                eprintln!("No running term39 instance found to lock.");
-                std::process::exit(1);
-            }
-        }
-        Err(_) => {
-            // pgrep not available, try reading /proc directly
-            if let Ok(entries) = std::fs::read_dir("/proc") {
-                let mut found = false;
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if let Some(name) = path.file_name() {
-                        if let Ok(pid) = name.to_string_lossy().parse::<u32>() {
-                            if pid != current_pid {
-                                let comm_path = path.join("comm");
-                                if let Ok(comm) = std::fs::read_to_string(&comm_path) {
-                                    if comm.trim() == "term39" {
-                                        unsafe {
-                                            if libc::kill(pid as i32, libc::SIGUSR1) == 0 {
-                                                println!(
-                                                    "Sent lock signal to term39 (PID: {})",
-                                                    pid
-                                                );
-                                                found = true;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                if !found {
-                    eprintln!("No running term39 instance found to lock.");
-                    std::process::exit(1);
-                }
-            } else {
-                eprintln!("Could not find running term39 instances.");
-                std::process::exit(1);
-            }
-        }
-    }
-
-    Ok(())
-}
-
 fn main() -> io::Result<()> {
     // Parse command-line arguments
     let cli_args = app::cli::Cli::parse_args();
@@ -117,296 +39,23 @@ fn main() -> io::Result<()> {
     // Handle --lock flag: send SIGUSR1 to running term39 instance and exit
     #[cfg(unix)]
     if cli_args.lock {
-        return send_lock_signal();
+        return lockscreen::signal_sender::send_lock_signal();
     }
 
     // Set up panic hook to restore terminal state on panic
-    // This prevents the terminal from being left in raw mode if the application crashes
-    let default_panic = panic::take_hook();
-    panic::set_hook(Box::new(move |panic_info| {
-        // Attempt to restore terminal state
-        let mut stdout = io::stdout();
-
-        // Best-effort cleanup - ignore errors since we're already panicking
-        // Following ratatui's pattern: disable raw mode FIRST (most side effects)
-        let _ = crossterm::terminal::disable_raw_mode();
-
-        // Leave alternate screen and show cursor
-        let _ = crossterm::execute!(
-            stdout,
-            crossterm::terminal::LeaveAlternateScreen,
-            crossterm::cursor::Show
-        );
-
-        // Disable mouse capture
-        let _ = crossterm::execute!(stdout, crossterm::event::DisableMouseCapture);
-
-        // Final color reset
-        let _ = crossterm::execute!(stdout, crossterm::style::ResetColor);
-
-        // Call the default panic handler to print the panic message
-        default_panic(panic_info);
-    }));
+    app::panic_handler::setup_panic_hook();
 
     // Handle --fb-list-fonts flag (exit after listing)
     #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     if cli_args.fb_list_fonts {
-        use framebuffer::font_manager::FontManager;
-
-        println!("Available console fonts:\n");
-        let fonts = FontManager::list_available_fonts();
-
-        if fonts.is_empty() {
-            println!("No console fonts found in:");
-            println!("  - /usr/share/consolefonts/");
-            println!("  - /usr/share/kbd/consolefonts/");
-            println!("\nInstall fonts with: sudo apt install kbd unifont");
-        } else {
-            // Group by dimensions
-            let mut current_dim = (0, 0);
-            for (name, width, height) in fonts {
-                if (width, height) != current_dim {
-                    if current_dim != (0, 0) {
-                        println!();
-                    }
-                    println!("{}×{} fonts:", width, height);
-                    current_dim = (width, height);
-                }
-                println!("  {}", name);
-            }
-            println!("\nUse with: term39 -f --fb-font=FONT_NAME");
-        }
+        framebuffer::cli_handlers::list_fonts();
         return Ok(());
     }
 
     // Handle --fb-setup flag (run setup wizard)
     #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     if cli_args.fb_setup {
-        use rendering::Charset;
-        use crossterm::execute;
-        use framebuffer::fb_setup_window::{FbSetupAction, FbSetupWindow};
-        use framebuffer::font_manager::FontManager;
-        use rendering::RenderBackend;
-        use rendering::VideoBuffer;
-
-        // Set up terminal for setup wizard
-        let mut stdout = io::stdout();
-        terminal::enable_raw_mode()?;
-        execute!(
-            stdout,
-            terminal::EnterAlternateScreen,
-            crossterm::event::EnableMouseCapture
-        )?;
-
-        // Get terminal size and create video buffer
-        let (cols, rows) = terminal::size()?;
-        let mut video_buffer = VideoBuffer::new(cols, rows);
-
-        // Create setup window
-        let mut setup_window = FbSetupWindow::new(cols, rows);
-
-        // Load available fonts
-        let fonts = FontManager::list_available_fonts();
-        setup_window.set_fonts(fonts);
-
-        // Create charset and theme for rendering
-        let charset = Charset::unicode();
-        let theme = Theme::from_name("classic");
-
-        // Create terminal backend for rendering
-        let mut term_backend = rendering::TerminalBackend::new()?;
-
-        // Setup wizard event loop
-        let mut should_launch = false;
-        loop {
-            // Render setup window
-            setup_window.render(&mut video_buffer, &charset, &theme);
-
-            // Present to terminal
-            term_backend.present(&mut video_buffer)?;
-
-            // Poll for crossterm events
-            if event::poll(Duration::from_millis(50))? {
-                match event::read()? {
-                    Event::Key(key_event) => {
-                        // Only process key press and repeat events (ignore Release)
-                        if key_event.kind == KeyEventKind::Release {
-                            continue;
-                        }
-                        let action = setup_window.handle_key(key_event);
-                        match action {
-                            FbSetupAction::Close => break,
-                            FbSetupAction::SaveAndLaunch => {
-                                if let Err(e) = setup_window.save_config() {
-                                    eprintln!("Error saving config: {}", e);
-                                }
-                                should_launch = true;
-                                break;
-                            }
-                            FbSetupAction::SaveOnly => {
-                                if let Err(e) = setup_window.save_config() {
-                                    eprintln!("Error saving config: {}", e);
-                                }
-                                break;
-                            }
-                            _ => {}
-                        }
-                    }
-                    Event::Mouse(mouse_event) => {
-                        // Only handle actual left-button clicks, not moves
-                        if let crossterm::event::MouseEventKind::Down(
-                            crossterm::event::MouseButton::Left,
-                        ) = mouse_event.kind
-                        {
-                            let action =
-                                setup_window.handle_click(mouse_event.column, mouse_event.row);
-                            match action {
-                                FbSetupAction::Close => break,
-                                FbSetupAction::SaveAndLaunch => {
-                                    if let Err(e) = setup_window.save_config() {
-                                        eprintln!("Error saving config: {}", e);
-                                    }
-                                    should_launch = true;
-                                    break;
-                                }
-                                FbSetupAction::SaveOnly => {
-                                    if let Err(e) = setup_window.save_config() {
-                                        eprintln!("Error saving config: {}", e);
-                                    }
-                                    break;
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                    Event::Resize(new_cols, new_rows) => {
-                        video_buffer = VideoBuffer::new(new_cols, new_rows);
-                        setup_window = FbSetupWindow::new(new_cols, new_rows);
-                        let fonts = FontManager::list_available_fonts();
-                        setup_window.set_fonts(fonts);
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        // Cleanup terminal - reset colors properly to avoid color bleeding on TTY
-        execute!(stdout, crossterm::event::DisableMouseCapture)?;
-        execute!(stdout, crossterm::style::ResetColor)?;
-        execute!(
-            stdout,
-            crossterm::style::SetAttribute(crossterm::style::Attribute::Reset),
-            crossterm::style::SetForegroundColor(crossterm::style::Color::Reset),
-            crossterm::style::SetBackgroundColor(crossterm::style::Color::Reset)
-        )?;
-        execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
-        execute!(
-            stdout,
-            crossterm::cursor::MoveTo(0, 0),
-            crossterm::style::ResetColor
-        )?;
-        execute!(
-            stdout,
-            crossterm::cursor::Show,
-            terminal::LeaveAlternateScreen
-        )?;
-        execute!(stdout, crossterm::style::ResetColor)?;
-        terminal::disable_raw_mode()?;
-
-        // If user chose to launch, actually launch the application
-        if should_launch {
-            let config = setup_window.get_config();
-
-            // Check device permissions before launching
-            let mut permission_errors: Vec<String> = Vec::new();
-            let mut fix_hints: Vec<String> = Vec::new();
-
-            // Check framebuffer device access
-            let fb_device = "/dev/fb0";
-            if std::fs::metadata(fb_device).is_err() {
-                permission_errors.push(format!("Framebuffer device '{}' not found", fb_device));
-                fix_hints.push(
-                    "Ensure you're on a Linux console (TTY), not a terminal emulator".to_string(),
-                );
-            } else if std::fs::File::open(fb_device).is_err() {
-                permission_errors.push(format!("No permission to access '{}'", fb_device));
-                fix_hints.push("Add user to video group: sudo usermod -aG video $USER".to_string());
-            }
-
-            // Check mouse device access
-            let mouse_device = config.get_mouse_device();
-            if !mouse_device.is_empty() {
-                if std::fs::metadata(&mouse_device).is_err() {
-                    permission_errors.push(format!("Mouse device '{}' not found", mouse_device));
-                    fix_hints.push("Check if the mouse device path is correct".to_string());
-                } else if std::fs::File::open(&mouse_device).is_err() {
-                    permission_errors.push(format!("No permission to access '{}'", mouse_device));
-                    fix_hints
-                        .push("Add user to input group: sudo usermod -aG input $USER".to_string());
-                }
-            }
-
-            // If there are permission errors, show them and exit
-            if !permission_errors.is_empty() {
-                println!("Configuration saved to ~/.config/term39/fb.toml\n");
-                println!("Cannot launch framebuffer mode due to permission issues:\n");
-                for error in &permission_errors {
-                    println!("  - {}", error);
-                }
-                println!("\nTo fix:");
-                for hint in &fix_hints {
-                    println!("  {}", hint);
-                }
-                println!("\nAfter adding groups, log out and back in for changes to take effect.");
-                println!("\nAlternatively, run with sudo:");
-                println!("  sudo term39 -f --fb-mode={}", config.display.mode);
-                return Ok(());
-            }
-
-            println!("Configuration saved! Launching framebuffer mode...\n");
-
-            // Get the current executable path
-            let exe_path =
-                std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("./term39"));
-
-            // Build command arguments
-            let mut args = vec![
-                "-f".to_string(),
-                format!("--fb-mode={}", config.display.mode),
-                format!("--fb-font={}", config.font.name),
-            ];
-
-            if config.display.scale != "auto" {
-                args.push(format!("--fb-scale={}", config.display.scale));
-            }
-
-            if config.mouse.invert_x {
-                args.push("--invert-mouse-x".to_string());
-            }
-
-            if config.mouse.invert_y {
-                args.push("--invert-mouse-y".to_string());
-            }
-
-            if config.mouse.swap_buttons {
-                args.push("--swap-mouse-buttons".to_string());
-            }
-
-            // Launch directly (user has permissions)
-            use std::os::unix::process::CommandExt;
-            let mut cmd = std::process::Command::new(&exe_path);
-            cmd.args(&args);
-
-            // Use exec to replace current process
-            let err = cmd.exec();
-            // If we get here, exec failed
-            eprintln!("Failed to launch: {}", err);
-            return Err(err);
-        } else {
-            println!("Configuration saved to ~/.config/term39/fb.toml");
-        }
-
-        return Ok(());
+        return framebuffer::setup_wizard::run_setup_wizard();
     }
 
     // Load application configuration
@@ -833,119 +482,14 @@ fn main() -> io::Result<()> {
                         key_event,
                         &app_config,
                     ) {
-                        // Process the config action (same as mouse handling)
-                        match action {
-                            ConfigAction::Close => {
-                                // Already handled in the keyboard handler
-                            }
-                            ConfigAction::ToggleAutoTiling => {
-                                app_config.toggle_auto_tiling_on_startup();
-                                app_state.auto_tiling_enabled = app_config.auto_tiling_on_startup;
-                                let (_, rows) = backend.dimensions();
-                                let auto_tiling_text = if app_state.auto_tiling_enabled {
-                                    "█ on] Auto Tiling"
-                                } else {
-                                    "off ░] Auto Tiling"
-                                };
-                                app_state.auto_tiling_button =
-                                    Button::new(1, rows - 1, auto_tiling_text.to_string());
-                                // Ensure focus is still valid after toggling
-                                if let Some(ref mut config_win) = app_state.active_config_window {
-                                    config_win.ensure_focus_valid(&app_config);
-                                }
-                            }
-                            ConfigAction::ToggleTilingGaps => {
-                                app_config.toggle_tiling_gaps();
-                            }
-                            ConfigAction::ToggleShowDate => {
-                                app_config.toggle_show_date_in_clock();
-                            }
-                            ConfigAction::CycleTheme => {
-                                let next_theme = match app_config.theme.as_str() {
-                                    "classic" => "monochrome",
-                                    "monochrome" => "dark",
-                                    "dark" => "dracu",
-                                    "dracu" => "green_phosphor",
-                                    "green_phosphor" => "amber",
-                                    "amber" => "ndd",
-                                    "ndd" => "qbasic",
-                                    "qbasic" => "turbo",
-                                    "turbo" => "norton_commander",
-                                    "norton_commander" => "xtree",
-                                    "xtree" => "wordperfect",
-                                    "wordperfect" => "dbase",
-                                    "dbase" => "system",
-                                    "system" => "classic",
-                                    _ => "classic",
-                                };
-                                app_config.theme = next_theme.to_string();
-                                let _ = app_config.save();
-                                theme = Theme::from_name(&app_config.theme);
-                            }
-                            ConfigAction::CycleThemeBackward => {
-                                let prev_theme = match app_config.theme.as_str() {
-                                    "classic" => "system",
-                                    "system" => "dbase",
-                                    "monochrome" => "classic",
-                                    "dark" => "monochrome",
-                                    "dracu" => "dark",
-                                    "green_phosphor" => "dracu",
-                                    "amber" => "green_phosphor",
-                                    "ndd" => "amber",
-                                    "qbasic" => "ndd",
-                                    "turbo" => "qbasic",
-                                    "norton_commander" => "turbo",
-                                    "xtree" => "norton_commander",
-                                    "wordperfect" => "xtree",
-                                    "dbase" => "wordperfect",
-                                    _ => "classic",
-                                };
-                                app_config.theme = prev_theme.to_string();
-                                let _ = app_config.save();
-                                theme = Theme::from_name(&app_config.theme);
-                            }
-                            ConfigAction::CycleBackgroundChar => {
-                                app_config.cycle_background_char();
-                                charset.set_background(app_config.get_background_char());
-                            }
-                            ConfigAction::CycleBackgroundCharBackward => {
-                                app_config.cycle_background_char_backward();
-                                charset.set_background(app_config.get_background_char());
-                            }
-                            ConfigAction::ToggleTintTerminal => {
-                                app_config.toggle_tint_terminal();
-                                app_state.tint_terminal = app_config.tint_terminal;
-                            }
-                            ConfigAction::ToggleAutoSave => {
-                                app_config.toggle_auto_save();
-                                if !app_config.auto_save {
-                                    let _ = WindowManager::clear_session_file();
-                                }
-                            }
-                            ConfigAction::ToggleLockscreen => {
-                                app_config.toggle_lockscreen_enabled();
-                                // Ensure focus is still valid after toggling
-                                if let Some(ref mut config_win) = app_state.active_config_window {
-                                    config_win.ensure_focus_valid(&app_config);
-                                }
-                            }
-                            ConfigAction::CycleLockscreenAuthMode => {
-                                app_config.cycle_lockscreen_auth_mode(is_os_auth_available());
-                                app_state.update_lockscreen_auth(&app_config);
-                                // Ensure focus is still valid after cycling
-                                if let Some(ref mut config_win) = app_state.active_config_window {
-                                    config_win.ensure_focus_valid(&app_config);
-                                }
-                            }
-                            ConfigAction::SetupPin => {
-                                app_state.active_config_window = None;
-                                let salt = app_config.get_or_create_salt();
-                                app_state.start_pin_setup(salt);
-                            }
-                            ConfigAction::None => {
-                                // Just navigation, no action needed
-                            }
-                        }
+                        let (_, rows) = backend.dimensions();
+                        let result = process_config_action(
+                            action,
+                            &mut app_state,
+                            &mut app_config,
+                            rows,
+                        );
+                        apply_config_result(&result, &mut charset, &mut theme);
                         continue;
                     }
 
@@ -1122,116 +666,6 @@ fn main() -> io::Result<()> {
                                         app_state.active_config_window = None;
                                         handled = true;
                                     }
-                                    ConfigAction::ToggleAutoTiling => {
-                                        app_config.toggle_auto_tiling_on_startup();
-                                        // Update runtime state to match config
-                                        app_state.auto_tiling_enabled =
-                                            app_config.auto_tiling_on_startup;
-                                        // Update button text
-                                        let (_, rows) = backend.dimensions();
-                                        let auto_tiling_text = if app_state.auto_tiling_enabled {
-                                            "█ on] Auto Tiling"
-                                        } else {
-                                            "off ░] Auto Tiling"
-                                        };
-                                        app_state.auto_tiling_button =
-                                            Button::new(1, rows - 1, auto_tiling_text.to_string());
-
-                                        // Keep config window open (silent save)
-                                        handled = true;
-                                    }
-                                    ConfigAction::ToggleTilingGaps => {
-                                        app_config.toggle_tiling_gaps();
-                                        // Keep config window open (silent save)
-                                        handled = true;
-                                    }
-                                    ConfigAction::ToggleShowDate => {
-                                        app_config.toggle_show_date_in_clock();
-
-                                        // Keep config window open (silent save)
-                                        handled = true;
-                                    }
-                                    ConfigAction::CycleTheme => {
-                                        // Cycle through all themes
-                                        let next_theme = match app_config.theme.as_str() {
-                                            "classic" => "monochrome",
-                                            "monochrome" => "dark",
-                                            "dark" => "dracu",
-                                            "dracu" => "green_phosphor",
-                                            "green_phosphor" => "amber",
-                                            "amber" => "ndd",
-                                            "ndd" => "qbasic",
-                                            "qbasic" => "turbo",
-                                            "turbo" => "norton_commander",
-                                            "norton_commander" => "xtree",
-                                            "xtree" => "wordperfect",
-                                            "wordperfect" => "dbase",
-                                            "dbase" => "system",
-                                            "system" => "classic",
-                                            _ => "classic",
-                                        };
-                                        app_config.theme = next_theme.to_string();
-                                        let _ = app_config.save();
-                                        // Reload theme
-                                        theme = Theme::from_name(&app_config.theme);
-
-                                        // Keep config window open (silent save)
-                                        handled = true;
-                                    }
-                                    ConfigAction::CycleThemeBackward => {
-                                        // Backward cycling not triggered by mouse, but handle for completeness
-                                        handled = true;
-                                    }
-                                    ConfigAction::CycleBackgroundChar => {
-                                        // Cycle to the next background character
-                                        app_config.cycle_background_char();
-                                        // Update charset with new background character
-                                        charset.set_background(app_config.get_background_char());
-
-                                        // Keep config window open (silent save)
-                                        handled = true;
-                                    }
-                                    ConfigAction::CycleBackgroundCharBackward => {
-                                        // Backward cycling not triggered by mouse, but handle for completeness
-                                        handled = true;
-                                    }
-                                    ConfigAction::ToggleTintTerminal => {
-                                        // Toggle terminal tinting and save
-                                        app_config.toggle_tint_terminal();
-                                        app_state.tint_terminal = app_config.tint_terminal;
-
-                                        // Keep config window open (silent save)
-                                        handled = true;
-                                    }
-                                    ConfigAction::ToggleAutoSave => {
-                                        // Toggle auto-save and save
-                                        app_config.toggle_auto_save();
-
-                                        // If auto-save was turned OFF, clear existing session
-                                        if !app_config.auto_save {
-                                            let _ = WindowManager::clear_session_file();
-                                        }
-
-                                        // Keep config window open (silent save)
-                                        handled = true;
-                                    }
-                                    ConfigAction::ToggleLockscreen => {
-                                        app_config.toggle_lockscreen_enabled();
-                                        handled = true;
-                                    }
-                                    ConfigAction::CycleLockscreenAuthMode => {
-                                        app_config
-                                            .cycle_lockscreen_auth_mode(is_os_auth_available());
-                                        app_state.update_lockscreen_auth(&app_config);
-                                        handled = true;
-                                    }
-                                    ConfigAction::SetupPin => {
-                                        // Close config window and open PIN setup dialog
-                                        app_state.active_config_window = None;
-                                        let salt = app_config.get_or_create_salt();
-                                        app_state.start_pin_setup(salt);
-                                        handled = true;
-                                    }
                                     ConfigAction::None => {
                                         // Check if click is inside config window
                                         if config_win
@@ -1240,6 +674,18 @@ fn main() -> io::Result<()> {
                                             // Click inside config window but not on an option - consume the event
                                             handled = true;
                                         }
+                                    }
+                                    _ => {
+                                        // Process config action using shared handler
+                                        let (_, rows) = backend.dimensions();
+                                        let result = process_config_action(
+                                            action,
+                                            &mut app_state,
+                                            &mut app_config,
+                                            rows,
+                                        );
+                                        apply_config_result(&result, &mut charset, &mut theme);
+                                        handled = true;
                                     }
                                 }
                             }
