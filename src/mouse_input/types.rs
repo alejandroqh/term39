@@ -58,6 +58,15 @@ impl MouseInputMode {
     }
 
     /// Returns true if this mode uses raw mouse input (not crossterm)
+    #[cfg_attr(
+        not(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        )),
+        allow(dead_code)
+    )]
     pub fn uses_raw_input(&self) -> bool {
         matches!(self, MouseInputMode::Tty | MouseInputMode::Framebuffer)
     }
@@ -80,17 +89,4 @@ pub struct RawMouseEvent {
     pub buttons: MouseButtons,
     pub scroll: i8,
     pub scroll_h: i8,
-}
-
-/// Mouse input protocol type
-#[cfg(unix)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Protocol {
-    /// PS/2 protocol (Linux /dev/input/mice, FreeBSD /dev/sysmouse)
-    Ps2,
-    /// Linux evdev input event protocol (/dev/input/event*)
-    InputEvent,
-    /// BSD wscons protocol (NetBSD/OpenBSD /dev/wsmouse*)
-    #[cfg(any(target_os = "netbsd", target_os = "openbsd"))]
-    Wscons,
 }

@@ -25,7 +25,12 @@ pub use linux::RawMouseInput;
 pub use bsd::RawMouseInput;
 
 use crossterm::event::MouseEvent;
-#[cfg(unix)]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 use crossterm::event::{KeyModifiers, MouseButton, MouseEventKind};
 use std::collections::VecDeque;
 use std::io;
@@ -44,8 +49,26 @@ pub struct MouseInputManager {
     ))]
     raw_input: Option<RawMouseInput>,
     cursor: CursorTracker,
+    #[cfg_attr(
+        not(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        )),
+        allow(dead_code)
+    )]
     prev_buttons: MouseButtons,
     event_queue: VecDeque<MouseEvent>,
+    #[cfg_attr(
+        not(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        )),
+        allow(dead_code)
+    )]
     swap_buttons: bool,
 }
 
@@ -193,7 +216,12 @@ impl MouseInputManager {
     }
 
     /// Generate crossterm MouseEvents from a raw event
-    #[cfg(unix)]
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    ))]
     fn generate_events(&mut self, raw: RawMouseEvent, col: u16, row: u16) {
         let buttons = if self.swap_buttons {
             MouseButtons {

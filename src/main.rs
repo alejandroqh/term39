@@ -22,7 +22,12 @@ mod fb_setup_window;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 mod framebuffer;
 mod fuzzy_matcher;
-#[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 mod gpm_control;
 mod info_window;
 mod initialization;

@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust Version](https://img.shields.io/badge/rust-1.70%2B-blue.svg)](https://www.rust-lang.org)
 
-A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Full-screen interface with window management and complete terminal emulation. ( Linux / Windows / MacOS / Android-Termux )
+A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Full-screen interface with window management and complete terminal emulation. ( Linux / Windows / macOS / FreeBSD / NetBSD / OpenBSD / Android-Termux )
 
 <div align="center">
   <img src="assets/ascii_logo.png" alt="TERM39 Logo"/>
@@ -63,7 +63,7 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
 - **Lockscreen**: System-authenticated lockscreen with `Shift+Q`, supports PAM (Linux), Directory Services (macOS), and Windows Security
 - **Customizable Themes**: Classic (default), Dark, Monochrome, Green Phosphor, Amber, Dracu, NDD, QBasic, TurboP, NCC, XT, WP, dB, System (via `--theme` flag)
 - **Battery Indicator**: Real-time battery status display in the top bar
-- **Cross-Platform**: Linux, macOS, Windows with full VT100/ANSI support and true color
+- **Cross-Platform**: Linux, macOS, Windows, FreeBSD, NetBSD, OpenBSD with full VT100/ANSI support and true color
 - **ASCII Compatibility**: `--ascii` flag for maximum terminal compatibility
 
 **Linux Only**
@@ -190,6 +190,39 @@ cargo build --release --no-default-features
 ```
 
 **Note**: The `--no-default-features` flag disables system clipboard integration (which is not supported on Android). Copy/paste will still work within the app using an internal buffer.
+
+### FreeBSD
+
+Download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
+
+```bash
+tar xzf term39-*-freebsd-64bit-x86-binary.tar.gz
+sudo mv term39 /usr/local/bin/
+```
+
+Or build from source:
+
+```bash
+# FreeBSD with PAM lockscreen
+cargo build --release --no-default-features --features bsd
+
+# FreeBSD without lockscreen
+cargo build --release --no-default-features --features bsd-minimal
+```
+
+### NetBSD / OpenBSD
+
+Build from source (no pre-built binaries available):
+
+```bash
+# NetBSD with PAM lockscreen
+cargo build --release --no-default-features --features bsd
+
+# OpenBSD (no PAM, use PIN authentication)
+cargo build --release --no-default-features --features bsd-minimal
+```
+
+**Note:** On OpenBSD, PAM is not available. Use `bsd-minimal` feature which enables PIN-based lockscreen authentication instead.
 
 ## Usage
 
@@ -387,7 +420,7 @@ Press **`` ` ``** (backtick) or **F8** to enter Window Mode for full keyboard co
 
 ## Lockscreen
 
-System-authenticated lockscreen using PAM (Linux), Directory Services (macOS), or Windows Security.
+System-authenticated lockscreen using PAM (Linux, FreeBSD, NetBSD), Directory Services (macOS), or Windows Security. OpenBSD uses PIN authentication.
 
 | Trigger       | Command                      |
 | ------------- | ---------------------------- |
@@ -472,6 +505,22 @@ cargo install term39 --no-default-features --features clipboard
 
 # Run framebuffer
 sudo ./target/release/term39 -f --fb-mode=80x25
+```
+
+### `bsd` Feature Profile
+
+Full BSD support with PAM lockscreen (FreeBSD, NetBSD).
+
+```bash
+cargo build --release --no-default-features --features bsd
+```
+
+### `bsd-minimal` Feature Profile
+
+BSD support without PAM (OpenBSD, or when PAM is unavailable).
+
+```bash
+cargo build --release --no-default-features --features bsd-minimal
 ```
 
 ## License

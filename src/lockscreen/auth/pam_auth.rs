@@ -102,7 +102,10 @@ impl Authenticator for PamAuthenticator {
     }
 }
 
-#[cfg(all(test, any(target_os = "linux", target_os = "freebsd", target_os = "netbsd")))]
+#[cfg(all(
+    test,
+    any(target_os = "linux", target_os = "freebsd", target_os = "netbsd")
+))]
 mod tests {
     use super::*;
 

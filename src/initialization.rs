@@ -1,11 +1,11 @@
 use crate::charset::Charset;
 use crate::cli::Cli;
 use crate::config_manager::AppConfig;
-use crate::platform::is_console_environment;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 use crate::fb_config::FramebufferConfig;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 use crate::framebuffer::text_modes::{TextMode, TextModeKind};
+use crate::platform::is_console_environment;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 use crate::render_backend::FramebufferBackend;
 use crate::render_backend::{RenderBackend, TerminalBackend};

@@ -3,89 +3,6 @@
 //! Provides centralized platform detection constants and helpers for
 //! cross-platform code. Supports Linux, FreeBSD, NetBSD, OpenBSD, macOS, and Windows.
 
-/// Supported platforms
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Platform {
-    Linux,
-    FreeBSD,
-    NetBSD,
-    OpenBSD,
-    MacOS,
-    Windows,
-    Unknown,
-}
-
-impl Platform {
-    /// Returns true if this is a BSD variant (FreeBSD, NetBSD, or OpenBSD)
-    pub const fn is_bsd(&self) -> bool {
-        matches!(self, Platform::FreeBSD | Platform::NetBSD | Platform::OpenBSD)
-    }
-
-    /// Returns true if this is a Unix-like platform
-    pub const fn is_unix(&self) -> bool {
-        matches!(
-            self,
-            Platform::Linux
-                | Platform::FreeBSD
-                | Platform::NetBSD
-                | Platform::OpenBSD
-                | Platform::MacOS
-        )
-    }
-
-    /// Returns the name of the platform
-    pub const fn name(&self) -> &'static str {
-        match self {
-            Platform::Linux => "Linux",
-            Platform::FreeBSD => "FreeBSD",
-            Platform::NetBSD => "NetBSD",
-            Platform::OpenBSD => "OpenBSD",
-            Platform::MacOS => "macOS",
-            Platform::Windows => "Windows",
-            Platform::Unknown => "Unknown",
-        }
-    }
-}
-
-/// Get the current platform at compile time
-pub const fn current_platform() -> Platform {
-    #[cfg(target_os = "linux")]
-    {
-        Platform::Linux
-    }
-    #[cfg(target_os = "freebsd")]
-    {
-        Platform::FreeBSD
-    }
-    #[cfg(target_os = "netbsd")]
-    {
-        Platform::NetBSD
-    }
-    #[cfg(target_os = "openbsd")]
-    {
-        Platform::OpenBSD
-    }
-    #[cfg(target_os = "macos")]
-    {
-        Platform::MacOS
-    }
-    #[cfg(target_os = "windows")]
-    {
-        Platform::Windows
-    }
-    #[cfg(not(any(
-        target_os = "linux",
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd",
-        target_os = "macos",
-        target_os = "windows"
-    )))]
-    {
-        Platform::Unknown
-    }
-}
-
 /// Returns true if running on a BSD variant
 pub const fn is_bsd() -> bool {
     cfg!(any(
@@ -93,21 +10,6 @@ pub const fn is_bsd() -> bool {
         target_os = "netbsd",
         target_os = "openbsd"
     ))
-}
-
-/// Returns true if running on FreeBSD
-pub const fn is_freebsd() -> bool {
-    cfg!(target_os = "freebsd")
-}
-
-/// Returns true if running on NetBSD
-pub const fn is_netbsd() -> bool {
-    cfg!(target_os = "netbsd")
-}
-
-/// Returns true if running on OpenBSD
-pub const fn is_openbsd() -> bool {
-    cfg!(target_os = "openbsd")
 }
 
 /// Returns true if the platform supports raw mouse input in console/TTY mode
@@ -118,47 +20,6 @@ pub const fn supports_raw_console_mouse() -> bool {
         target_os = "netbsd",
         target_os = "openbsd"
     ))
-}
-
-/// Returns true if the platform supports framebuffer rendering
-/// Currently only Linux is supported
-pub const fn supports_framebuffer() -> bool {
-    cfg!(target_os = "linux")
-}
-
-/// Get the default raw mouse device path for the current platform
-#[cfg(unix)]
-pub fn default_mouse_device() -> Option<&'static str> {
-    #[cfg(target_os = "linux")]
-    {
-        Some("/dev/input/mice")
-    }
-    #[cfg(target_os = "freebsd")]
-    {
-        Some("/dev/sysmouse")
-    }
-    #[cfg(target_os = "netbsd")]
-    {
-        Some("/dev/wsmouse0")
-    }
-    #[cfg(target_os = "openbsd")]
-    {
-        Some("/dev/wsmouse")
-    }
-    #[cfg(not(any(
-        target_os = "linux",
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd"
-    )))]
-    {
-        None
-    }
-}
-
-#[cfg(not(unix))]
-pub fn default_mouse_device() -> Option<&'static str> {
-    None
 }
 
 /// Detect if we're running in a console/TTY environment (not a terminal emulator)
@@ -226,53 +87,4 @@ pub fn is_console_environment() -> bool {
     }
 
     false
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_current_platform() {
-        let platform = current_platform();
-        // Should return a valid platform on any supported system
-        assert!(
-            matches!(
-                platform,
-                Platform::Linux
-                    | Platform::FreeBSD
-                    | Platform::NetBSD
-                    | Platform::OpenBSD
-                    | Platform::MacOS
-                    | Platform::Windows
-                    | Platform::Unknown
-            ),
-            "Expected a valid Platform variant"
-        );
-    }
-
-    #[test]
-    fn test_is_bsd() {
-        let platform = current_platform();
-        assert_eq!(
-            platform.is_bsd(),
-            cfg!(any(
-                target_os = "freebsd",
-                target_os = "netbsd",
-                target_os = "openbsd"
-            ))
-        );
-    }
-
-    #[test]
-    fn test_is_unix() {
-        let platform = current_platform();
-        assert_eq!(platform.is_unix(), cfg!(unix));
-    }
-
-    #[test]
-    fn test_platform_name() {
-        let platform = current_platform();
-        assert!(!platform.name().is_empty());
-    }
 }

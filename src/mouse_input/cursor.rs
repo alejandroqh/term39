@@ -27,10 +27,46 @@ pub struct CursorTracker {
     max_x: usize,
     max_y: usize,
     sensitivity: f32,
+    #[cfg_attr(
+        not(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        )),
+        allow(dead_code)
+    )]
     invert_x: bool,
+    #[cfg_attr(
+        not(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        )),
+        allow(dead_code)
+    )]
     invert_y: bool,
     // Accumulators for fractional movement (prevents jumpy behavior)
+    #[cfg_attr(
+        not(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        )),
+        allow(dead_code)
+    )]
     accum_x: f32,
+    #[cfg_attr(
+        not(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        )),
+        allow(dead_code)
+    )]
     accum_y: f32,
 }
 
@@ -51,6 +87,15 @@ impl CursorTracker {
         }
     }
 
+    #[cfg_attr(
+        not(any(
+            target_os = "linux",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        )),
+        allow(dead_code)
+    )]
     pub fn update(&mut self, dx: i8, dy: i8) {
         let dx = if self.invert_x { -dx } else { dx };
         // PS/2 mouse reports positive dy as "up" (toward user), but screen Y increases downward
