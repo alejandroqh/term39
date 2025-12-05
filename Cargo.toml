@@ -23,6 +23,12 @@ framebuffer-backend = ["dep:framebuffer", "dep:memmap2", "dep:flate2"]
 battery = ["dep:starship-battery"]
 lockscreen = ["dep:pam", "dep:windows-sys"]
 
+# Build profiles (use with --no-default-features --features <profile>)
+termux = ["clipboard"]                                                  # Android Termux
+tty = ["clipboard", "battery"]                                          # TTY terminal only
+minimal = []                                                            # Bare minimum
+full = ["clipboard", "framebuffer-backend", "battery", "lockscreen"]    # Everything
+
 [profile.release]
 strip = true
 lto = true

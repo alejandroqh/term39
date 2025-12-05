@@ -1,0 +1,6 @@
+[alias]
+build-tty = "build --release --no-default-features --features tty"
+build-termux = "build --release --no-default-features --features termux"
+build-minimal = "build --release --no-default-features --features minimal"
+build-default = "build --release"
+build-full = "build --release --no-default-features --features full"
