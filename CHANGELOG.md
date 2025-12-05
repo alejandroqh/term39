@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2025-12-05
+
+### Added
+
+- **System theme**: New theme that uses direct ANSI console colors without modifications idea by @Optimal-Savings-4505
+- **Window pivot/swap**: Double-click on window in bottom bar to swap window locations
+- **Alt+X shortcut**: Quick window selection in Window Mode
+- **Window Mode new windows**: Ability to open new windows while in Window Mode
+- **MRU window tracking**: Most Recently Used ordering when closing windows
+
+### Changed
+
+- **Window Mode improvements**: Exit behavior on desktop, prompt for exit window
+- **Settings keyboard navigation**: Settings window is now fully keyboard accessible
+- **Shift+Tab passthrough**: Shift+Tab now passes through to terminal windows
+- **Auto-tiling gaps**: Added gaps between windows for auto-tiling
+- **Maximize gaps**: Added small gaps around maximized windows
+
 ## [0.17.2] - 2025-12-03
 
 ### Added
@@ -435,6 +453,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.18.0]: https://github.com/alejandroqh/term39/releases/tag/v0.18.0
 [0.17.2]: https://github.com/alejandroqh/term39/releases/tag/v0.17.2
 [0.17.0]: https://github.com/alejandroqh/term39/releases/tag/v0.17.0
 [0.16.7]: https://github.com/alejandroqh/term39/releases/tag/v0.16.7

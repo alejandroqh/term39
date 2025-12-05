@@ -1,6 +1,6 @@
 [package]
 name = "term39"
-version = "0.17.2"
+version = "0.18.0"
 edition = "2024"
 license = "MIT"
 authors = ["Alejandro Quintanar"]

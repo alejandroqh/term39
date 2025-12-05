@@ -61,7 +61,7 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
 - **Command Launcher**: Quick command palette with `Ctrl+Space`
 - **Clipboard Support**: System clipboard integration with drag-to-select, Ctrl+Shift+C/V, right-click menu
 - **Lockscreen**: System-authenticated lockscreen with `Shift+Q`, supports PAM (Linux), Directory Services (macOS), and Windows Security
-- **Customizable Themes**: Classic (default), Dark, Monochrome, Green Phosphor, Amber, Dracu, NDD, QBasic, TurboP, NCC, XT, WP, dB (via `--theme` flag)
+- **Customizable Themes**: Classic (default), Dark, Monochrome, Green Phosphor, Amber, Dracu, NDD, QBasic, TurboP, NCC, XT, WP, dB, System (via `--theme` flag)
 - **Battery Indicator**: Real-time battery status display in the top bar
 - **Cross-Platform**: Linux, macOS, Windows with full VT100/ANSI support and true color
 - **ASCII Compatibility**: `--ascii` flag for maximum terminal compatibility
@@ -199,7 +199,7 @@ cargo build --release --no-default-features
 ./term39 --theme dark    # Themes: classic, dark, monochrome,
                          #         green_phosphor, amber, dracu,
                          #         ndd, qbasic, turbo, nc, xt,
-                         #         wp, db
+                         #         wp, db, system
 ```
 
 ### Keyboard Shortcuts
@@ -423,7 +423,7 @@ Configuration files are stored in `~/.config/term39/`:
 | `session.toml` | Saved session (window layouts, terminal content) |
 | `fb.toml`      | Framebuffer settings (Linux only)                |
 
-Available themes: `classic` (default), `dark`, `monochrome`, `green_phosphor`, `amber`, `dracu`, `ndd`, `qbasic`, `turbo`, `nc`, `xt`, `wp`, `db`
+Available themes: `classic` (default), `dark`, `monochrome`, `green_phosphor`, `amber`, `dracu`, `ndd`, `qbasic`, `turbo`, `nc`, `xt`, `wp`, `db`, `system`
 
 ## Contributing
 
