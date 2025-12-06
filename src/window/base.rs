@@ -71,7 +71,6 @@ impl Window {
     }
 
     /// Check if point is in maximize button [+]
-    #[allow(dead_code)]
     pub fn is_in_maximize_button(&self, x: u16, y: u16) -> bool {
         // [+] is at position x+6 (after "[X] ")
         // Button layout: "[X] [+] [_] " - Maximize is chars 4-6 (positions 6-8)
@@ -79,7 +78,6 @@ impl Window {
     }
 
     /// Check if point is in minimize button [_]
-    #[allow(dead_code)]
     pub fn is_in_minimize_button(&self, x: u16, y: u16) -> bool {
         // [_] is at position x+10 (after "[X] [+] ")
         // Button layout: "[X] [+] [_] " - Minimize is chars 8-10 (positions 10-12)
