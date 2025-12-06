@@ -1,7 +1,7 @@
 //! LockScreen struct - manages the lockscreen UI and state.
 
 use crate::app::config_manager::LockscreenAuthMode;
-use crate::rendering::{render_shadow, Cell, Charset, Theme, VideoBuffer};
+use crate::rendering::{Cell, Charset, Theme, VideoBuffer, render_shadow};
 use crossterm::style::Color;
 use std::time::{Duration, Instant};
 

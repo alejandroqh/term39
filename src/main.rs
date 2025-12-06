@@ -11,7 +11,7 @@ mod ui;
 mod utils;
 mod window;
 
-use app::{AppState, AppConfig};
+use app::{AppConfig, AppState};
 use chrono::Local;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind},
@@ -88,12 +88,13 @@ fn main() -> io::Result<()> {
     let is_framebuffer_mode = false;
 
     let (cols_for_mouse, rows_for_mouse) = backend.dimensions();
-    let (mut mouse_input_manager, _gpm_disable_connection) = app::initialization::initialize_mouse_input(
-        &cli_args,
-        cols_for_mouse,
-        rows_for_mouse,
-        is_framebuffer_mode,
-    );
+    let (mut mouse_input_manager, _gpm_disable_connection) =
+        app::initialization::initialize_mouse_input(
+            &cli_args,
+            cols_for_mouse,
+            rows_for_mouse,
+            is_framebuffer_mode,
+        );
 
     // Initialize video buffer and window manager
     let mut video_buffer = app::initialization::initialize_video_buffer(backend.as_ref());
@@ -426,7 +427,8 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle error dialog keyboard events
-                    if ui::dialog_handlers::handle_error_dialog_keyboard(&mut app_state, key_event) {
+                    if ui::dialog_handlers::handle_error_dialog_keyboard(&mut app_state, key_event)
+                    {
                         continue;
                     }
 
@@ -472,7 +474,8 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle about window keyboard events
-                    if ui::dialog_handlers::handle_about_window_keyboard(&mut app_state, key_event) {
+                    if ui::dialog_handlers::handle_about_window_keyboard(&mut app_state, key_event)
+                    {
                         continue;
                     }
 
@@ -483,12 +486,8 @@ fn main() -> io::Result<()> {
                         &app_config,
                     ) {
                         let (_, rows) = backend.dimensions();
-                        let result = process_config_action(
-                            action,
-                            &mut app_state,
-                            &mut app_config,
-                            rows,
-                        );
+                        let result =
+                            process_config_action(action, &mut app_state, &mut app_config, rows);
                         apply_config_result(&result, &mut charset, &mut theme);
                         continue;
                     }
@@ -550,7 +549,10 @@ fn main() -> io::Result<()> {
 
                     // Forward input to terminal window if a window is focused
                     if matches!(current_focus, FocusState::Window(_)) {
-                        input::keyboard_handlers::forward_to_terminal(key_event, &mut window_manager);
+                        input::keyboard_handlers::forward_to_terminal(
+                            key_event,
+                            &mut window_manager,
+                        );
                     }
                 }
                 Event::Mouse(mut mouse_event) => {
@@ -712,11 +714,15 @@ fn main() -> io::Result<()> {
                             app_state
                                 .clear_clipboard_button
                                 .set_state(ui::button::ButtonState::Normal);
-                            app_state.copy_button.set_state(ui::button::ButtonState::Normal);
+                            app_state
+                                .copy_button
+                                .set_state(ui::button::ButtonState::Normal);
                             app_state
                                 .clear_selection_button
                                 .set_state(ui::button::ButtonState::Normal);
-                            app_state.exit_button.set_state(ui::button::ButtonState::Normal);
+                            app_state
+                                .exit_button
+                                .set_state(ui::button::ButtonState::Normal);
                             app_state.battery_hovered = false;
                             // Reset bottom bar button
                             app_state
@@ -762,7 +768,9 @@ fn main() -> io::Result<()> {
                                     .copy_button
                                     .set_state(ui::button::ButtonState::Hovered);
                             } else {
-                                app_state.copy_button.set_state(ui::button::ButtonState::Normal);
+                                app_state
+                                    .copy_button
+                                    .set_state(ui::button::ButtonState::Normal);
                             }
 
                             if app_state
@@ -783,7 +791,9 @@ fn main() -> io::Result<()> {
                                     .exit_button
                                     .set_state(ui::button::ButtonState::Hovered);
                             } else {
-                                app_state.exit_button.set_state(ui::button::ButtonState::Normal);
+                                app_state
+                                    .exit_button
+                                    .set_state(ui::button::ButtonState::Normal);
                             }
 
                             // Battery indicator hover state (top bar, right side before clock)
@@ -829,11 +839,15 @@ fn main() -> io::Result<()> {
                             app_state
                                 .clear_clipboard_button
                                 .set_state(ui::button::ButtonState::Normal);
-                            app_state.copy_button.set_state(ui::button::ButtonState::Normal);
+                            app_state
+                                .copy_button
+                                .set_state(ui::button::ButtonState::Normal);
                             app_state
                                 .clear_selection_button
                                 .set_state(ui::button::ButtonState::Normal);
-                            app_state.exit_button.set_state(ui::button::ButtonState::Normal);
+                            app_state
+                                .exit_button
+                                .set_state(ui::button::ButtonState::Normal);
                             app_state.battery_hovered = false;
                         }
                     }

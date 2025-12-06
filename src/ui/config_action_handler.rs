@@ -158,11 +158,7 @@ pub fn process_config_action(
 ///
 /// This is a helper to apply changes that require mutable access to
 /// charset and theme which are owned by the caller.
-pub fn apply_config_result(
-    result: &ConfigActionResult,
-    charset: &mut Charset,
-    theme: &mut Theme,
-) {
+pub fn apply_config_result(result: &ConfigActionResult, charset: &mut Charset, theme: &mut Theme) {
     if let Some(ref new_theme) = result.new_theme {
         *theme = new_theme.clone();
     }

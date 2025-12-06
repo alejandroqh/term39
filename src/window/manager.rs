@@ -1,8 +1,8 @@
-use crate::rendering::{Charset, Theme, VideoBuffer};
-use crate::app::session::{self, SessionState, WindowSnapshot};
-use crate::term_emu::ShellConfig;
-use super::terminal_window::TerminalWindow;
 use super::base::ResizeEdge;
+use super::terminal_window::TerminalWindow;
+use crate::app::session::{self, SessionState, WindowSnapshot};
+use crate::rendering::{Charset, Theme, VideoBuffer};
+use crate::term_emu::ShellConfig;
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use std::collections::HashMap;
 use std::io;

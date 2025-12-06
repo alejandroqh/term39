@@ -1,10 +1,10 @@
-use crate::ui::prompt::{Prompt, PromptAction, PromptButton, PromptType, TextAlign};
+use super::base::Window;
 use crate::rendering::{Cell, Charset, CharsetMode, Theme, VideoBuffer};
 use crate::term_emu::{
-    Color as TermColor, NamedColor, Position, Selection, SelectionType, ShellConfig,
-    TerminalCell, TerminalEmulator, TerminalGrid,
+    Color as TermColor, NamedColor, Position, Selection, SelectionType, ShellConfig, TerminalCell,
+    TerminalEmulator, TerminalGrid,
 };
-use super::base::Window;
+use crate::ui::prompt::{Prompt, PromptAction, PromptButton, PromptType, TextAlign};
 use crossterm::event::{KeyCode, KeyEvent};
 use crossterm::style::Color;
 use std::sync::MutexGuard;
@@ -1202,8 +1202,8 @@ fn write_u16_to_buf(buf: &mut [u8], value: u16) -> usize {
 
 /// Convert a terminal cell to a video buffer cell
 fn convert_terminal_cell(term_cell: &TerminalCell, theme: &Theme, tint_terminal: bool) -> Cell {
-    let mut fg = convert_color(&term_cell.fg);
-    let mut bg = convert_color(&term_cell.bg);
+    let mut fg = convert_fg_color(&term_cell.fg);
+    let mut bg = convert_bg_color(&term_cell.bg);
 
     // Handle reverse video attribute - swap fg and bg
     if term_cell.attrs.reverse {
@@ -1222,27 +1222,12 @@ fn convert_terminal_cell(term_cell: &TerminalCell, theme: &Theme, tint_terminal:
     }
 }
 
-/// Convert terminal color to crossterm color
-fn convert_color(color: &TermColor) -> Color {
+/// Convert terminal color to crossterm color for foreground
+fn convert_fg_color(color: &TermColor) -> Color {
     match color {
-        TermColor::Named(named) => match named {
-            NamedColor::Black => Color::Black,
-            NamedColor::Red => Color::DarkRed,
-            NamedColor::Green => Color::DarkGreen,
-            NamedColor::Yellow => Color::DarkYellow,
-            NamedColor::Blue => Color::DarkBlue,
-            NamedColor::Magenta => Color::DarkMagenta,
-            NamedColor::Cyan => Color::DarkCyan,
-            NamedColor::White => Color::Grey,
-            NamedColor::BrightBlack => Color::DarkGrey,
-            NamedColor::BrightRed => Color::Red,
-            NamedColor::BrightGreen => Color::Green,
-            NamedColor::BrightYellow => Color::Yellow,
-            NamedColor::BrightBlue => Color::Blue,
-            NamedColor::BrightMagenta => Color::Magenta,
-            NamedColor::BrightCyan => Color::Cyan,
-            NamedColor::BrightWhite => Color::White,
-        },
+        // Default foreground: light grey (standard terminal default)
+        TermColor::Default => Color::Grey,
+        TermColor::Named(named) => convert_named_color(named),
         TermColor::Indexed(idx) => Color::AnsiValue(*idx),
         TermColor::Rgb(r, g, b) => Color::Rgb {
             r: *r,
@@ -1252,10 +1237,56 @@ fn convert_color(color: &TermColor) -> Color {
     }
 }
 
+/// Convert terminal color to crossterm color for background
+fn convert_bg_color(color: &TermColor) -> Color {
+    match color {
+        // Default background: black (standard terminal default)
+        TermColor::Default => Color::Black,
+        TermColor::Named(named) => convert_named_color(named),
+        TermColor::Indexed(idx) => Color::AnsiValue(*idx),
+        TermColor::Rgb(r, g, b) => Color::Rgb {
+            r: *r,
+            g: *g,
+            b: *b,
+        },
+    }
+}
+
+/// Convert named ANSI color to crossterm color
+fn convert_named_color(named: &NamedColor) -> Color {
+    match named {
+        NamedColor::Black => Color::Black,
+        NamedColor::Red => Color::DarkRed,
+        NamedColor::Green => Color::DarkGreen,
+        NamedColor::Yellow => Color::DarkYellow,
+        NamedColor::Blue => Color::DarkBlue,
+        NamedColor::Magenta => Color::DarkMagenta,
+        NamedColor::Cyan => Color::DarkCyan,
+        NamedColor::White => Color::Grey,
+        NamedColor::BrightBlack => Color::DarkGrey,
+        NamedColor::BrightRed => Color::Red,
+        NamedColor::BrightGreen => Color::Green,
+        NamedColor::BrightYellow => Color::Yellow,
+        NamedColor::BrightBlue => Color::Blue,
+        NamedColor::BrightMagenta => Color::Magenta,
+        NamedColor::BrightCyan => Color::Cyan,
+        NamedColor::BrightWhite => Color::White,
+    }
+}
+
 /// Apply theme-based color tinting to terminal colors
 fn apply_theme_tint(color: Color, theme: &Theme, is_foreground: bool) -> Color {
     // Map terminal colors to theme colors
     match color {
+        // Reset/default colors - map to theme defaults
+        Color::Reset => {
+            if is_foreground {
+                theme.window_content_fg
+            } else {
+                theme.window_content_bg
+            }
+        }
+
         // Background colors - map to theme background
         Color::Black | Color::DarkGrey if !is_foreground => theme.window_content_bg,
 

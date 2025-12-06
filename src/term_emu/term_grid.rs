@@ -3,8 +3,11 @@ use std::fmt;
 use unicode_width::UnicodeWidthChar;
 
 /// Terminal color representation supporting 256-color palette and 24-bit truecolor
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Color {
+    /// Default/reset color - uses the terminal's native default
+    #[default]
+    Default,
     /// Named ANSI colors (0-15)
     Named(NamedColor),
     /// 256-color palette (0-255)
@@ -33,12 +36,6 @@ pub enum NamedColor {
     BrightWhite = 15,
 }
 
-impl Default for Color {
-    fn default() -> Self {
-        Color::Named(NamedColor::White)
-    }
-}
-
 /// Character cell attributes (bold, italic, underline, etc.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct CellAttributes {
@@ -65,8 +62,8 @@ impl Default for TerminalCell {
     fn default() -> Self {
         Self {
             c: ' ',
-            fg: Color::Named(NamedColor::White),
-            bg: Color::Named(NamedColor::Black),
+            fg: Color::Default,
+            bg: Color::Default,
             attrs: CellAttributes::default(),
         }
     }
@@ -76,8 +73,8 @@ impl TerminalCell {
     #[allow(dead_code)]
     pub fn reset(&mut self) {
         self.c = ' ';
-        self.fg = Color::Named(NamedColor::White);
-        self.bg = Color::Named(NamedColor::Black);
+        self.fg = Color::Default;
+        self.bg = Color::Default;
         self.attrs = CellAttributes::default();
     }
 }
@@ -216,8 +213,8 @@ impl TerminalGrid {
             rows_count: rows,
             cursor: Cursor::default(),
             current_attrs: CellAttributes::default(),
-            current_fg: Color::Named(NamedColor::BrightGreen),
-            current_bg: Color::Named(NamedColor::Black),
+            current_fg: Color::Default,
+            current_bg: Color::Default,
             scroll_region_top: 0,
             scroll_region_bottom: rows.saturating_sub(1),
             saved_cursor: None,
@@ -654,8 +651,8 @@ impl TerminalGrid {
 
         // Reset attributes
         self.current_attrs = CellAttributes::default();
-        self.current_fg = Color::Named(NamedColor::BrightGreen);
-        self.current_bg = Color::Named(NamedColor::Black);
+        self.current_fg = Color::Default;
+        self.current_bg = Color::Default;
 
         // Reset scroll region
         self.scroll_region_top = 0;

@@ -87,8 +87,7 @@ pub fn run_setup_wizard() -> io::Result<()> {
                 Event::Mouse(mouse_event) => {
                     // Only handle actual left-button clicks, not moves
                     if let MouseEventKind::Down(MouseButton::Left) = mouse_event.kind {
-                        let action =
-                            setup_window.handle_click(mouse_event.column, mouse_event.row);
+                        let action = setup_window.handle_click(mouse_event.column, mouse_event.row);
                         match action {
                             FbSetupAction::Close => break,
                             FbSetupAction::SaveAndLaunch => {
@@ -170,9 +169,8 @@ fn launch_framebuffer_mode(setup_window: &FbSetupWindow) -> io::Result<()> {
     let fb_device = "/dev/fb0";
     if std::fs::metadata(fb_device).is_err() {
         permission_errors.push(format!("Framebuffer device '{}' not found", fb_device));
-        fix_hints.push(
-            "Ensure you're on a Linux console (TTY), not a terminal emulator".to_string(),
-        );
+        fix_hints
+            .push("Ensure you're on a Linux console (TTY), not a terminal emulator".to_string());
     } else if std::fs::File::open(fb_device).is_err() {
         permission_errors.push(format!("No permission to access '{}'", fb_device));
         fix_hints.push("Add user to video group: sudo usermod -aG video $USER".to_string());
@@ -210,8 +208,7 @@ fn launch_framebuffer_mode(setup_window: &FbSetupWindow) -> io::Result<()> {
     println!("Configuration saved! Launching framebuffer mode...\n");
 
     // Get the current executable path
-    let exe_path =
-        std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("./term39"));
+    let exe_path = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("./term39"));
 
     // Build command arguments
     let mut args = vec![

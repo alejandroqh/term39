@@ -118,6 +118,8 @@ impl TerminalEmulator {
 
         // Set environment variables
         cmd.env("TERM", "xterm-256color");
+        // Enable true color (24-bit RGB) support for applications like nvim, vim, etc.
+        cmd.env("COLORTERM", "truecolor");
 
         // Disable zsh's PROMPT_SP feature (which shows "%" for unterminated lines)
         // This prevents the "%" character from appearing at startup and after 'clear'

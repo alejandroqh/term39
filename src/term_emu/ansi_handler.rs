@@ -26,8 +26,8 @@ impl<'a> AnsiHandler<'a> {
         if params.is_empty() {
             // Reset all attributes (same as SGR 0)
             self.grid.current_attrs = Default::default();
-            self.grid.current_fg = Color::Named(NamedColor::BrightGreen);
-            self.grid.current_bg = Color::Named(NamedColor::Black);
+            self.grid.current_fg = Color::Default;
+            self.grid.current_bg = Color::Default;
             return;
         }
 
@@ -37,8 +37,8 @@ impl<'a> AnsiHandler<'a> {
                 0 => {
                     // Reset
                     self.grid.current_attrs = Default::default();
-                    self.grid.current_fg = Color::Named(NamedColor::BrightGreen);
-                    self.grid.current_bg = Color::Named(NamedColor::Black);
+                    self.grid.current_fg = Color::Default;
+                    self.grid.current_bg = Color::Default;
                 }
                 1 => self.grid.current_attrs.bold = true,
                 2 => self.grid.current_attrs.dim = true,
@@ -91,7 +91,7 @@ impl<'a> AnsiHandler<'a> {
                         }
                     }
                 }
-                39 => self.grid.current_fg = Color::Named(NamedColor::BrightGreen), // Default foreground
+                39 => self.grid.current_fg = Color::Default, // Default foreground
                 // Background colors (40-47: normal, 100-107: bright)
                 40 => self.grid.current_bg = Color::Named(NamedColor::Black),
                 41 => self.grid.current_bg = Color::Named(NamedColor::Red),
@@ -124,7 +124,7 @@ impl<'a> AnsiHandler<'a> {
                         }
                     }
                 }
-                49 => self.grid.current_bg = Color::Named(NamedColor::Black), // Default
+                49 => self.grid.current_bg = Color::Default, // Default background
                 // Bright foreground colors (90-97)
                 90 => self.grid.current_fg = Color::Named(NamedColor::BrightBlack),
                 91 => self.grid.current_fg = Color::Named(NamedColor::BrightRed),

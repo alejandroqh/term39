@@ -1,3 +1,7 @@
+use super::charset::Charset;
+use super::render_backend::RenderBackend;
+use super::theme::Theme;
+use super::video_buffer::{VideoBuffer, render_fullscreen_shadow};
 use crate::app::app_state::AppState;
 use crate::app::config_manager::AppConfig;
 use crate::input::keyboard_mode::KeyboardMode;
@@ -5,10 +9,6 @@ use crate::lockscreen::auth::is_os_auth_available;
 use crate::ui::ui_render;
 use crate::window::manager::WindowManager;
 use crate::window::number_overlay;
-use super::charset::Charset;
-use super::render_backend::RenderBackend;
-use super::theme::Theme;
-use super::video_buffer::{render_fullscreen_shadow, VideoBuffer};
 use std::io::{self, Write};
 
 /// Renders a complete frame to the screen

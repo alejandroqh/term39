@@ -1,4 +1,4 @@
-use crate::rendering::{render_shadow, Cell, Charset, CharsetMode, Theme, VideoBuffer};
+use crate::rendering::{Cell, Charset, CharsetMode, Theme, VideoBuffer, render_shadow};
 use crossterm::style::Color;
 
 /// Prompt types with different visual styles (similar to Bootstrap alerts)

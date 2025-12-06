@@ -1,4 +1,4 @@
-use crate::rendering::{render_shadow, Cell, Charset, Theme, VideoBuffer};
+use crate::rendering::{Cell, Charset, Theme, VideoBuffer, render_shadow};
 use crossterm::style::Color;
 
 /// A modal info window with border and title (for Help, About, etc.)

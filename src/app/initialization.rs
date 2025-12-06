@@ -1,13 +1,13 @@
 use super::cli::Cli;
 use super::config_manager::AppConfig;
+use super::platform::is_console_environment;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 use crate::framebuffer::fb_config::FramebufferConfig;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 use crate::framebuffer::text_modes::{TextMode, TextModeKind};
-use super::platform::is_console_environment;
-use crate::rendering::{Charset, RenderBackend, TerminalBackend, Theme, VideoBuffer};
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 use crate::rendering::FramebufferBackend;
+use crate::rendering::{Charset, RenderBackend, TerminalBackend, Theme, VideoBuffer};
 use crate::term_emu::ShellConfig;
 use crate::window::manager::WindowManager;
 use crossterm::{cursor, event, execute, style, terminal};

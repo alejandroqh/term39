@@ -1,8 +1,8 @@
 //! Window number overlay for Alt+1-9 quick selection
 //! Shows window numbers when Alt/Cmd is held for 500ms+
 
-use crate::rendering::{Cell, Theme, VideoBuffer};
 use super::manager::WindowManager;
+use crate::rendering::{Cell, Theme, VideoBuffer};
 
 /// ASCII art digits using block characters (9 wide x 6 tall)
 /// Index 0 is unused (for 1-based indexing convenience)

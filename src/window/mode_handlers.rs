@@ -3,12 +3,12 @@
 //! This module handles keyboard input when the application is in Window Mode,
 //! allowing full keyboard-only control of windows.
 
+use super::manager::{FocusState, WindowManager};
 use crate::app::app_state::AppState;
 use crate::app::config_manager::AppConfig;
-use crate::ui::info_window::InfoWindow;
 use crate::input::keyboard_mode::{KeyboardMode, ResizeDirection, SnapPosition, WindowSubMode};
 use crate::rendering::RenderBackend;
-use super::manager::{FocusState, WindowManager};
+use crate::ui::info_window::InfoWindow;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::time::{Duration, Instant};
 

@@ -6,9 +6,9 @@ mod theme;
 mod video_buffer;
 
 pub use charset::{Charset, CharsetMode};
-pub use render_backend::{RenderBackend, TerminalBackend};
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 pub use render_backend::FramebufferBackend;
+pub use render_backend::{RenderBackend, TerminalBackend};
 pub use render_frame::render_frame;
 pub use theme::Theme;
-pub use video_buffer::{render_shadow, Cell, VideoBuffer};
+pub use video_buffer::{Cell, VideoBuffer, render_shadow};

@@ -87,6 +87,7 @@ pub struct SerializableCell {
 /// Serializable version of Color
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SerializableColor {
+    Default,
     Named(SerializableNamedColor),
     Indexed(u8),
     Rgb(u8, u8, u8),
@@ -159,6 +160,7 @@ impl From<&TerminalCell> for SerializableCell {
 impl From<&Color> for SerializableColor {
     fn from(color: &Color) -> Self {
         match color {
+            Color::Default => SerializableColor::Default,
             Color::Named(nc) => SerializableColor::Named(SerializableNamedColor::from(nc)),
             Color::Indexed(i) => SerializableColor::Indexed(*i),
             Color::Rgb(r, g, b) => SerializableColor::Rgb(*r, *g, *b),
@@ -241,6 +243,7 @@ impl From<&SerializableCell> for TerminalCell {
 impl From<&SerializableColor> for Color {
     fn from(color: &SerializableColor) -> Self {
         match color {
+            SerializableColor::Default => Color::Default,
             SerializableColor::Named(nc) => Color::Named(NamedColor::from(nc)),
             SerializableColor::Indexed(i) => Color::Indexed(*i),
             SerializableColor::Rgb(r, g, b) => Color::Rgb(*r, *g, *b),

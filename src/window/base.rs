@@ -1,4 +1,4 @@
-use crate::rendering::{render_shadow, Cell, Charset, Theme, VideoBuffer};
+use crate::rendering::{Cell, Charset, Theme, VideoBuffer, render_shadow};
 
 /// Which edge is being resized
 #[derive(Clone, Copy, Debug, PartialEq)]

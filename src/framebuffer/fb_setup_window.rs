@@ -4,7 +4,7 @@
 //! Runs in terminal mode to allow configuration before framebuffer initialization.
 
 use super::fb_config::FramebufferConfig;
-use crate::rendering::{render_shadow, Cell, Charset, Theme, VideoBuffer};
+use crate::rendering::{Cell, Charset, Theme, VideoBuffer, render_shadow};
 
 /// Action to take based on setup window interaction
 #[derive(Clone, Copy, Debug, PartialEq)]

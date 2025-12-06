@@ -1,6 +1,6 @@
 use crate::app::config_manager::{AppConfig, LockscreenAuthMode};
 use crate::lockscreen::auth::is_os_auth_compiled;
-use crate::rendering::{render_shadow, Cell, Charset, Theme, VideoBuffer};
+use crate::rendering::{Cell, Charset, Theme, VideoBuffer, render_shadow};
 
 /// Action to take based on config window interaction
 #[derive(Clone, Copy, Debug, PartialEq)]

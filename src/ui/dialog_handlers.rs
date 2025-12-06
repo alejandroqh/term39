@@ -1,8 +1,8 @@
-use crate::app::app_state::AppState;
-use crate::app::config_manager::AppConfig;
 use super::config_window::ConfigAction;
 use super::error_dialog::ErrorDialog;
 use super::prompt::PromptAction;
+use crate::app::app_state::AppState;
+use crate::app::config_manager::AppConfig;
 use crate::rendering::RenderBackend;
 use crate::utils::{CommandHistory, CommandIndexer};
 use crate::window::manager::WindowManager;

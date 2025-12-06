@@ -1,5 +1,7 @@
 use crate::app::config;
-use crate::rendering::{render_shadow, Cell, Charset, CharsetMode, RenderBackend, Theme, VideoBuffer};
+use crate::rendering::{
+    Cell, Charset, CharsetMode, RenderBackend, Theme, VideoBuffer, render_shadow,
+};
 use crossterm::style::Color;
 use std::io;
 use std::thread;
