@@ -72,6 +72,16 @@ impl MouseInputMode {
     }
 }
 
+/// Mouse input protocol type (Linux-specific)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)] // Used on Linux only
+pub enum Protocol {
+    /// PS/2 protocol (/dev/input/mice)
+    Ps2,
+    /// Linux input event protocol (/dev/input/eventX)
+    InputEvent,
+}
+
 /// Mouse button states
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct MouseButtons {

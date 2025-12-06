@@ -41,7 +41,7 @@ pub fn run(
         target_os = "openbsd"
     ))]
     #[allow(unused_variables)]
-    _gpm_disable_connection: &Option<crate::input::gpm_control::GpmDisableConnection>,
+    _gpm_disable_connection: &Option<crate::input::gpm_control::GpmConnection>,
     #[cfg(not(any(
         target_os = "linux",
         target_os = "freebsd",
