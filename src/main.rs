@@ -12,23 +12,22 @@ mod utils;
 mod window;
 
 use app::{AppConfig, AppState};
-use chrono::Local;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind},
     terminal::{self, ClearType},
 };
+use input::mouse_handlers::{
+    handle_auto_tiling_click, handle_config_window_mouse, handle_context_menu_mouse,
+    handle_error_dialog_mouse, handle_pin_setup_mouse, handle_prompt_mouse,
+    handle_selection_mouse, handle_taskbar_menu_mouse, handle_topbar_click, show_context_menu,
+    show_taskbar_menu, update_bar_button_hover_states, ModalMouseResult, TopBarClickResult,
+};
 use lockscreen::PinSetupState;
 use std::io;
-use std::time::{Duration, Instant};
-use term_emu::SelectionType;
-use ui::button::Button;
+use std::time::Duration;
 use ui::config_action_handler::{apply_config_result, process_config_action};
-use ui::config_window::ConfigAction;
-use ui::context_menu::MenuAction;
-use ui::error_dialog::ErrorDialog;
 use ui::prompt::{Prompt, PromptAction, PromptButton, PromptType};
 use ui::slight_input::SlightInput;
-use ui::ui_render::CalendarState;
 use utils::{ClipboardManager, CommandHistory, CommandIndexer};
 use window::{FocusState, WindowManager};
 
@@ -214,71 +213,28 @@ fn main() -> io::Result<()> {
         #[cfg(not(target_os = "linux"))]
         let _injected_event: Option<Event> = raw_mouse_event;
 
-        // Process framebuffer mouse event if available
+        // Process framebuffer mouse events if available
         #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
         if injected_event.is_none() {
             if let Some((event_type, button_id, col, row)) = backend.get_mouse_button_event() {
-                use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
-
-                // Map button ID to MouseButton, applying swap if configured
-                let button = match button_id {
-                    0 => {
-                        if fb_config.mouse.swap_buttons {
-                            MouseButton::Right
-                        } else {
-                            MouseButton::Left
-                        }
-                    }
-                    1 => {
-                        if fb_config.mouse.swap_buttons {
-                            MouseButton::Left
-                        } else {
-                            MouseButton::Right
-                        }
-                    }
-                    2 => MouseButton::Middle,
-                    _ => MouseButton::Left, // Fallback
-                };
-
-                // Map event type to MouseEventKind
-                // event_type: 0=Down, 1=Up, 2=Drag
-                let kind = match event_type {
-                    0 => MouseEventKind::Down(button),
-                    1 => MouseEventKind::Up(button),
-                    2 => MouseEventKind::Drag(button),
-                    _ => MouseEventKind::Down(button), // Fallback
-                };
-
-                let mouse_event = MouseEvent {
-                    kind,
-                    column: col,
+                injected_event = Some(mouse_handlers::map_fb_button_event(
+                    event_type,
+                    button_id,
+                    col,
                     row,
-                    modifiers: KeyModifiers::empty(),
-                };
-
-                injected_event = Some(Event::Mouse(mouse_event));
+                    fb_config.mouse.swap_buttons,
+                ));
             }
         }
 
-        // Process framebuffer scroll event if available (and no button event pending)
         #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
         if injected_event.is_none() {
             if let Some((scroll_direction, col, row)) = backend.get_mouse_scroll_event() {
-                use crossterm::event::{MouseEvent, MouseEventKind};
-
-                let kind = match scroll_direction {
-                    0 => MouseEventKind::ScrollUp,
-                    _ => MouseEventKind::ScrollDown,
-                };
-
-                let mouse_event = MouseEvent {
-                    kind,
-                    column: col,
+                injected_event = Some(mouse_handlers::map_fb_scroll_event(
+                    scroll_direction,
+                    col,
                     row,
-                    modifiers: KeyModifiers::empty(),
-                };
-
-                injected_event = Some(Event::Mouse(mouse_event));
+                ));
             }
         }
 
@@ -571,536 +527,113 @@ fn main() -> io::Result<()> {
 
                     let mut handled = false;
 
-                    // Check if there's an active prompt - it takes priority
-                    #[allow(clippy::collapsible_if)]
-                    if let Some(ref prompt) = app_state.active_prompt {
-                        if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
-                            if let Some(action) =
-                                prompt.handle_click(mouse_event.column, mouse_event.row, &charset)
-                            {
-                                match action {
-                                    PromptAction::Confirm => {
-                                        // Exit confirmed
-                                        should_break_main_loop = true;
-                                        break;
-                                    }
-                                    PromptAction::Cancel => {
-                                        // Dismiss prompt
-                                        app_state.active_prompt = None;
-                                    }
-                                    _ => {}
-                                }
-                                handled = true;
-                            } else if prompt.contains_point(mouse_event.column, mouse_event.row) {
-                                // Click inside prompt but not on a button - consume the event
-                                handled = true;
-                            }
+                    // Handle modal dialogs (prompt, PIN setup, error, config window)
+                    match handle_prompt_mouse(&mut app_state, &mouse_event, &charset) {
+                        ModalMouseResult::Exit => {
+                            should_break_main_loop = true;
+                            break;
                         }
+                        ModalMouseResult::Handled => handled = true,
+                        ModalMouseResult::NotHandled => {}
                     }
 
-                    // Check if there's an active PIN setup dialog
-                    #[allow(clippy::collapsible_if)]
-                    if !handled {
-                        if let Some(ref mut pin_setup) = app_state.active_pin_setup {
-                            if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
-                                let (cols, rows) = backend.dimensions();
-                                if pin_setup.handle_click(
-                                    mouse_event.column,
-                                    mouse_event.row,
-                                    cols,
-                                    rows,
-                                    &charset,
-                                ) {
-                                    // Button was clicked, check state
-                                    match pin_setup.state().clone() {
-                                        PinSetupState::Complete { hash, salt } => {
-                                            app_config.set_pin(hash, salt);
-                                            app_state.update_lockscreen_auth(&app_config);
-                                            app_state.active_pin_setup = None;
-                                        }
-                                        PinSetupState::Cancelled => {
-                                            app_state.active_pin_setup = None;
-                                        }
-                                        _ => {}
-                                    }
-                                    handled = true;
-                                } else if pin_setup.contains_point(
-                                    mouse_event.column,
-                                    mouse_event.row,
-                                    cols,
-                                    rows,
-                                ) {
-                                    // Click inside dialog but not on a button - consume the event
-                                    handled = true;
-                                }
-                            }
-                        }
-                    }
-
-                    // Check if there's an active error dialog (after prompt, before other events)
-                    #[allow(clippy::collapsible_if)]
-                    if !handled {
-                        if let Some(ref error_dialog) = app_state.active_error_dialog {
-                            if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
-                                // Check if OK button was clicked
-                                if error_dialog
-                                    .is_ok_button_clicked(mouse_event.column, mouse_event.row)
-                                {
-                                    app_state.active_error_dialog = None;
-                                    handled = true;
-                                }
-                            }
-                        }
-                    }
-
-                    // Check if there's an active config window (after prompt, before other events)
-                    #[allow(clippy::collapsible_if)]
-                    if !handled {
-                        if let Some(ref config_win) = app_state.active_config_window {
-                            if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
-                                let action = config_win.handle_click(
-                                    mouse_event.column,
-                                    mouse_event.row,
-                                    &app_config,
-                                );
-                                match action {
-                                    ConfigAction::Close => {
-                                        app_state.active_config_window = None;
-                                        handled = true;
-                                    }
-                                    ConfigAction::None => {
-                                        // Check if click is inside config window
-                                        if config_win
-                                            .contains_point(mouse_event.column, mouse_event.row)
-                                        {
-                                            // Click inside config window but not on an option - consume the event
-                                            handled = true;
-                                        }
-                                    }
-                                    _ => {
-                                        // Process config action using shared handler
-                                        let (_, rows) = backend.dimensions();
-                                        let result = process_config_action(
-                                            action,
-                                            &mut app_state,
-                                            &mut app_config,
-                                            rows,
-                                        );
-                                        apply_config_result(&result, &mut charset, &mut theme);
-                                        handled = true;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Update button hover state on mouse movement (always active)
-                    // OPTIMIZATION: Early exit if mouse is not on top bar (row 0) or bottom bar
-                    if !handled {
-                        let (cols, rows) = backend.dimensions();
-                        let bar_y = rows.saturating_sub(1);
-                        let mouse_row = mouse_event.row;
-                        let mouse_col = mouse_event.column;
-
-                        // Fast path: if mouse is not on top or bottom bar, reset all buttons to Normal
-                        if mouse_row != 0 && mouse_row != bar_y {
-                            // Reset all top bar buttons
-                            app_state
-                                .new_terminal_button
-                                .set_state(ui::button::ButtonState::Normal);
-                            app_state
-                                .paste_button
-                                .set_state(ui::button::ButtonState::Normal);
-                            app_state
-                                .clear_clipboard_button
-                                .set_state(ui::button::ButtonState::Normal);
-                            app_state
-                                .copy_button
-                                .set_state(ui::button::ButtonState::Normal);
-                            app_state
-                                .clear_selection_button
-                                .set_state(ui::button::ButtonState::Normal);
-                            app_state
-                                .exit_button
-                                .set_state(ui::button::ButtonState::Normal);
-                            app_state.battery_hovered = false;
-                            // Reset bottom bar button
-                            app_state
-                                .auto_tiling_button
-                                .set_state(ui::button::ButtonState::Normal);
-                        } else if mouse_row == 0 {
-                            // Top bar - check top bar buttons only
-                            if app_state.new_terminal_button.contains(mouse_col, mouse_row) {
-                                app_state
-                                    .new_terminal_button
-                                    .set_state(ui::button::ButtonState::Hovered);
-                            } else {
-                                app_state
-                                    .new_terminal_button
-                                    .set_state(ui::button::ButtonState::Normal);
-                            }
-
-                            if app_state.paste_button.contains(mouse_col, mouse_row) {
-                                app_state
-                                    .paste_button
-                                    .set_state(ui::button::ButtonState::Hovered);
-                            } else {
-                                app_state
-                                    .paste_button
-                                    .set_state(ui::button::ButtonState::Normal);
-                            }
-
-                            if app_state
-                                .clear_clipboard_button
-                                .contains(mouse_col, mouse_row)
-                            {
-                                app_state
-                                    .clear_clipboard_button
-                                    .set_state(ui::button::ButtonState::Hovered);
-                            } else {
-                                app_state
-                                    .clear_clipboard_button
-                                    .set_state(ui::button::ButtonState::Normal);
-                            }
-
-                            if app_state.copy_button.contains(mouse_col, mouse_row) {
-                                app_state
-                                    .copy_button
-                                    .set_state(ui::button::ButtonState::Hovered);
-                            } else {
-                                app_state
-                                    .copy_button
-                                    .set_state(ui::button::ButtonState::Normal);
-                            }
-
-                            if app_state
-                                .clear_selection_button
-                                .contains(mouse_col, mouse_row)
-                            {
-                                app_state
-                                    .clear_selection_button
-                                    .set_state(ui::button::ButtonState::Hovered);
-                            } else {
-                                app_state
-                                    .clear_selection_button
-                                    .set_state(ui::button::ButtonState::Normal);
-                            }
-
-                            if app_state.exit_button.contains(mouse_col, mouse_row) {
-                                app_state
-                                    .exit_button
-                                    .set_state(ui::button::ButtonState::Hovered);
-                            } else {
-                                app_state
-                                    .exit_button
-                                    .set_state(ui::button::ButtonState::Normal);
-                            }
-
-                            // Battery indicator hover state (top bar, right side before clock)
-                            let battery_width = 10u16; // "| [█████] "
-                            let clock_width = if app_config.show_date_in_clock {
-                                20u16
-                            } else {
-                                12u16
-                            };
-                            let battery_start = cols.saturating_sub(battery_width + clock_width);
-                            let battery_end = battery_start + battery_width;
-                            app_state.battery_hovered =
-                                mouse_col >= battery_start && mouse_col < battery_end;
-
-                            // Reset bottom bar button when on top bar
-                            app_state
-                                .auto_tiling_button
-                                .set_state(ui::button::ButtonState::Normal);
-                        } else {
-                            // Bottom bar - check bottom bar button only
-                            let button_start_x = 1u16;
-                            let button_text_width =
-                                app_state.auto_tiling_button.label.len() as u16 + 3;
-                            let button_end_x = button_start_x + button_text_width;
-
-                            if mouse_col >= button_start_x && mouse_col < button_end_x {
-                                app_state
-                                    .auto_tiling_button
-                                    .set_state(ui::button::ButtonState::Hovered);
-                            } else {
-                                app_state
-                                    .auto_tiling_button
-                                    .set_state(ui::button::ButtonState::Normal);
-                            }
-
-                            // Reset top bar buttons when on bottom bar
-                            app_state
-                                .new_terminal_button
-                                .set_state(ui::button::ButtonState::Normal);
-                            app_state
-                                .paste_button
-                                .set_state(ui::button::ButtonState::Normal);
-                            app_state
-                                .clear_clipboard_button
-                                .set_state(ui::button::ButtonState::Normal);
-                            app_state
-                                .copy_button
-                                .set_state(ui::button::ButtonState::Normal);
-                            app_state
-                                .clear_selection_button
-                                .set_state(ui::button::ButtonState::Normal);
-                            app_state
-                                .exit_button
-                                .set_state(ui::button::ButtonState::Normal);
-                            app_state.battery_hovered = false;
-                        }
-                    }
-
-                    // Check if click is on the New Terminal button in the top bar (only if no prompt)
+                    let (cols, rows) = backend.dimensions();
                     if !handled
-                        && app_state.active_prompt.is_none()
-                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
-                        && app_state
-                            .new_terminal_button
-                            .contains(mouse_event.column, mouse_event.row)
+                        && handle_pin_setup_mouse(
+                            &mut app_state,
+                            &mut app_config,
+                            &mouse_event,
+                            cols,
+                            rows,
+                            &charset,
+                        )
                     {
-                        app_state
-                            .new_terminal_button
-                            .set_state(ui::button::ButtonState::Pressed);
+                        handled = true;
+                    }
 
-                        // Create a new terminal window (same as pressing 't')
-                        let (cols, rows) = backend.dimensions();
-                        let (width, height) = WindowManager::calculate_window_size(cols, rows);
+                    if !handled && handle_error_dialog_mouse(&mut app_state, &mouse_event) {
+                        handled = true;
+                    }
 
-                        // Get position: cascade if auto-tiling is off, center otherwise
-                        // Minimum y=1 to avoid overlapping with topbar at y=0
-                        let (x, y) = if app_state.auto_tiling_enabled {
-                            let x = (cols.saturating_sub(width)) / 2;
-                            let y = 1 + (rows.saturating_sub(2).saturating_sub(height)) / 2;
-                            (x, y.max(1))
-                        } else {
-                            window_manager.get_cascade_position(width, height, cols, rows)
-                        };
+                    if !handled
+                        && handle_config_window_mouse(
+                            &mut app_state,
+                            &mut app_config,
+                            &mouse_event,
+                            rows,
+                            &mut charset,
+                            &mut theme,
+                        )
+                    {
+                        handled = true;
+                    }
 
-                        match window_manager.create_window(
-                            x,
-                            y,
-                            width,
-                            height,
-                            format!("Terminal {}", window_manager.window_count() + 1),
-                            None,
+                    // Update button hover states (always active)
+                    if !handled {
+                        update_bar_button_hover_states(
+                            &mut app_state,
+                            mouse_event.column,
+                            mouse_event.row,
+                            cols,
+                            rows,
+                            app_config.show_date_in_clock,
+                        );
+                    }
+
+                    // Handle top bar button clicks (if no prompt active)
+                    if !handled && app_state.active_prompt.is_none() {
+                        match handle_topbar_click(
+                            &mut app_state,
+                            &mut window_manager,
+                            &mut clipboard_manager,
+                            &mouse_event,
+                            cols,
+                            rows,
+                            app_config.tiling_gaps,
+                            cli_args.no_exit,
+                            app_config.show_date_in_clock,
                         ) {
-                            Ok(_) => {
-                                // Auto-position all windows based on the snap pattern
-                                if app_state.auto_tiling_enabled {
-                                    window_manager.auto_position_windows(
+                            TopBarClickResult::Handled => handled = true,
+                            TopBarClickResult::ShowExitPrompt(message, cols, rows) => {
+                                app_state.active_prompt = Some(
+                                    Prompt::new(
+                                        PromptType::Danger,
+                                        message,
+                                        vec![
+                                            PromptButton::new(
+                                                "Exit".to_string(),
+                                                PromptAction::Confirm,
+                                                true,
+                                            ),
+                                            PromptButton::new(
+                                                "Cancel".to_string(),
+                                                PromptAction::Cancel,
+                                                false,
+                                            ),
+                                        ],
                                         cols,
                                         rows,
-                                        app_config.tiling_gaps,
-                                    );
-                                }
+                                    )
+                                    .with_selection_indicators(true)
+                                    .with_selected_button(1),
+                                );
+                                handled = true;
                             }
-                            Err(error_msg) => {
-                                // Show error dialog
-                                app_state.active_error_dialog =
-                                    Some(ErrorDialog::new(cols, rows, error_msg));
-                            }
-                        }
-
-                        handled = true;
-                    }
-
-                    // Check if click is on the Copy button in the top bar (only if no prompt)
-                    if !handled
-                        && app_state.active_prompt.is_none()
-                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
-                        && app_state
-                            .copy_button
-                            .contains(mouse_event.column, mouse_event.row)
-                    {
-                        app_state
-                            .copy_button
-                            .set_state(ui::button::ButtonState::Pressed);
-
-                        // Copy selected text to clipboard and clear selection
-                        if let FocusState::Window(window_id) = window_manager.get_focus() {
-                            if let Some(text) = window_manager.get_selected_text(window_id) {
-                                let _ = clipboard_manager.copy(text);
-                                // Clear selection after copying
-                                window_manager.clear_selection(window_id);
-                            }
-                        }
-
-                        handled = true;
-                    }
-
-                    // Check if click is on the Clear Selection (X) button in the top bar
-                    if !handled
-                        && app_state.active_prompt.is_none()
-                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
-                        && app_state
-                            .clear_selection_button
-                            .contains(mouse_event.column, mouse_event.row)
-                    {
-                        app_state
-                            .clear_selection_button
-                            .set_state(ui::button::ButtonState::Pressed);
-
-                        // Clear the selection
-                        if let FocusState::Window(window_id) = window_manager.get_focus() {
-                            window_manager.clear_selection(window_id);
-                        }
-
-                        handled = true;
-                    }
-
-                    // Check if click is on the Paste button in the top bar (only if no prompt)
-                    if !handled
-                        && app_state.active_prompt.is_none()
-                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
-                        && app_state
-                            .paste_button
-                            .contains(mouse_event.column, mouse_event.row)
-                    {
-                        app_state
-                            .paste_button
-                            .set_state(ui::button::ButtonState::Pressed);
-
-                        // Paste clipboard content to focused window
-                        if let FocusState::Window(window_id) = window_manager.get_focus() {
-                            if let Ok(text) = clipboard_manager.paste() {
-                                let _ = window_manager.paste_to_window(window_id, &text);
-                            }
-                        }
-
-                        handled = true;
-                    }
-
-                    // Check if click is on the Clear (X) button in the top bar (only if no prompt)
-                    if !handled
-                        && app_state.active_prompt.is_none()
-                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
-                        && app_state
-                            .clear_clipboard_button
-                            .contains(mouse_event.column, mouse_event.row)
-                    {
-                        app_state
-                            .clear_clipboard_button
-                            .set_state(ui::button::ButtonState::Pressed);
-
-                        // Clear the clipboard
-                        clipboard_manager.clear();
-
-                        handled = true;
-                    }
-
-                    // Check if click is on the Exit button in the top bar (only if no prompt and exit is allowed)
-                    if !handled
-                        && !cli_args.no_exit
-                        && app_state.active_prompt.is_none()
-                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
-                        && app_state
-                            .exit_button
-                            .contains(mouse_event.column, mouse_event.row)
-                    {
-                        app_state
-                            .exit_button
-                            .set_state(ui::button::ButtonState::Pressed);
-
-                        // Determine message based on window count
-                        let message = if window_manager.window_count() > 0 {
-                            "Exit with open windows?\nAll terminal sessions will be closed."
-                                .to_string()
-                        } else {
-                            "Exit term39?".to_string()
-                        };
-
-                        // Get dimensions
-                        let (cols, rows) = backend.dimensions();
-
-                        // Create prompt with "Cancel" selected by default (index 1)
-                        app_state.active_prompt = Some(
-                            Prompt::new(
-                                PromptType::Danger,
-                                message,
-                                vec![
-                                    PromptButton::new(
-                                        "Exit".to_string(),
-                                        PromptAction::Confirm,
-                                        true,
-                                    ), // Index 0
-                                    PromptButton::new(
-                                        "Cancel".to_string(),
-                                        PromptAction::Cancel,
-                                        false,
-                                    ), // Index 1
-                                ],
-                                cols,
-                                rows,
-                            )
-                            .with_selection_indicators(true)
-                            .with_selected_button(1),
-                        ); // Select "Cancel"
-
-                        handled = true;
-                    }
-
-                    // Check if click is on the clock in the top bar (only if no prompt)
-                    if !handled
-                        && app_state.active_prompt.is_none()
-                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
-                        && mouse_event.row == 0
-                    {
-                        // Calculate clock position (same logic as render_top_bar)
-                        let (cols, _) = backend.dimensions();
-                        let now = Local::now();
-                        let time_str = if app_config.show_date_in_clock {
-                            now.format("%a %b %d, %H:%M").to_string()
-                        } else {
-                            now.format("%H:%M:%S").to_string()
-                        };
-                        let clock_with_separator = format!("| {} ", time_str);
-                        let clock_width = clock_with_separator.len() as u16;
-                        let time_pos = cols.saturating_sub(clock_width);
-
-                        // Check if click is within clock area
-                        if mouse_event.column >= time_pos && mouse_event.column < cols {
-                            // Show calendar (same as pressing 'c')
-                            app_state.active_calendar = Some(CalendarState::new());
-                            handled = true;
+                            TopBarClickResult::NotHandled => {}
                         }
                     }
 
-                    // Check if click is on the Auto-Tiling toggle button (only if no prompt)
+                    // Handle auto-tiling toggle button click
                     if !handled
                         && app_state.active_prompt.is_none()
-                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+                        && handle_auto_tiling_click(
+                            &mut app_state,
+                            &mut app_config,
+                            &mouse_event,
+                            rows,
+                        )
                     {
-                        // Calculate position for toggle button click detection (bottom bar, left side)
-                        let (_, rows) = backend.dimensions();
-                        let bar_y = rows - 1;
-                        let button_start_x = 1u16;
-                        let button_text_width = app_state.auto_tiling_button.label.len() as u16 + 3; // +1 for "[", +1 for label, +1 for " "
-                        let button_end_x = button_start_x + button_text_width;
-
-                        if mouse_event.row == bar_y
-                            && mouse_event.column >= button_start_x
-                            && mouse_event.column < button_end_x
-                        {
-                            app_state
-                                .auto_tiling_button
-                                .set_state(ui::button::ButtonState::Pressed);
-
-                            // Toggle the auto-tiling state and save to config
-                            app_config.toggle_auto_tiling_on_startup();
-                            app_state.auto_tiling_enabled = app_config.auto_tiling_on_startup;
-
-                            // Update button label to reflect new state
-                            let new_label = if app_state.auto_tiling_enabled {
-                                "█ on] Auto Tiling".to_string()
-                            } else {
-                                "off ░] Auto Tiling".to_string()
-                            };
-                            app_state.auto_tiling_button = Button::new(1, bar_y, new_label);
-
-                            handled = true;
-                        }
+                        handled = true;
                     }
 
                     // Check if click is on button bar (only if no prompt)
@@ -1124,25 +657,16 @@ fn main() -> io::Result<()> {
                     }
 
                     // Handle right-click on button bar for taskbar context menu
-                    if !handled
-                        && app_state.active_prompt.is_none()
-                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Right)
-                        && mouse_event.row == bar_y
-                    {
-                        // Calculate where window buttons start (after auto-tiling button)
+                    if !handled && app_state.active_prompt.is_none() {
                         let window_buttons_start =
                             1 + 1 + app_state.auto_tiling_button.label.len() as u16 + 1 + 2;
-
-                        if let Some(window_id) = window_manager.button_bar_get_window_at(
-                            mouse_event.column,
+                        if show_taskbar_menu(
+                            &mut app_state,
+                            &window_manager,
+                            &mouse_event,
                             bar_y,
-                            mouse_event.row,
                             window_buttons_start,
                         ) {
-                            // Position menu above the click point (menu height is 5: 3 items + 2 borders)
-                            let menu_y = mouse_event.row.saturating_sub(5);
-                            app_state.taskbar_menu.show(mouse_event.column, menu_y);
-                            app_state.taskbar_menu_window_id = Some(window_id);
                             handled = true;
                         }
                     }
@@ -1150,287 +674,44 @@ fn main() -> io::Result<()> {
                     // Handle right-click for context menu (inside windows)
                     if !handled
                         && app_state.active_prompt.is_none()
-                        && mouse_event.kind == MouseEventKind::Down(MouseButton::Right)
+                        && show_context_menu(&mut app_state, &window_manager, &mouse_event)
                     {
-                        if let FocusState::Window(_) = window_manager.get_focus() {
-                            app_state
-                                .context_menu
-                                .show(mouse_event.column, mouse_event.row);
-                            handled = true;
-                        }
+                        handled = true;
                     }
 
                     // Handle context menu interactions
-                    if !handled && app_state.context_menu.visible {
-                        if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
-                            if app_state
-                                .context_menu
-                                .contains_point(mouse_event.column, mouse_event.row)
-                            {
-                                // Update selection to clicked item before getting action
-                                app_state.context_menu.update_selection_from_mouse(
-                                    mouse_event.column,
-                                    mouse_event.row,
-                                );
-                                if let Some(action) = app_state.context_menu.get_selected_action() {
-                                    if let FocusState::Window(window_id) =
-                                        window_manager.get_focus()
-                                    {
-                                        match action {
-                                            MenuAction::Copy => {
-                                                if let Some(text) =
-                                                    window_manager.get_selected_text(window_id)
-                                                {
-                                                    let _ = clipboard_manager.copy(text);
-                                                    // Clear selection after copying
-                                                    window_manager.clear_selection(window_id);
-                                                }
-                                            }
-                                            MenuAction::Paste => {
-                                                if let Ok(text) = clipboard_manager.paste() {
-                                                    let _ = window_manager
-                                                        .paste_to_window(window_id, &text);
-                                                }
-                                            }
-                                            MenuAction::SelectAll => {
-                                                window_manager.select_all(window_id);
-                                            }
-                                            MenuAction::Close
-                                            | MenuAction::Restore
-                                            | MenuAction::Maximize
-                                            | MenuAction::CloseWindow => {}
-                                        }
-                                    }
-                                }
-                                app_state.context_menu.hide();
-                                handled = true;
-                            } else {
-                                // Clicked outside menu - hide it
-                                app_state.context_menu.hide();
-                            }
-                        } else if mouse_event.kind == MouseEventKind::Moved {
-                            // Update menu selection on hover
-                            app_state
-                                .context_menu
-                                .update_selection_from_mouse(mouse_event.column, mouse_event.row);
-                        }
+                    if !handled
+                        && handle_context_menu_mouse(
+                            &mut app_state,
+                            &mut window_manager,
+                            &mut clipboard_manager,
+                            &mouse_event,
+                        )
+                    {
+                        handled = true;
                     }
 
                     // Handle taskbar menu interactions
-                    if !handled && app_state.taskbar_menu.visible {
-                        if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
-                            if app_state
-                                .taskbar_menu
-                                .contains_point(mouse_event.column, mouse_event.row)
-                            {
-                                // Update selection to clicked item before getting action
-                                app_state.taskbar_menu.update_selection_from_mouse(
-                                    mouse_event.column,
-                                    mouse_event.row,
-                                );
-                                if let Some(action) = app_state.taskbar_menu.get_selected_action() {
-                                    if let Some(window_id) = app_state.taskbar_menu_window_id {
-                                        match action {
-                                            MenuAction::Restore => {
-                                                // Restore from minimized and focus
-                                                window_manager.restore_and_focus_window(window_id);
-                                            }
-                                            MenuAction::Maximize => {
-                                                // Maximize the window
-                                                window_manager.maximize_window(
-                                                    window_id,
-                                                    cols,
-                                                    rows - 2, // Account for top and bottom bars
-                                                    app_config.tiling_gaps,
-                                                );
-                                            }
-                                            MenuAction::CloseWindow => {
-                                                // Close the window without confirmation
-                                                window_manager.close_window(window_id);
-                                            }
-                                            MenuAction::Copy
-                                            | MenuAction::Paste
-                                            | MenuAction::SelectAll
-                                            | MenuAction::Close => {}
-                                        }
-                                    }
-                                }
-                                app_state.taskbar_menu.hide();
-                                app_state.taskbar_menu_window_id = None;
-                                handled = true;
-                            } else {
-                                // Clicked outside menu - hide it
-                                app_state.taskbar_menu.hide();
-                                app_state.taskbar_menu_window_id = None;
-                            }
-                        } else if mouse_event.kind == MouseEventKind::Moved {
-                            // Update menu selection on hover
-                            app_state
-                                .taskbar_menu
-                                .update_selection_from_mouse(mouse_event.column, mouse_event.row);
-                        }
+                    if !handled
+                        && handle_taskbar_menu_mouse(
+                            &mut app_state,
+                            &mut window_manager,
+                            &mouse_event,
+                            cols,
+                            rows,
+                            app_config.tiling_gaps,
+                        )
+                    {
+                        handled = true;
                     }
 
-                    // Handle selection events (left-click, drag)
-                    // But first check if child process wants mouse events (e.g., dialog, vim with mouse)
+                    // Handle text selection (left-click, drag, mouse forwarding)
                     if !handled
                         && app_state.active_prompt.is_none()
                         && !app_state.context_menu.visible
+                        && handle_selection_mouse(&mut app_state, &mut window_manager, &mouse_event)
                     {
-                        // Check if we should forward mouse to the terminal child process
-                        let forward_to_terminal = window_manager.focused_has_mouse_tracking()
-                            && !window_manager.is_dragging_or_resizing()
-                            && !window_manager.is_point_on_drag_or_resize_area(
-                                mouse_event.column,
-                                mouse_event.row,
-                            );
-
-                        if forward_to_terminal {
-                            // Forward mouse event to child process (e.g., dialog, vim)
-                            let (button, action) = match mouse_event.kind {
-                                MouseEventKind::Down(MouseButton::Left) => (0u8, 0u8),
-                                MouseEventKind::Down(MouseButton::Middle) => (1u8, 0u8),
-                                MouseEventKind::Down(MouseButton::Right) => (2u8, 0u8),
-                                MouseEventKind::Up(MouseButton::Left) => (0u8, 1u8),
-                                MouseEventKind::Up(MouseButton::Middle) => (1u8, 1u8),
-                                MouseEventKind::Up(MouseButton::Right) => (2u8, 1u8),
-                                MouseEventKind::Drag(MouseButton::Left) => (0u8, 2u8),
-                                MouseEventKind::Drag(MouseButton::Middle) => (1u8, 2u8),
-                                MouseEventKind::Drag(MouseButton::Right) => (2u8, 2u8),
-                                MouseEventKind::Moved => (0u8, 2u8), // Motion with no button
-                                MouseEventKind::ScrollUp => (64u8, 0u8),
-                                MouseEventKind::ScrollDown => (65u8, 0u8),
-                                MouseEventKind::ScrollLeft => (66u8, 0u8),
-                                MouseEventKind::ScrollRight => (67u8, 0u8),
-                            };
-
-                            if window_manager.forward_mouse_to_focused(
-                                mouse_event.column,
-                                mouse_event.row,
-                                button,
-                                action,
-                            ) {
-                                handled = true;
-                            }
-                        }
-
-                        match mouse_event.kind {
-                            MouseEventKind::Down(MouseButton::Left) if !handled => {
-                                // Skip selection if clicking on title bar or resize edge (would start drag/resize)
-                                if window_manager.is_point_on_drag_or_resize_area(
-                                    mouse_event.column,
-                                    mouse_event.row,
-                                ) {
-                                    // Let window_manager handle dragging/resizing, skip selection
-                                } else if let FocusState::Window(window_id) =
-                                    window_manager.get_focus()
-                                {
-                                    // Track click timing and position for double/triple-click detection
-                                    let now = Instant::now();
-                                    let click_x = mouse_event.column;
-                                    let click_y = mouse_event.row;
-
-                                    // Check if this click is close enough in time and position
-                                    // to be considered a multi-click (within 500ms and 2 chars)
-                                    let is_multi_click =
-                                        if let (Some(last_time), Some((last_x, last_y))) =
-                                            (app_state.last_click_time, app_state.last_click_pos)
-                                        {
-                                            let time_ok =
-                                                now.duration_since(last_time).as_millis() < 500;
-                                            let pos_ok = click_x.abs_diff(last_x) <= 2
-                                                && click_y.abs_diff(last_y) <= 2;
-                                            time_ok && pos_ok
-                                        } else {
-                                            false
-                                        };
-
-                                    if is_multi_click {
-                                        app_state.click_count += 1;
-                                    } else {
-                                        app_state.click_count = 1;
-                                    }
-                                    app_state.last_click_time = Some(now);
-                                    app_state.last_click_pos = Some((click_x, click_y));
-
-                                    // Start or expand selection based on click count
-                                    let selection_type = match app_state.click_count {
-                                        2 => {
-                                            window_manager.start_selection(
-                                                window_id,
-                                                mouse_event.column,
-                                                mouse_event.row,
-                                                SelectionType::Character,
-                                            );
-                                            window_manager.expand_selection_to_word(window_id);
-                                            window_manager.complete_selection(window_id);
-                                            SelectionType::Word
-                                        }
-                                        3 => {
-                                            window_manager.start_selection(
-                                                window_id,
-                                                mouse_event.column,
-                                                mouse_event.row,
-                                                SelectionType::Character,
-                                            );
-                                            window_manager.expand_selection_to_line(window_id);
-                                            window_manager.complete_selection(window_id);
-                                            SelectionType::Line
-                                        }
-                                        _ => {
-                                            let sel_type = if mouse_event
-                                                .modifiers
-                                                .contains(KeyModifiers::ALT)
-                                            {
-                                                SelectionType::Block
-                                            } else {
-                                                SelectionType::Character
-                                            };
-                                            window_manager.start_selection(
-                                                window_id,
-                                                mouse_event.column,
-                                                mouse_event.row,
-                                                sel_type,
-                                            );
-                                            sel_type
-                                        }
-                                    };
-
-                                    if app_state.click_count <= 1
-                                        || selection_type == SelectionType::Block
-                                    {
-                                        app_state.selection_active = true;
-                                    }
-                                }
-                            }
-                            MouseEventKind::Drag(MouseButton::Left) if !handled => {
-                                // Don't update selection while dragging/resizing a window
-                                if app_state.selection_active
-                                    && !window_manager.is_dragging_or_resizing()
-                                {
-                                    if let FocusState::Window(window_id) =
-                                        window_manager.get_focus()
-                                    {
-                                        window_manager.update_selection(
-                                            window_id,
-                                            mouse_event.column,
-                                            mouse_event.row,
-                                        );
-                                    }
-                                }
-                            }
-                            MouseEventKind::Up(MouseButton::Left) if !handled => {
-                                if app_state.selection_active {
-                                    if let FocusState::Window(window_id) =
-                                        window_manager.get_focus()
-                                    {
-                                        window_manager.complete_selection(window_id);
-                                    }
-                                    app_state.selection_active = false;
-                                }
-                            }
-                            _ => {}
-                        }
+                        handled = true;
                     }
 
                     // If not handled by buttons, let window manager handle it (only if no prompt)
