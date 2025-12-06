@@ -2,6 +2,7 @@ pub mod app_state;
 pub mod cli;
 pub mod config;
 pub mod config_manager;
+pub mod event_loop;
 pub mod initialization;
 pub mod panic_handler;
 pub mod platform;
