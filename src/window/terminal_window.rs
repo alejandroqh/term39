@@ -1214,12 +1214,10 @@ fn convert_terminal_cell(term_cell: &TerminalCell, theme: &Theme, tint_terminal:
     if tint_terminal {
         fg = apply_theme_tint(fg, theme, true);
         bg = apply_theme_tint(bg, theme, false);
-        // Apply contrast checking when tinting is enabled
-        Cell::new(term_cell.c, fg, bg)
-    } else {
-        // Preserve original terminal colors without contrast adjustments
-        Cell::new_unchecked(term_cell.c, fg, bg)
     }
+
+    // Use unchecked cell creation - theme tints are pre-designed with contrast in mind
+    Cell::new_unchecked(term_cell.c, fg, bg)
 }
 
 /// Convert terminal color to crossterm color for foreground

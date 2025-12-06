@@ -492,7 +492,12 @@ impl TerminalGrid {
                 let c = self.map_char(c);
 
                 // Get character width (0 for combining marks, 1 for normal, 2 for wide/fullwidth)
-                let char_width = c.width().unwrap_or(0);
+                // Fast path: ASCII characters are always width 1 (avoiding Unicode table lookup)
+                let char_width = if c.is_ascii() {
+                    1
+                } else {
+                    c.width().unwrap_or(0)
+                };
 
                 // Skip zero-width characters (combining marks, etc.) - they don't advance cursor
                 // but we should still render them (TODO: proper combining char support)

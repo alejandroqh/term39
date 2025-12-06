@@ -1,9 +1,9 @@
 use crate::app::{AppConfig, AppState};
 use crate::input::mouse_handlers::{
-    handle_auto_tiling_click, handle_config_window_mouse, handle_context_menu_mouse,
-    handle_error_dialog_mouse, handle_pin_setup_mouse, handle_prompt_mouse,
-    handle_selection_mouse, handle_taskbar_menu_mouse, handle_topbar_click, show_context_menu,
-    show_taskbar_menu, update_bar_button_hover_states, ModalMouseResult, TopBarClickResult,
+    ModalMouseResult, TopBarClickResult, handle_auto_tiling_click, handle_config_window_mouse,
+    handle_context_menu_mouse, handle_error_dialog_mouse, handle_pin_setup_mouse,
+    handle_prompt_mouse, handle_selection_mouse, handle_taskbar_menu_mouse, handle_topbar_click,
+    show_context_menu, show_taskbar_menu, update_bar_button_hover_states,
 };
 use crate::lockscreen::PinSetupState;
 use crate::rendering::RenderBackend;
@@ -367,13 +367,9 @@ pub fn run(
                     }
 
                     // Handle config window keyboard events
-                    if let Some(action) =
-                        crate::ui::dialog_handlers::handle_config_window_keyboard(
-                            app_state,
-                            key_event,
-                            app_config,
-                        )
-                    {
+                    if let Some(action) = crate::ui::dialog_handlers::handle_config_window_keyboard(
+                        app_state, key_event, app_config,
+                    ) {
                         let (_, rows) = backend.dimensions();
                         let result = process_config_action(action, app_state, app_config, rows);
                         apply_config_result(&result, charset, theme);
