@@ -398,7 +398,14 @@ pub fn forward_to_terminal(key_event: KeyEvent, window_manager: &mut WindowManag
             }
         }
         KeyCode::Enter => {
-            let _ = window_manager.send_to_focused("\r");
+            // Check for Shift+Enter - send CSI u sequence for modified Enter
+            // This requires keyboard enhancement protocol support in the terminal
+            if key_event.modifiers.contains(KeyModifiers::SHIFT) {
+                // CSI u encoding: ESC [ 13 ; 2 u (13 = Enter keycode, 2 = Shift modifier)
+                let _ = window_manager.send_to_focused("\x1b[13;2u");
+            } else {
+                let _ = window_manager.send_to_focused("\r");
+            }
         }
         KeyCode::Backspace => {
             let _ = window_manager.send_to_focused("\x7f");

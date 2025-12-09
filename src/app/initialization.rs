@@ -10,7 +10,7 @@ use crate::rendering::FramebufferBackend;
 use crate::rendering::{Charset, RenderBackend, TerminalBackend, Theme, VideoBuffer};
 use crate::term_emu::ShellConfig;
 use crate::window::manager::WindowManager;
-use crossterm::{cursor, event, execute, style, terminal};
+use crossterm::{cursor, event, execute, queue, style, terminal};
 use std::io;
 #[cfg(unix)]
 use std::io::Write;
@@ -155,6 +155,18 @@ pub fn setup_terminal(stdout: &mut io::Stdout) -> io::Result<()> {
             cursor::Hide,
             event::EnableMouseCapture
         )?;
+    }
+
+    // Enable keyboard enhancement protocol if supported (kitty keyboard protocol)
+    // This allows distinguishing Shift+Enter from plain Enter, and other modified keys
+    if terminal::supports_keyboard_enhancement().unwrap_or(false) {
+        queue!(
+            stdout,
+            event::PushKeyboardEnhancementFlags(
+                event::KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+            )
+        )?;
+        stdout.flush()?;
     }
 
     // Clear the screen
@@ -338,21 +350,27 @@ pub fn initialize_mouse_input(
 /// Cleanup function to restore terminal state (fallible version)
 /// Following ratatui's pattern: disable raw mode FIRST as it has the most side effects
 pub fn try_cleanup(stdout: &mut io::Stdout) -> io::Result<()> {
-    // 1. Disable raw mode FIRST (has the most side effects)
+    // 1. Pop keyboard enhancement flags if they were enabled
+    // Do this before disabling raw mode to ensure proper cleanup
+    if terminal::supports_keyboard_enhancement().unwrap_or(false) {
+        let _ = execute!(stdout, event::PopKeyboardEnhancementFlags);
+    }
+
+    // 2. Disable raw mode (has the most side effects)
     // This follows ratatui's best practice for reliable terminal restoration
     terminal::disable_raw_mode()?;
 
-    // 2. Leave alternate screen and show cursor
+    // 3. Leave alternate screen and show cursor
     execute!(stdout, terminal::LeaveAlternateScreen, cursor::Show)?;
 
-    // 3. Disable mouse capture (only if not on console/TTY)
+    // 4. Disable mouse capture (only if not on console/TTY)
     let is_console = is_console_environment();
 
     if !is_console {
         execute!(stdout, event::DisableMouseCapture)?;
     }
 
-    // 4. Final color reset
+    // 5. Final color reset
     execute!(stdout, style::ResetColor)?;
 
     Ok(())
