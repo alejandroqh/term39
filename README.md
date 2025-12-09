@@ -191,7 +191,9 @@ cargo build --release --no-default-features
 
 **Note**: The `--no-default-features` flag disables system clipboard integration (which is not supported on Android). Copy/paste will still work within the app using an internal buffer.
 
-### FreeBSD
+### FreeBSD (Experimental)
+
+> **Note:** BSD support is experimental. Please report any issues on [GitHub](https://github.com/alejandroqh/term39/issues).
 
 Download from [Releases](https://github.com/alejandroqh/term39/releases/latest):
 
@@ -210,7 +212,9 @@ cargo build --release --no-default-features --features bsd
 cargo build --release --no-default-features --features bsd-minimal
 ```
 
-### NetBSD / OpenBSD
+### NetBSD / OpenBSD (Experimental)
+
+> **Note:** BSD support is experimental. Please report any issues on [GitHub](https://github.com/alejandroqh/term39/issues).
 
 Build from source (no pre-built binaries available):
 
@@ -507,17 +511,17 @@ cargo install term39 --no-default-features --features clipboard
 sudo ./target/release/term39 -f --fb-mode=80x25
 ```
 
-### `bsd` Feature Profile
+### `bsd` Feature Profile (Experimental)
 
-Full BSD support with PAM lockscreen (FreeBSD, NetBSD).
+Full BSD support with PAM lockscreen (FreeBSD, NetBSD). BSD support is experimental.
 
 ```bash
 cargo build --release --no-default-features --features bsd
 ```
 
-### `bsd-minimal` Feature Profile
+### `bsd-minimal` Feature Profile (Experimental)
 
-BSD support without PAM (OpenBSD, or when PAM is unavailable).
+BSD support without PAM (OpenBSD, or when PAM is unavailable). BSD support is experimental.
 
 ```bash
 cargo build --release --no-default-features --features bsd-minimal
