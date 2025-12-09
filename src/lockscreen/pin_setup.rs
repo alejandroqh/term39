@@ -1,9 +1,7 @@
 //! PIN Setup Dialog for configuring PIN authentication.
 
-use crate::charset::{Charset, CharsetMode};
 use crate::lockscreen::auth::{MAX_PIN_LENGTH, MIN_PIN_LENGTH, PinAuthenticator, secure_clear};
-use crate::theme::Theme;
-use crate::video_buffer::{self, Cell, VideoBuffer};
+use crate::rendering::{Cell, Charset, CharsetMode, Theme, VideoBuffer, render_shadow};
 use crossterm::style::Color;
 
 /// State of the PIN setup dialog
@@ -511,7 +509,7 @@ impl PinSetupDialog {
         }
 
         // Shadow
-        video_buffer::render_shadow(
+        render_shadow(
             buffer,
             x,
             y,

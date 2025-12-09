@@ -125,6 +125,14 @@ jobs:
             bitwidth: 64bit
             arch: arm
 
+          # FreeBSD x86_64
+          - target: x86_64-unknown-freebsd
+            os: ubuntu-latest
+            platform: freebsd
+            bitwidth: 64bit
+            arch: x86
+            use_cross: true
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -149,6 +157,10 @@ jobs:
       - name: Install cargo-zigbuild
         if: matrix.use_zigbuild
         run: cargo install cargo-zigbuild
+
+      - name: Install cross
+        if: matrix.use_cross
+        run: cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -175,12 +187,16 @@ jobs:
             ${{ runner.os }}-cargo-build-target-${{ matrix.target }}-
 
       - name: Build binary (native)
-        if: ${{ !matrix.use_zigbuild }}
+        if: ${{ !matrix.use_zigbuild && !matrix.use_cross }}
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Build binary (zigbuild - Linux musl without PAM)
         if: matrix.use_zigbuild
         run: cargo zigbuild --release --target ${{ matrix.target }} --no-default-features --features clipboard,framebuffer-backend,battery
+
+      - name: Build binary (cross - FreeBSD)
+        if: matrix.use_cross
+        run: cross build --release --target ${{ matrix.target }} --no-default-features --features bsd-minimal
 
       - name: Package binary (Unix)
         if: runner.os != 'Windows'

@@ -8,7 +8,10 @@
 
 #[cfg(target_os = "macos")]
 mod macos_auth;
-#[cfg(all(target_os = "linux", feature = "lockscreen"))]
+#[cfg(all(
+    any(target_os = "linux", target_os = "freebsd", target_os = "netbsd"),
+    feature = "lockscreen"
+))]
 mod pam_auth;
 mod pin_auth;
 mod stub_auth;
@@ -17,7 +20,7 @@ mod windows_auth;
 
 pub use pin_auth::{MAX_PIN_LENGTH, MIN_PIN_LENGTH, PinAuthenticator, secure_clear};
 
-use crate::config_manager::LockscreenAuthMode;
+use crate::app::config_manager::LockscreenAuthMode;
 
 /// Result of an authentication attempt
 #[derive(Debug, Clone, PartialEq)]
@@ -54,9 +57,13 @@ pub const fn is_os_auth_compiled() -> bool {
         any(
             target_os = "linux",
             target_os = "macos",
-            target_os = "windows"
+            target_os = "windows",
+            target_os = "freebsd",
+            target_os = "netbsd"
         )
     ))
+    // Note: OpenBSD is excluded - it uses BSD Auth which requires different handling
+    // OpenBSD users should use PIN authentication
 }
 
 /// Check if OS-level authentication is available at runtime
@@ -66,7 +73,10 @@ pub fn is_os_auth_available() -> bool {
         return false;
     }
 
-    #[cfg(all(target_os = "linux", feature = "lockscreen"))]
+    #[cfg(all(
+        any(target_os = "linux", target_os = "freebsd", target_os = "netbsd"),
+        feature = "lockscreen"
+    ))]
     {
         if let Ok(auth) = pam_auth::PamAuthenticator::new() {
             return auth.is_available();
@@ -112,7 +122,10 @@ pub fn create_authenticator_with_mode(
 
 /// Factory function to create the platform-specific authenticator
 pub fn create_authenticator() -> Box<dyn Authenticator> {
-    #[cfg(all(target_os = "linux", feature = "lockscreen"))]
+    #[cfg(all(
+        any(target_os = "linux", target_os = "freebsd", target_os = "netbsd"),
+        feature = "lockscreen"
+    ))]
     {
         if let Ok(auth) = pam_auth::PamAuthenticator::new() {
             if auth.is_available() {
@@ -140,6 +153,7 @@ pub fn create_authenticator() -> Box<dyn Authenticator> {
     }
 
     // Fallback to stub (always unavailable)
+    // OpenBSD users will get this by default - they should use PIN auth
     Box::new(stub_auth::StubAuthenticator::new())
 }
 

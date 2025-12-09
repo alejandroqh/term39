@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0] - 2025-12-09
+
+### Added
+
+- **BSD support (Experimental)**: FreeBSD, NetBSD, and OpenBSD platform support
+  - FreeBSD: `/dev/sysmouse` raw mouse input, PAM lockscreen authentication
+  - NetBSD: `/dev/wsmouse` wscons protocol support, PAM lockscreen authentication
+  - OpenBSD: `/dev/wsmouse` wscons protocol support, PIN-based authentication (no PAM)
+  - New `bsd` feature profile for BSD with PAM lockscreen
+  - New `bsd-minimal` feature profile for BSD without PAM (OpenBSD)
+
+### Changed
+
+- **Improved dialog closing**: Better window prompt closing behavior
+- **Window tiling organization**: Improved auto-tiling layout for windows
+- **Window button response**: Enhanced responsiveness of window buttons
+- **Code optimization**: Dead code removal, main.rs optimization, folder reorganization
+- **ANSI standard colors**: More compliant standard color handling
+- **Cargo build simplification**: Simplified Cargo build configurations
+
+### Fixed
+
+- **Terminal compatibility**: Improved Kitty keyboard protocol support for dialog closing
+
 ## [0.18.0] - 2025-12-05
 
 ### Added
@@ -453,6 +477,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.19.0]: https://github.com/alejandroqh/term39/releases/tag/v0.19.0
 [0.18.0]: https://github.com/alejandroqh/term39/releases/tag/v0.18.0
 [0.17.2]: https://github.com/alejandroqh/term39/releases/tag/v0.17.2
 [0.17.0]: https://github.com/alejandroqh/term39/releases/tag/v0.17.0

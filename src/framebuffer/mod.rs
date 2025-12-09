@@ -10,9 +10,17 @@
 //! - 80x50 (8x8 character cells) - high density mode
 
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
+pub mod cli_handlers;
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
+pub mod fb_config;
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 pub mod fb_renderer;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
+pub mod fb_setup_window;
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 pub mod font_manager;
+#[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
+pub mod setup_wizard;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 pub mod text_modes;
 
@@ -21,6 +29,6 @@ pub use fb_renderer::FramebufferRenderer;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 pub use text_modes::TextMode;
 
-// Re-export mouse input types from top-level module
+// Re-export mouse input types from input module
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
-pub use crate::mouse_input::{CursorTracker, MouseInput};
+pub use crate::input::mouse::{CursorTracker, MouseInputManager as MouseInput};
