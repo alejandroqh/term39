@@ -631,17 +631,6 @@ pub fn handle_taskbar_menu_mouse(
                         }
                         MenuAction::CloseWindow => {
                             window_manager.close_window(window_id);
-                            // If auto-tiling is enabled and only 1 window remains, maximize it
-                            if app_state.auto_tiling_enabled && window_manager.window_count() == 1 {
-                                if let Some(remaining_id) = window_manager.get_first_window_id() {
-                                    window_manager.maximize_window(
-                                        remaining_id,
-                                        cols,
-                                        rows - 2, // Account for top and bottom bars
-                                        tiling_gaps,
-                                    );
-                                }
-                            }
                         }
                         MenuAction::Copy
                         | MenuAction::Paste

@@ -110,19 +110,7 @@ pub fn run(
         // Auto-reposition remaining windows if any were closed
         if windows_closed && app_state.auto_tiling_enabled {
             let (cols, rows) = backend.dimensions();
-            // If only 1 window remains, maximize it
-            if window_manager.window_count() == 1 {
-                if let Some(remaining_id) = window_manager.get_first_window_id() {
-                    window_manager.maximize_window(
-                        remaining_id,
-                        cols,
-                        rows,
-                        app_config.tiling_gaps,
-                    );
-                }
-            } else {
-                window_manager.auto_position_windows(cols, rows, app_config.tiling_gaps);
-            }
+            window_manager.auto_position_windows(cols, rows, app_config.tiling_gaps);
         }
 
         // Poll unified mouse input manager for raw input events (TTY mode only)
@@ -311,23 +299,11 @@ pub fn run(
                                 window_manager.close_window(window_id);
                                 if app_state.auto_tiling_enabled {
                                     let (cols, rows) = backend.dimensions();
-                                    // If only 1 window remains, maximize it
-                                    if window_manager.window_count() == 1 {
-                                        if let Some(remaining_id) = window_manager.get_first_window_id() {
-                                            window_manager.maximize_window(
-                                                remaining_id,
-                                                cols,
-                                                rows,
-                                                app_config.tiling_gaps,
-                                            );
-                                        }
-                                    } else {
-                                        window_manager.auto_position_windows(
-                                            cols,
-                                            rows,
-                                            app_config.tiling_gaps,
-                                        );
-                                    }
+                                    window_manager.auto_position_windows(
+                                        cols,
+                                        rows,
+                                        app_config.tiling_gaps,
+                                    );
                                 }
                             }
                             continue; // Handled
@@ -675,23 +651,11 @@ pub fn run(
                         // Auto-reposition remaining windows if a window was closed
                         if window_closed && app_state.auto_tiling_enabled {
                             let (cols, rows) = backend.dimensions();
-                            // If only 1 window remains, maximize it
-                            if window_manager.window_count() == 1 {
-                                if let Some(remaining_id) = window_manager.get_first_window_id() {
-                                    window_manager.maximize_window(
-                                        remaining_id,
-                                        cols,
-                                        rows,
-                                        app_config.tiling_gaps,
-                                    );
-                                }
-                            } else {
-                                window_manager.auto_position_windows(
-                                    cols,
-                                    rows,
-                                    app_config.tiling_gaps,
-                                );
-                            }
+                            window_manager.auto_position_windows(
+                                cols,
+                                rows,
+                                app_config.tiling_gaps,
+                            );
                         }
                     }
 

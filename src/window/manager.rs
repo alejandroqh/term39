@@ -384,11 +384,10 @@ impl WindowManager {
 
             match count {
                 1 => {
-                    // Center position with dynamic size (no gaps for single window)
-                    let (width, height) = Self::calculate_window_size(buffer_width, buffer_height);
-                    let x = (buffer_width.saturating_sub(width)) / 2;
-                    let y = 1 + (usable_height.saturating_sub(height)) / 2;
-                    vec![(x, y, width, height)]
+                    // Single window fills the screen with gaps (like maximized)
+                    let full_width = buffer_width.saturating_sub(2 * EDGE_GAP + SHADOW_SIZE);
+                    let full_height = buffer_height.saturating_sub(1 + 2 * EDGE_GAP + SHADOW_SIZE);
+                    vec![(left_x, top_y, full_width, full_height)]
                 }
                 2 => {
                     // Two windows: left and right with full height
@@ -1810,11 +1809,6 @@ impl WindowManager {
         } else {
             None
         }
-    }
-
-    /// Get the ID of the first window (useful when only 1 window remains)
-    pub fn get_first_window_id(&self) -> Option<u32> {
-        self.windows.first().map(|w| w.id())
     }
 
     /// Move the focused window by a relative offset with bounds checking
