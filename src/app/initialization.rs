@@ -11,9 +11,7 @@ use crate::rendering::{Charset, RenderBackend, TerminalBackend, Theme, VideoBuff
 use crate::term_emu::ShellConfig;
 use crate::window::manager::WindowManager;
 use crossterm::{cursor, event, execute, queue, style, terminal};
-use std::io;
-#[cfg(unix)]
-use std::io::Write;
+use std::io::{self, Write};
 
 /// Initializes the rendering backend based on CLI arguments
 pub fn initialize_backend(
