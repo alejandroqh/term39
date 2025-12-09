@@ -16,9 +16,9 @@ mod bsd;
 
 // Re-export public types
 pub use cursor::CursorTracker;
-pub use types::{MouseButtons, MouseInputMode};
 #[cfg(unix)]
 pub use types::RawMouseEvent;
+pub use types::{MouseButtons, MouseInputMode};
 
 #[cfg(target_os = "linux")]
 pub use linux::RawMouseInput;
