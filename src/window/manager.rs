@@ -888,6 +888,8 @@ impl WindowManager {
                 // Check if clicking on a resizable border (only if not maximized)
                 if !is_maximized {
                     if let Some(edge) = resize_edge {
+                        // Focus the window when clicking on resize border
+                        self.focus_window(window_id);
                         self.resizing = Some(ResizeState {
                             window_id,
                             edge,
@@ -904,6 +906,8 @@ impl WindowManager {
 
                 // Check if clicking scrollbar
                 if is_on_scrollbar {
+                    // Focus the window when clicking on scrollbar
+                    self.focus_window(window_id);
                     if is_on_thumb {
                         // Start dragging scrollbar thumb
                         self.scrollbar_dragging = Some(ScrollbarDragState {

@@ -760,6 +760,19 @@ pub fn handle_selection_mouse(
                 return false;
             }
 
+            // Check if clicking on a different window than the focused one
+            // If so, let the window manager handle focus change first
+            if let Some(clicked_window_id) =
+                window_manager.window_at(mouse_event.column, mouse_event.row)
+            {
+                if let FocusState::Window(focused_id) = window_manager.get_focus() {
+                    if clicked_window_id != focused_id {
+                        // Clicking on a different window - let window manager handle focus
+                        return false;
+                    }
+                }
+            }
+
             if let FocusState::Window(window_id) = window_manager.get_focus() {
                 // Track click timing and position for double/triple-click detection
                 let now = Instant::now();
