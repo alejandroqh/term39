@@ -1435,6 +1435,16 @@ impl WindowManager {
         false
     }
 
+    /// Check if the focused window has a close confirmation dialog active
+    pub fn focused_has_close_confirmation(&self) -> bool {
+        if let FocusState::Window(id) = self.focus {
+            if let Some(terminal_window) = self.get_window_by_id(id) {
+                return terminal_window.has_close_confirmation();
+            }
+        }
+        false
+    }
+
     /// Forward a mouse event to the focused terminal window
     /// Returns true if the event was consumed (forwarded to child process)
     /// button: 0=left, 1=middle, 2=right, 64=scroll up, 65=scroll down

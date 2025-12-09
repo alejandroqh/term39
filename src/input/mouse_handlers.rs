@@ -713,9 +713,11 @@ pub fn handle_selection_mouse(
     mouse_event: &MouseEvent,
 ) -> bool {
     // Check if we should forward mouse to the terminal child process
+    // Don't forward if a close confirmation dialog is active - dialog must capture clicks
     let forward_to_terminal = window_manager.focused_has_mouse_tracking()
         && !window_manager.is_dragging_or_resizing()
-        && !window_manager.is_point_on_drag_or_resize_area(mouse_event.column, mouse_event.row);
+        && !window_manager.is_point_on_drag_or_resize_area(mouse_event.column, mouse_event.row)
+        && !window_manager.focused_has_close_confirmation();
 
     if forward_to_terminal {
         // Forward mouse event to child process (e.g., dialog, vim)
@@ -744,6 +746,11 @@ pub fn handle_selection_mouse(
         ) {
             return true;
         }
+    }
+
+    // Skip selection if a close confirmation dialog is active - let window manager handle it
+    if window_manager.focused_has_close_confirmation() {
+        return false;
     }
 
     match mouse_event.kind {
