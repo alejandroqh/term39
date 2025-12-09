@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use vte::Parser;
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(not(target_os = "linux"))]
 use std::process::Command;
 
 /// Shell configuration for terminal emulator

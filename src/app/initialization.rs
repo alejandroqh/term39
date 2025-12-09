@@ -258,7 +258,7 @@ pub fn initialize_video_buffer(backend: &dyn RenderBackend) -> VideoBuffer {
     target_os = "openbsd"
 ))]
 pub fn initialize_mouse_input(
-    cli_args: &Cli,
+    #[cfg_attr(not(target_os = "linux"), allow(unused_variables))] cli_args: &Cli,
     cols: u16,
     rows: u16,
     is_framebuffer_mode: bool,
@@ -278,12 +278,31 @@ pub fn initialize_mouse_input(
         None
     };
 
-    // Get mouse configuration
+    // Get mouse configuration (Linux-specific options, use defaults for BSD)
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     let device_path = cli_args.mouse_device.as_deref();
+    #[cfg(not(all(target_os = "linux", feature = "framebuffer-backend")))]
+    let device_path: Option<&str> = None;
+
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     let invert_x = cli_args.invert_mouse_x;
+    #[cfg(not(all(target_os = "linux", feature = "framebuffer-backend")))]
+    let invert_x = false;
+
+    #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     let invert_y = cli_args.invert_mouse_y;
+    #[cfg(not(all(target_os = "linux", feature = "framebuffer-backend")))]
+    let invert_y = false;
+
+    #[cfg(target_os = "linux")]
     let swap_buttons = cli_args.swap_mouse_buttons;
+    #[cfg(not(target_os = "linux"))]
+    let swap_buttons = false;
+
+    #[cfg(target_os = "linux")]
     let sensitivity = cli_args.mouse_sensitivity;
+    #[cfg(not(target_os = "linux"))]
+    let sensitivity: Option<f32> = None;
 
     // Create the mouse input manager
     let manager = MouseInputManager::new(

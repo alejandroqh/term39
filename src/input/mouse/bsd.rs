@@ -18,6 +18,7 @@ pub struct RawMouseInput {
     _protocol: FreeBsdProtocol,
     #[cfg(any(target_os = "netbsd", target_os = "openbsd"))]
     _protocol: WsconsProtocol,
+    #[allow(dead_code)] // Used for button state tracking in read_*_event methods
     buttons: MouseButtons,
 }
 
