@@ -66,8 +66,8 @@ impl Window {
     /// Check if point is in close button [X]
     pub fn is_in_close_button(&self, x: u16, y: u16) -> bool {
         // [X] is at position x+2 (after 2-char left border)
-        // Button layout: "[X] [+] [_] " - Close is chars 0-2 (positions 2-4)
-        y == self.y && x > self.x + 1 && x <= self.x + 4
+        // Button layout: "[X] [+] [_] " - Close is at positions 2-4
+        y == self.y && x >= self.x + 2 && x <= self.x + 4
     }
 
     /// Check if point is in maximize button [+]

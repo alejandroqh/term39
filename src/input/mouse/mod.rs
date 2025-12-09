@@ -287,22 +287,24 @@ impl MouseInputManager {
         }
 
         // Drag events (movement while button held)
+        // Only generate drag if button was already pressed (not just pressed this frame)
+        // to prevent Down+Drag double-events on initial click with movement
         if raw.dx != 0 || raw.dy != 0 {
-            if buttons.left {
+            if buttons.left && self.prev_buttons.left {
                 self.event_queue.push_back(MouseEvent {
                     kind: MouseEventKind::Drag(MouseButton::Left),
                     column: col,
                     row,
                     modifiers: KeyModifiers::empty(),
                 });
-            } else if buttons.right {
+            } else if buttons.right && self.prev_buttons.right {
                 self.event_queue.push_back(MouseEvent {
                     kind: MouseEventKind::Drag(MouseButton::Right),
                     column: col,
                     row,
                     modifiers: KeyModifiers::empty(),
                 });
-            } else if buttons.middle {
+            } else if buttons.middle && self.prev_buttons.middle {
                 self.event_queue.push_back(MouseEvent {
                     kind: MouseEventKind::Drag(MouseButton::Middle),
                     column: col,

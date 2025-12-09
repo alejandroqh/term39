@@ -1596,6 +1596,8 @@ impl WindowManager {
         if let Some(win) = self.get_window_by_id_mut(window_id) {
             if win.window.is_minimized {
                 win.window.restore_from_minimize();
+            } else if win.window.is_maximized {
+                win.window.restore_from_maximize();
             }
         }
         self.focus_window(window_id);
@@ -1728,12 +1730,22 @@ impl WindowManager {
 
     /// Check if a point is on a window's title bar or resize edge
     /// Returns true if clicking here would start a drag or resize operation
+    /// Also returns true for buttons (they're UI elements that shouldn't forward to terminal)
     pub fn is_point_on_drag_or_resize_area(&self, x: u16, y: u16) -> bool {
         if let Some(window_id) = self.window_at(x, y) {
             if let Some(terminal_window) = self.get_window_by_id(window_id) {
                 let w = &terminal_window.window;
-                // Check if on title bar (would start drag) or resize edge (would start resize)
-                // Don't count if window is maximized (can't drag/resize maximized windows)
+
+                // ALWAYS check buttons first - they're UI elements regardless of window state
+                if terminal_window.is_in_close_button(x, y)
+                    || w.is_in_maximize_button(x, y)
+                    || w.is_in_minimize_button(x, y)
+                {
+                    return true;
+                }
+
+                // Check drag/resize areas only for non-maximized windows
+                // (can't drag/resize maximized windows)
                 if !w.is_maximized {
                     if terminal_window.is_in_title_bar(x, y) || w.get_resize_edge(x, y).is_some() {
                         return true;
