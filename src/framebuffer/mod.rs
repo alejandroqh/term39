@@ -31,4 +31,4 @@ pub use text_modes::TextMode;
 
 // Re-export mouse input types from input module
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
-pub use crate::input::mouse::{CursorTracker, MouseInputManager as MouseInput};
+pub use crate::input::mouse::{CursorTracker, RawMouseInput as MouseInput};

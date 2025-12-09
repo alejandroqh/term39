@@ -8,7 +8,7 @@ use crate::framebuffer::font_manager::FontManager;
 use crate::rendering::{Charset, RenderBackend, Theme, VideoBuffer};
 use crossterm::event::{self, Event, KeyEventKind, MouseButton, MouseEventKind};
 use crossterm::terminal;
-use std::io::{self, Write};
+use std::io;
 use std::os::unix::process::CommandExt;
 use std::time::Duration;
 
