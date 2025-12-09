@@ -1,6 +1,6 @@
 [package]
 name = "term39"
-version = "0.19.1"
+version = "0.19.3"
 edition = "2024"
 license = "MIT"
 authors = ["Alejandro Quintanar"]
@@ -72,6 +72,48 @@ windows-sys = { version = "0.61", features = ["Win32_Security", "Win32_Foundatio
 
 [build-dependencies]
 winres = "0.1"
+
+# cargo-binstall support
+# See: https://github.com/cargo-bins/cargo-binstall/blob/main/SUPPORT.md
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/term39-{ version }-{ target-family }-{ target-arch }-binary{ archive-suffix }"
+bin-dir = "{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
+
+# Target-specific overrides for the custom naming convention
+[package.metadata.binstall.overrides]
+# Linux x86_64
+x86_64-unknown-linux-gnu.pkg-url = "{ repo }/releases/download/v{ version }/term39-{ version }-linux-64bit-x86-binary.tar.gz"
+x86_64-unknown-linux-musl.pkg-url = "{ repo }/releases/download/v{ version }/term39-{ version }-linux-64bit-x86-binary.tar.gz"
+
+# Linux i686 (32-bit)
+i686-unknown-linux-gnu.pkg-url = "{ repo }/releases/download/v{ version }/term39-{ version }-linux-32bit-x86-binary.tar.gz"
+i686-unknown-linux-musl.pkg-url = "{ repo }/releases/download/v{ version }/term39-{ version }-linux-32bit-x86-binary.tar.gz"
+
+# Linux ARM64
+aarch64-unknown-linux-gnu.pkg-url = "{ repo }/releases/download/v{ version }/term39-{ version }-linux-64bit-arm-binary.tar.gz"
+aarch64-unknown-linux-musl.pkg-url = "{ repo }/releases/download/v{ version }/term39-{ version }-linux-64bit-arm-binary.tar.gz"
+
+# macOS x86_64 (Intel)
+x86_64-apple-darwin.pkg-url = "{ repo }/releases/download/v{ version }/term39-{ version }-macos-64bit-x86-binary.tar.gz"
+
+# macOS ARM64 (Apple Silicon)
+aarch64-apple-darwin.pkg-url = "{ repo }/releases/download/v{ version }/term39-{ version }-macos-64bit-arm-binary.tar.gz"
+
+# Windows x86_64
+x86_64-pc-windows-msvc.pkg-url = "{ repo }/releases/download/v{ version }/term39-{ version }-windows-64bit-x86-binary.zip"
+x86_64-pc-windows-msvc.pkg-fmt = "zip"
+
+# Windows i686 (32-bit)
+i686-pc-windows-msvc.pkg-url = "{ repo }/releases/download/v{ version }/term39-{ version }-windows-32bit-x86-binary.zip"
+i686-pc-windows-msvc.pkg-fmt = "zip"
+
+# Windows ARM64
+aarch64-pc-windows-msvc.pkg-url = "{ repo }/releases/download/v{ version }/term39-{ version }-windows-64bit-arm-binary.zip"
+aarch64-pc-windows-msvc.pkg-fmt = "zip"
+
+# FreeBSD x86_64
+x86_64-unknown-freebsd.pkg-url = "{ repo }/releases/download/v{ version }/term39-{ version }-freebsd-64bit-x86-binary.tar.gz"
 
 [package.metadata.deb]
 maintainer = "Alejandro Quintanar <a@q39.dev>"
