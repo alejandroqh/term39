@@ -477,6 +477,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.19.1]: https://github.com/alejandroqh/term39/releases/tag/v0.19.1
 [0.19.0]: https://github.com/alejandroqh/term39/releases/tag/v0.19.0
 [0.18.0]: https://github.com/alejandroqh/term39/releases/tag/v0.18.0
 [0.17.2]: https://github.com/alejandroqh/term39/releases/tag/v0.17.2
