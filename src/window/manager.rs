@@ -1812,6 +1812,11 @@ impl WindowManager {
         }
     }
 
+    /// Get the ID of the first window (useful when only 1 window remains)
+    pub fn get_first_window_id(&self) -> Option<u32> {
+        self.windows.first().map(|w| w.id())
+    }
+
     /// Move the focused window by a relative offset with bounds checking
     /// `top_y` is typically 1 (row 0 is the top bar)
     pub fn move_focused_window_by(
