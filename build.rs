@@ -7,7 +7,13 @@ fn main() {
     #[cfg(target_os = "windows")]
     {
         let mut res = winres::WindowsResource::new();
-        res.set_icon("assets/term39.ico");
+
+        // Only set icon if assets folder exists (not present when installed via cargo install)
+        let icon_path = "assets/term39.ico";
+        if std::path::Path::new(icon_path).exists() {
+            res.set_icon(icon_path);
+        }
+
         res.set("ProductName", "term39");
         res.set(
             "FileDescription",
