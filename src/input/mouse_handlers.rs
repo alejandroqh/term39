@@ -354,6 +354,9 @@ pub fn handle_topbar_click(
             .new_terminal_button
             .set_state(ButtonState::Pressed);
 
+        // Check if this will be the first window
+        let is_first_window = window_manager.window_count() == 0;
+
         let (width, height) = WindowManager::calculate_window_size(cols, rows);
         let (x, y) = if app_state.auto_tiling_enabled {
             let x = (cols.saturating_sub(width)) / 2;
@@ -371,8 +374,12 @@ pub fn handle_topbar_click(
             format!("Terminal {}", window_manager.window_count() + 1),
             None,
         ) {
-            Ok(_) => {
-                if app_state.auto_tiling_enabled {
+            Ok(window_id) => {
+                // When auto-tiling is enabled and this is the first window, maximize it
+                if app_state.auto_tiling_enabled && is_first_window {
+                    window_manager.maximize_window(window_id, cols, rows, tiling_gaps);
+                } else if app_state.auto_tiling_enabled {
+                    // For subsequent windows, use auto-positioning
                     window_manager.auto_position_windows(cols, rows, tiling_gaps);
                 }
             }

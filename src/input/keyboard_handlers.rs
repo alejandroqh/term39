@@ -350,11 +350,14 @@ pub fn handle_desktop_keyboard(
             return true;
         }
         KeyCode::Char('t') if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) => {
+            // When auto-tiling is enabled and this is the first window, create maximized terminal
+            let is_first_window = window_manager.window_count() == 0;
+            let maximized = app_state.auto_tiling_enabled && is_first_window;
             create_terminal_window(
                 app_state,
                 window_manager,
                 backend,
-                false,
+                maximized,
                 app_config.tiling_gaps,
             );
             return true;
