@@ -641,21 +641,21 @@ pub fn run(
                                         message,
                                         vec![
                                             PromptButton::new(
-                                                "Exit".to_string(),
-                                                PromptAction::Confirm,
-                                                true,
-                                            ),
-                                            PromptButton::new(
                                                 "Cancel".to_string(),
                                                 PromptAction::Cancel,
                                                 false,
+                                            ),
+                                            PromptButton::new(
+                                                "Exit".to_string(),
+                                                PromptAction::Confirm,
+                                                true,
                                             ),
                                         ],
                                         cols,
                                         rows,
                                     )
                                     .with_selection_indicators(true)
-                                    .with_selected_button(1),
+                                    .with_selected_button(0),
                                 );
                                 handled = true;
                             }
