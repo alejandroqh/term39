@@ -149,7 +149,11 @@ impl AppState {
             exit_button,
 
             // New Widget-based Top Bar
-            top_bar: TopBar::new(config.show_date_in_clock),
+            top_bar: {
+                let mut tb = TopBar::new(config.show_date_in_clock);
+                tb.configure_network(&config.network_interface, config.network_widget_enabled);
+                tb
+            },
 
             // Battery indicator hover state (legacy)
             battery_hovered: false,

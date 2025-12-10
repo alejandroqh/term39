@@ -1,8 +1,8 @@
 //! TopBar container that manages widget layout and rendering
 
 use super::{
-    BatteryWidget, CommandCenterWidget, DateTimeWidget, NewTermWidget, Widget, WidgetAlignment,
-    WidgetClickResult, WidgetContext,
+    BatteryWidget, CommandCenterWidget, DateTimeWidget, NetworkWidget, NewTermWidget, Widget,
+    WidgetAlignment, WidgetClickResult, WidgetContext,
 };
 use crate::rendering::{Cell, Theme, VideoBuffer};
 use crate::window::manager::FocusState;
@@ -23,8 +23,9 @@ pub struct TopBar {
     // Center-aligned widgets
     datetime: DateTimeWidget,
 
-    // Right-aligned widgets (from left to right: battery, command_center)
+    // Right-aligned widgets (from left to right: battery, network, command_center)
     battery: BatteryWidget,
+    network: NetworkWidget,
     command_center: CommandCenterWidget,
 
     // Cached positions (updated each frame)
@@ -37,9 +38,15 @@ impl TopBar {
             new_term: NewTermWidget::new(),
             datetime: DateTimeWidget::new(show_date_in_clock),
             battery: BatteryWidget::new(),
+            network: NetworkWidget::new(),
             command_center: CommandCenterWidget::new(),
             positions: Vec::new(),
         }
+    }
+
+    /// Configure the network widget with interface name and enabled state
+    pub fn configure_network(&mut self, interface: &str, enabled: bool) {
+        self.network.configure(interface, enabled);
     }
 
     /// Update widget state and calculate positions
@@ -48,6 +55,7 @@ impl TopBar {
         self.new_term.update(ctx);
         self.datetime.update(ctx);
         self.battery.update(ctx);
+        self.network.update(ctx);
         self.command_center.update(ctx);
 
         // Recalculate layout
@@ -69,7 +77,7 @@ impl TopBar {
         }
         let left_end = left_x + self.new_term.width();
 
-        // Right section: Command Center (rightmost), then Battery
+        // Right section: Command Center (rightmost), then Network, then Battery
         // Position from right edge: Command Center first (rightmost)
         let mut right_x = ctx.cols;
 
@@ -84,7 +92,18 @@ impl TopBar {
             });
         }
 
-        // Battery (left of command center)
+        // Network (left of command center)
+        if self.network.is_visible(ctx) {
+            let network_width = self.network.width();
+            right_x = right_x.saturating_sub(network_width);
+            self.positions.push(WidgetPosition {
+                alignment: WidgetAlignment::Right,
+                index: 2, // index 2 for network
+                x: right_x,
+            });
+        }
+
+        // Battery (left of network)
         if self.battery.is_visible(ctx) {
             let battery_width = self.battery.width();
             right_x = right_x.saturating_sub(battery_width);
@@ -151,6 +170,7 @@ impl TopBar {
                 (WidgetAlignment::Right, 1) => {
                     self.command_center.render(buffer, pos.x, theme, ctx.focus)
                 }
+                (WidgetAlignment::Right, 2) => self.network.render(buffer, pos.x, theme, ctx.focus),
                 _ => {}
             }
         }
@@ -178,6 +198,9 @@ impl TopBar {
                 (WidgetAlignment::Right, 1) => {
                     self.command_center.update_hover(mouse_x, mouse_y, pos.x);
                 }
+                (WidgetAlignment::Right, 2) => {
+                    self.network.update_hover(mouse_x, mouse_y, pos.x);
+                }
                 _ => {}
             }
         }
@@ -198,6 +221,7 @@ impl TopBar {
                 (WidgetAlignment::Right, 1) => {
                     self.command_center.handle_click(mouse_x, mouse_y, pos.x)
                 }
+                (WidgetAlignment::Right, 2) => self.network.handle_click(mouse_x, mouse_y, pos.x),
                 _ => WidgetClickResult::NotHandled,
             };
 
@@ -214,6 +238,7 @@ impl TopBar {
         self.new_term.reset_state();
         self.datetime.reset_state();
         self.battery.reset_state();
+        self.network.reset_state();
         self.command_center.reset_state();
     }
 

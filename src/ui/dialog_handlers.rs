@@ -311,6 +311,67 @@ pub fn handle_config_window_keyboard(
     config: &AppConfig,
 ) -> Option<ConfigAction> {
     if let Some(ref mut config_win) = app_state.active_config_window {
+        // Check if we're editing network interface input
+        if config_win.is_editing_network_interface() {
+            match key_event.code {
+                KeyCode::Char(c) => {
+                    if let Some(input) = config_win.get_network_input_mut() {
+                        input.insert_char(c);
+                    }
+                    return Some(ConfigAction::None);
+                }
+                KeyCode::Backspace => {
+                    if let Some(input) = config_win.get_network_input_mut() {
+                        input.delete_char();
+                    }
+                    return Some(ConfigAction::None);
+                }
+                KeyCode::Delete => {
+                    if let Some(input) = config_win.get_network_input_mut() {
+                        input.delete_char_forward();
+                    }
+                    return Some(ConfigAction::None);
+                }
+                KeyCode::Left => {
+                    if let Some(input) = config_win.get_network_input_mut() {
+                        input.move_cursor_left();
+                    }
+                    return Some(ConfigAction::None);
+                }
+                KeyCode::Right => {
+                    if let Some(input) = config_win.get_network_input_mut() {
+                        input.move_cursor_right();
+                    }
+                    return Some(ConfigAction::None);
+                }
+                KeyCode::Home => {
+                    if let Some(input) = config_win.get_network_input_mut() {
+                        input.move_cursor_home();
+                    }
+                    return Some(ConfigAction::None);
+                }
+                KeyCode::End => {
+                    if let Some(input) = config_win.get_network_input_mut() {
+                        input.move_cursor_end();
+                    }
+                    return Some(ConfigAction::None);
+                }
+                KeyCode::Enter => {
+                    // Save the interface name and exit editing mode
+                    return Some(ConfigAction::EditNetworkInterface);
+                }
+                KeyCode::Esc => {
+                    // Cancel editing
+                    config_win.cancel_editing_network_interface();
+                    return Some(ConfigAction::None);
+                }
+                _ => {
+                    return Some(ConfigAction::None);
+                }
+            }
+        }
+
+        // Normal config window navigation
         match key_event.code {
             KeyCode::Esc => {
                 // ESC dismisses the config window

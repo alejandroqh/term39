@@ -146,6 +146,36 @@ pub fn process_config_action(
             let salt = app_config.get_or_create_salt();
             app_state.start_pin_setup(salt);
         }
+        ConfigAction::ToggleNetworkWidget => {
+            // Check if we should start editing the interface name instead
+            if let Some(ref mut config_win) = app_state.active_config_window {
+                if !config_win.is_editing_network_interface() {
+                    // Start editing the interface name
+                    config_win.start_editing_network_interface(&app_config.network_interface);
+                    return result;
+                }
+            }
+            // If not in config window or already editing, toggle the widget
+            app_config.toggle_network_widget();
+            // Update the topbar network widget configuration
+            app_state.top_bar.configure_network(
+                &app_config.network_interface,
+                app_config.network_widget_enabled,
+            );
+        }
+        ConfigAction::EditNetworkInterface => {
+            // Save the interface name from the input field
+            if let Some(ref mut config_win) = app_state.active_config_window {
+                if let Some(new_interface) = config_win.stop_editing_network_interface() {
+                    app_config.set_network_interface(new_interface);
+                    // Update the topbar network widget configuration
+                    app_state.top_bar.configure_network(
+                        &app_config.network_interface,
+                        app_config.network_widget_enabled,
+                    );
+                }
+            }
+        }
         ConfigAction::None => {
             // Just navigation, no action needed
         }

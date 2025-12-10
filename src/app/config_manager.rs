@@ -34,6 +34,10 @@ pub struct AppConfig {
     pub lockscreen_pin_hash: Option<String>,
     #[serde(default)]
     pub lockscreen_salt: Option<String>,
+    #[serde(default)]
+    pub network_widget_enabled: bool,
+    #[serde(default)]
+    pub network_interface: String,
 }
 
 fn default_auto_tiling_on_startup() -> bool {
@@ -82,6 +86,8 @@ impl Default for AppConfig {
             lockscreen_auth_mode: LockscreenAuthMode::default(),
             lockscreen_pin_hash: None,
             lockscreen_salt: None,
+            network_widget_enabled: false,
+            network_interface: String::new(),
         }
     }
 }
@@ -370,5 +376,18 @@ impl AppConfig {
 
         let result = hasher.finalize();
         result.iter().map(|b| format!("{:02x}", b)).collect()
+    }
+
+    /// Toggle network widget enabled state and save
+    pub fn toggle_network_widget(&mut self) {
+        self.network_widget_enabled = !self.network_widget_enabled;
+        let _ = self.save();
+    }
+
+    /// Set network interface name and save
+    #[allow(dead_code)]
+    pub fn set_network_interface(&mut self, interface: String) {
+        self.network_interface = interface;
+        let _ = self.save();
     }
 }

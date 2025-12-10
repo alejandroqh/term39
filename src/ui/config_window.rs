@@ -1,6 +1,7 @@
 use crate::app::config_manager::{AppConfig, LockscreenAuthMode};
 use crate::lockscreen::auth::is_os_auth_compiled;
 use crate::rendering::{Cell, Charset, Theme, VideoBuffer, render_shadow};
+use crate::ui::simple_input::SimpleInput;
 
 /// Action to take based on config window interaction
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -20,6 +21,9 @@ pub enum ConfigAction {
     ToggleLockscreen,
     CycleLockscreenAuthMode,
     SetupPin,
+    ToggleNetworkWidget,
+    #[allow(dead_code)]
+    EditNetworkInterface,
 }
 
 /// Focusable options in the config window
@@ -35,6 +39,7 @@ pub enum ConfigOption {
     Lockscreen,
     AuthMode,
     PinSetup,
+    NetworkWidget,
 }
 
 /// Configuration modal window (centered, with border and title)
@@ -43,17 +48,20 @@ pub struct ConfigWindow {
     pub height: u16,
     pub x: u16,
     pub y: u16,
-    auto_arrange_row: u16,    // Row where auto arrange toggle is rendered
-    tiling_gaps_row: u16,     // Row where tiling gaps toggle is rendered (only when auto-tiling on)
-    show_date_row: u16,       // Row where show date toggle is rendered
-    theme_row: u16,           // Row where theme selector is rendered
+    auto_arrange_row: u16,          // Row where auto arrange toggle is rendered
+    tiling_gaps_row: u16, // Row where tiling gaps toggle is rendered (only when auto-tiling on)
+    show_date_row: u16,   // Row where show date toggle is rendered
+    theme_row: u16,       // Row where theme selector is rendered
     background_char_row: u16, // Row where background character selector is rendered
-    tint_terminal_row: u16,   // Row where tint terminal toggle is rendered
-    auto_save_row: u16,       // Row where auto-save toggle is rendered
-    lockscreen_row: u16,      // Row where lockscreen toggle is rendered
+    tint_terminal_row: u16, // Row where tint terminal toggle is rendered
+    auto_save_row: u16,   // Row where auto-save toggle is rendered
+    lockscreen_row: u16,  // Row where lockscreen toggle is rendered
     lockscreen_auth_row: u16, // Row where lockscreen auth mode is rendered
-    pin_setup_row: u16,       // Row where PIN setup button is rendered
+    pin_setup_row: u16,   // Row where PIN setup button is rendered
+    status_widgets_header_row: u16, // Row where "Status Bar Widgets" section header is rendered
+    network_widget_row: u16, // Row where network widget toggle + interface is rendered
     pub focused_option: Option<ConfigOption>, // Currently focused option for keyboard navigation
+    pub network_interface_input: Option<SimpleInput>, // Active input for network interface editing
 }
 
 impl ConfigWindow {
@@ -61,7 +69,7 @@ impl ConfigWindow {
     pub fn new(buffer_width: u16, buffer_height: u16) -> Self {
         // Fixed dimensions for config window
         let width = 60;
-        let height = 26; // Increased to fit tiling gaps option
+        let height = 30; // Increased to fit status bar widgets section
 
         // Center on screen
         let x = (buffer_width.saturating_sub(width)) / 2;
@@ -78,6 +86,8 @@ impl ConfigWindow {
         let lockscreen_row = y + 16; // Blank at y+15, lockscreen option at y+16
         let lockscreen_auth_row = y + 18; // Blank at y+17, auth mode option at y+18
         let pin_setup_row = y + 20; // Blank at y+19, PIN setup at y+20
+        let status_widgets_header_row = y + 22; // Blank at y+21, section header at y+22
+        let network_widget_row = y + 24; // Blank at y+23, network widget at y+24
 
         Self {
             width,
@@ -94,8 +104,36 @@ impl ConfigWindow {
             lockscreen_row,
             lockscreen_auth_row,
             pin_setup_row,
+            status_widgets_header_row,
+            network_widget_row,
             focused_option: Some(ConfigOption::AutoTiling),
+            network_interface_input: None,
         }
+    }
+
+    /// Check if we're currently editing the network interface input
+    pub fn is_editing_network_interface(&self) -> bool {
+        self.network_interface_input.is_some()
+    }
+
+    /// Start editing the network interface
+    pub fn start_editing_network_interface(&mut self, current_value: &str) {
+        self.network_interface_input = Some(SimpleInput::new(current_value, 15));
+    }
+
+    /// Stop editing and return the new value (if any)
+    pub fn stop_editing_network_interface(&mut self) -> Option<String> {
+        self.network_interface_input.take().map(|input| input.text)
+    }
+
+    /// Cancel editing without saving
+    pub fn cancel_editing_network_interface(&mut self) {
+        self.network_interface_input = None;
+    }
+
+    /// Get mutable reference to the input (for handling keystrokes)
+    pub fn get_network_input_mut(&mut self) -> Option<&mut SimpleInput> {
+        self.network_interface_input.as_mut()
     }
 
     /// Returns the list of currently visible/navigable options based on config state
@@ -122,6 +160,9 @@ impl ConfigWindow {
         {
             options.push(ConfigOption::PinSetup);
         }
+
+        // Status Bar Widgets section
+        options.push(ConfigOption::NetworkWidget);
 
         options
     }
@@ -178,6 +219,7 @@ impl ConfigWindow {
             Some(ConfigOption::Lockscreen) => ConfigAction::ToggleLockscreen,
             Some(ConfigOption::AuthMode) => ConfigAction::CycleLockscreenAuthMode,
             Some(ConfigOption::PinSetup) => ConfigAction::SetupPin,
+            Some(ConfigOption::NetworkWidget) => ConfigAction::ToggleNetworkWidget,
             None => ConfigAction::None,
         }
     }
@@ -437,6 +479,25 @@ impl ConfigWindow {
                 self.focused_option == Some(ConfigOption::PinSetup),
             );
         }
+
+        // Render "Status Bar Widgets" section header
+        self.render_section_header(
+            buffer,
+            self.status_widgets_header_row,
+            "Status Bar Widgets",
+            theme,
+        );
+
+        // Render network widget option
+        self.render_network_widget_option(
+            buffer,
+            self.network_widget_row,
+            config.network_widget_enabled,
+            &config.network_interface,
+            charset,
+            theme,
+            self.focused_option == Some(ConfigOption::NetworkWidget),
+        );
 
         // Render instruction at bottom
         let instruction = "Up/Down: navigate | Enter: select | ESC: close";
@@ -767,6 +828,110 @@ impl ConfigWindow {
         }
     }
 
+    /// Render a section header
+    fn render_section_header(
+        &self,
+        buffer: &mut VideoBuffer,
+        row: u16,
+        title: &str,
+        theme: &Theme,
+    ) {
+        let fg = theme.config_content_fg;
+        let bg = theme.config_content_bg;
+
+        // Render "─── Title ───" centered
+        let padding_left = "─── ";
+        let padding_right = " ───";
+        let header = format!("{}{}{}", padding_left, title, padding_right);
+        let header_x = self.x + 2;
+
+        for (i, ch) in header.chars().enumerate() {
+            buffer.set(header_x + i as u16, row, Cell::new(ch, fg, bg));
+        }
+    }
+
+    /// Render network widget option with toggle and interface name
+    #[allow(clippy::too_many_arguments)]
+    fn render_network_widget_option(
+        &self,
+        buffer: &mut VideoBuffer,
+        row: u16,
+        enabled: bool,
+        interface: &str,
+        charset: &Charset,
+        theme: &Theme,
+        focused: bool,
+    ) {
+        let is_editing = self.network_interface_input.is_some();
+
+        // Swap colors if focused for visual feedback (but not when editing input)
+        let (fg, bg) = if focused && !is_editing {
+            (theme.config_content_bg, theme.config_content_fg)
+        } else {
+            (theme.config_content_fg, theme.config_content_bg)
+        };
+
+        let option_x = self.x + 2; // 2 spaces from left border (1 for focus indicator)
+
+        // Render focus indicator
+        let indicator = if focused && !is_editing { '>' } else { ' ' };
+        buffer.set(self.x + 1, row, Cell::new(indicator, fg, bg));
+
+        // Render label "Network widget:"
+        let label = "Network widget:";
+        for (i, ch) in label.chars().enumerate() {
+            buffer.set(option_x + i as u16, row, Cell::new(ch, fg, bg));
+        }
+
+        // Render toggle indicator
+        let toggle_x = option_x + label.len() as u16 + 1;
+
+        if enabled {
+            // [█ on]
+            let toggle_on = format!("[{} on]", charset.block());
+            for (i, ch) in toggle_on.chars().enumerate() {
+                let color = if i == 1 {
+                    theme.config_toggle_on_color
+                } else {
+                    fg
+                };
+                buffer.set(toggle_x + i as u16, row, Cell::new(ch, color, bg));
+            }
+        } else {
+            // [off ░]
+            let toggle_off = format!("[off {}]", charset.shade());
+            for (i, ch) in toggle_off.chars().enumerate() {
+                let color = if i == 4 {
+                    theme.config_toggle_off_color
+                } else {
+                    fg
+                };
+                buffer.set(toggle_x + i as u16, row, Cell::new(ch, color, bg));
+            }
+        }
+
+        // Render interface name input or display
+        let interface_x = toggle_x + 8; // After toggle + space
+        let field_width = 17u16; // [15 chars + 2 brackets]
+
+        if let Some(ref input) = self.network_interface_input {
+            // Render active input field
+            input.render(buffer, interface_x, row, field_width, theme, true);
+        } else {
+            // Render static display
+            let interface_display = if interface.is_empty() {
+                "(not set)".to_string()
+            } else {
+                interface.to_string()
+            };
+            // Pad to 15 chars
+            let padded = format!("[{:<15}]", interface_display);
+            for (i, ch) in padded.chars().enumerate() {
+                buffer.set(interface_x + i as u16, row, Cell::new(ch, fg, bg));
+            }
+        }
+    }
+
     /// Handle mouse click and return appropriate action
     pub fn handle_click(&self, x: u16, y: u16, config: &AppConfig) -> ConfigAction {
         // Check if click is on auto tiling row
@@ -845,6 +1010,13 @@ impl ConfigWindow {
         {
             if x >= self.x && x < self.x + self.width {
                 return ConfigAction::SetupPin;
+            }
+        }
+
+        // Check if click is on network widget row
+        if y == self.network_widget_row {
+            if x >= self.x && x < self.x + self.width {
+                return ConfigAction::ToggleNetworkWidget;
             }
         }
 

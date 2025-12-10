@@ -9,6 +9,7 @@ use crate::window::manager::FocusState;
 pub mod battery;
 pub mod command_center;
 pub mod datetime;
+pub mod network;
 pub mod new_term;
 pub mod topbar;
 
@@ -16,6 +17,7 @@ pub mod topbar;
 pub use battery::BatteryWidget;
 pub use command_center::CommandCenterWidget;
 pub use datetime::DateTimeWidget;
+pub use network::NetworkWidget;
 pub use new_term::NewTermWidget;
 pub use topbar::TopBar;
 
