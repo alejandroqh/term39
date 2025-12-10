@@ -7,16 +7,12 @@ use super::{
 use crate::rendering::{Cell, Theme, VideoBuffer};
 use crate::window::manager::FocusState;
 
-/// Separator character between widget sections
-const SEPARATOR: char = '|';
-
 /// Position of a widget in the top bar
 #[derive(Clone, Debug)]
 struct WidgetPosition {
     alignment: WidgetAlignment,
     index: usize,
     x: u16,
-    width: u16,
 }
 
 /// Top bar container that manages widget layout and rendering
@@ -69,7 +65,6 @@ impl TopBar {
                 alignment: WidgetAlignment::Left,
                 index: 0,
                 x: left_x,
-                width: self.new_term.width(),
             });
         }
         let left_end = left_x + self.new_term.width();
@@ -86,7 +81,6 @@ impl TopBar {
                 alignment: WidgetAlignment::Right,
                 index: 1, // index 1 for command center
                 x: right_x,
-                width: cc_width,
             });
         }
 
@@ -98,7 +92,6 @@ impl TopBar {
                 alignment: WidgetAlignment::Right,
                 index: 0, // index 0 for battery
                 x: right_x,
-                width: battery_width,
             });
         }
 
@@ -122,7 +115,6 @@ impl TopBar {
                 alignment: WidgetAlignment::Center,
                 index: 0,
                 x: center_x,
-                width: datetime_width,
             });
         }
 
@@ -148,21 +140,8 @@ impl TopBar {
             buffer.set(x, 0, bar_cell);
         }
 
-        // Track last widget end position for separator placement
-        let mut last_end: Option<(u16, WidgetAlignment)> = None;
-
         // Render each positioned widget
         for pos in &self.positions {
-            // Draw separator between different alignment sections
-            if let Some((prev_end, prev_align)) = last_end {
-                if prev_align != pos.alignment && pos.x > prev_end + 1 {
-                    // Draw separator between sections
-                    let sep_x = (prev_end + pos.x) / 2;
-                    buffer.set(sep_x, 0, Cell::new_unchecked(SEPARATOR, fg_color, bg_color));
-                }
-            }
-
-            // Render the widget
             match (pos.alignment, pos.index) {
                 (WidgetAlignment::Left, 0) => self.new_term.render(buffer, pos.x, theme, ctx.focus),
                 (WidgetAlignment::Center, 0) => {
@@ -174,8 +153,6 @@ impl TopBar {
                 }
                 _ => {}
             }
-
-            last_end = Some((pos.x + pos.width, pos.alignment));
         }
     }
 
