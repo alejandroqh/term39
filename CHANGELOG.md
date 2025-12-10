@@ -5,11 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.18.0] - 2025-12-05
+## [0.19.5] - 2025-12-10
+
+### Changed
+
+- **Auto-tiling gaps**: Auto-tiling now includes gaps between windows by default
+- **Performance optimizations**: General performance improvements
 
 ### Fixed
 
-- **Mouse Focus**: Improved window focus while using mouse
+- **Desktop focus**: Improved desktop focus behavior
+- **Auto-tiling layout**: Fixed auto-tiling size calculation for the first 4 windows
+- **Window pivot**: Fixed pivot/swap function behavior
+- **Windows build**: Fixed `cargo install term39` failing on Windows due to build.rs requiring assets/term39.ico
 
 ## [0.19.0] - 2025-12-09
 
@@ -39,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Mouse Focus**: Improved window focus while using mouse
 - **System theme**: New theme that uses direct ANSI console colors without modifications idea by @Optimal-Savings-4505
 - **Window pivot/swap**: Double-click on window in bottom bar to swap window locations
 - **Alt+X shortcut**: Quick window selection in Window Mode
@@ -483,6 +492,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.19.5]: https://github.com/alejandroqh/term39/releases/tag/v0.19.5
 [0.19.1]: https://github.com/alejandroqh/term39/releases/tag/v0.19.1
 [0.19.0]: https://github.com/alejandroqh/term39/releases/tag/v0.19.0
 [0.18.0]: https://github.com/alejandroqh/term39/releases/tag/v0.18.0
