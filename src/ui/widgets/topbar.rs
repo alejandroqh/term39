@@ -1,8 +1,8 @@
 //! TopBar container that manages widget layout and rendering
 
 use super::{
-    BatteryWidget, ClipboardWidget, CommandCenterWidget, DateTimeWidget, ExitWidget, NewTermWidget,
-    Widget, WidgetAlignment, WidgetClickResult, WidgetContext,
+    BatteryWidget, CommandCenterWidget, DateTimeWidget, ExitWidget, NewTermWidget, Widget,
+    WidgetAlignment, WidgetClickResult, WidgetContext,
 };
 use crate::rendering::{Cell, Theme, VideoBuffer};
 use crate::window::manager::FocusState;
@@ -25,12 +25,11 @@ pub struct TopBar {
     new_term: NewTermWidget,
 
     // Center-aligned widgets
-    clipboard: ClipboardWidget,
+    datetime: DateTimeWidget,
 
     // Right-aligned widgets (from left to right: battery, command_center)
     battery: BatteryWidget,
     command_center: CommandCenterWidget,
-    datetime: DateTimeWidget,
 
     // Exit widget (code only, not rendered)
     exit: ExitWidget,
@@ -43,10 +42,9 @@ impl TopBar {
     pub fn new(show_date_in_clock: bool) -> Self {
         Self {
             new_term: NewTermWidget::new(),
-            clipboard: ClipboardWidget::new(),
+            datetime: DateTimeWidget::new(show_date_in_clock),
             battery: BatteryWidget::new(),
             command_center: CommandCenterWidget::new(),
-            datetime: DateTimeWidget::new(show_date_in_clock),
             exit: ExitWidget::new(),
             positions: Vec::new(),
         }
@@ -61,10 +59,9 @@ impl TopBar {
     pub fn update(&mut self, ctx: &WidgetContext) {
         // Update all widgets
         self.new_term.update(ctx);
-        self.clipboard.update(ctx);
+        self.datetime.update(ctx);
         self.battery.update(ctx);
         self.command_center.update(ctx);
-        self.datetime.update(ctx);
         self.exit.update(ctx);
 
         // Recalculate layout
@@ -117,7 +114,7 @@ impl TopBar {
 
         let right_total_width = ctx.cols.saturating_sub(right_x);
 
-        // Center section: DateTime (and Clipboard if visible)
+        // Center section: DateTime only
         // Calculate center area boundaries
         let center_start = left_end + 2; // +2 for separator space
         let center_end = ctx.cols.saturating_sub(right_total_width + 2); // +2 for separator space
@@ -125,35 +122,16 @@ impl TopBar {
 
         // Calculate total center width needed
         let datetime_width = self.datetime.width();
-        let clipboard_width = if self.clipboard.is_visible(ctx) {
-            self.clipboard.width() + 1 // +1 for gap between clipboard and datetime
-        } else {
-            0
-        };
-        let total_center_width = datetime_width + clipboard_width;
 
-        // Center the widgets in available space
-        let center_x = center_start + available_center.saturating_sub(total_center_width) / 2;
-
-        // Position clipboard first (left of datetime) if visible
-        let mut current_x = center_x;
-        if self.clipboard.is_visible(ctx) {
-            let clip_width = self.clipboard.width();
-            self.positions.push(WidgetPosition {
-                alignment: WidgetAlignment::Center,
-                index: 0,
-                x: current_x,
-                width: clip_width,
-            });
-            current_x += clip_width + 1; // +1 for gap
-        }
+        // Center the widget in available space
+        let center_x = center_start + available_center.saturating_sub(datetime_width) / 2;
 
         // Position datetime (center)
         if self.datetime.is_visible(ctx) {
             self.positions.push(WidgetPosition {
                 alignment: WidgetAlignment::Center,
-                index: 1, // index 1 for datetime in center
-                x: current_x,
+                index: 0,
+                x: center_x,
                 width: datetime_width,
             });
         }
@@ -198,9 +176,6 @@ impl TopBar {
             match (pos.alignment, pos.index) {
                 (WidgetAlignment::Left, 0) => self.new_term.render(buffer, pos.x, theme, ctx.focus),
                 (WidgetAlignment::Center, 0) => {
-                    self.clipboard.render(buffer, pos.x, theme, ctx.focus)
-                }
-                (WidgetAlignment::Center, 1) => {
                     self.datetime.render(buffer, pos.x, theme, ctx.focus)
                 }
                 (WidgetAlignment::Right, 0) => self.battery.render(buffer, pos.x, theme, ctx.focus),
@@ -228,9 +203,6 @@ impl TopBar {
                     self.new_term.update_hover(mouse_x, mouse_y, pos.x);
                 }
                 (WidgetAlignment::Center, 0) => {
-                    self.clipboard.update_hover(mouse_x, mouse_y, pos.x);
-                }
-                (WidgetAlignment::Center, 1) => {
                     self.datetime.update_hover(mouse_x, mouse_y, pos.x);
                 }
                 (WidgetAlignment::Right, 0) => {
@@ -254,10 +226,7 @@ impl TopBar {
         for pos in &self.positions {
             let result = match (pos.alignment, pos.index) {
                 (WidgetAlignment::Left, 0) => self.new_term.handle_click(mouse_x, mouse_y, pos.x),
-                (WidgetAlignment::Center, 0) => {
-                    self.clipboard.handle_click(mouse_x, mouse_y, pos.x)
-                }
-                (WidgetAlignment::Center, 1) => self.datetime.handle_click(mouse_x, mouse_y, pos.x),
+                (WidgetAlignment::Center, 0) => self.datetime.handle_click(mouse_x, mouse_y, pos.x),
                 (WidgetAlignment::Right, 0) => self.battery.handle_click(mouse_x, mouse_y, pos.x),
                 (WidgetAlignment::Right, 1) => {
                     self.command_center.handle_click(mouse_x, mouse_y, pos.x)
@@ -276,10 +245,9 @@ impl TopBar {
     /// Reset all widget states
     fn reset_all_states(&mut self) {
         self.new_term.reset_state();
-        self.clipboard.reset_state();
+        self.datetime.reset_state();
         self.battery.reset_state();
         self.command_center.reset_state();
-        self.datetime.reset_state();
         self.exit.reset_state();
     }
 

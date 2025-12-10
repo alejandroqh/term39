@@ -1,6 +1,6 @@
 use crate::app::{AppConfig, AppState};
 use crate::input::mouse_handlers::{
-    ModalMouseResult, TopBarClickResult, handle_auto_tiling_click,
+    CommandCenterMenuResult, ModalMouseResult, TopBarClickResult, handle_auto_tiling_click,
     handle_command_center_menu_mouse, handle_config_window_mouse, handle_context_menu_mouse,
     handle_error_dialog_mouse, handle_pin_setup_mouse, handle_prompt_mouse, handle_selection_mouse,
     handle_taskbar_menu_mouse, handle_topbar_click, show_context_menu, show_taskbar_menu,
@@ -639,15 +639,53 @@ pub fn run(
                     }
 
                     // Handle command center menu interactions
-                    if !handled
-                        && handle_command_center_menu_mouse(
+                    if !handled {
+                        match handle_command_center_menu_mouse(
                             app_state,
                             window_manager,
                             clipboard_manager,
                             &mouse_event,
-                        )
-                    {
-                        handled = true;
+                        ) {
+                            CommandCenterMenuResult::Handled => handled = true,
+                            CommandCenterMenuResult::ShowExitPrompt => {
+                                // Build exit confirmation message
+                                let window_count = window_manager.window_count();
+                                let message = if window_count > 0 {
+                                    format!(
+                                        "You have {} open terminal{}. Are you sure you want to exit?",
+                                        window_count,
+                                        if window_count == 1 { "" } else { "s" }
+                                    )
+                                } else {
+                                    "Are you sure you want to exit?".to_string()
+                                };
+
+                                app_state.active_prompt = Some(
+                                    Prompt::new(
+                                        PromptType::Danger,
+                                        message,
+                                        vec![
+                                            PromptButton::new(
+                                                "Exit".to_string(),
+                                                PromptAction::Confirm,
+                                                true,
+                                            ),
+                                            PromptButton::new(
+                                                "Cancel".to_string(),
+                                                PromptAction::Cancel,
+                                                false,
+                                            ),
+                                        ],
+                                        cols,
+                                        rows,
+                                    )
+                                    .with_selection_indicators(true)
+                                    .with_selected_button(1),
+                                );
+                                handled = true;
+                            }
+                            CommandCenterMenuResult::NotHandled => {}
+                        }
                     }
 
                     // Handle text selection (left-click, drag, mouse forwarding)

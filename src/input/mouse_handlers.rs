@@ -692,16 +692,26 @@ pub fn show_context_menu(
     false
 }
 
+/// Result of handling a command center menu mouse event.
+pub enum CommandCenterMenuResult {
+    /// Event was not handled
+    NotHandled,
+    /// Event was handled
+    Handled,
+    /// Exit was requested - show confirmation prompt
+    ShowExitPrompt,
+}
+
 /// Handles Command Center menu mouse interactions.
-/// Returns true if the event was handled.
+/// Returns CommandCenterMenuResult indicating what action was taken.
 pub fn handle_command_center_menu_mouse(
     app_state: &mut AppState,
     window_manager: &mut WindowManager,
     clipboard_manager: &mut ClipboardManager,
     mouse_event: &MouseEvent,
-) -> bool {
+) -> CommandCenterMenuResult {
     if !app_state.command_center_menu.visible {
-        return false;
+        return CommandCenterMenuResult::NotHandled;
     }
 
     if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
@@ -714,10 +724,13 @@ pub fn handle_command_center_menu_mouse(
                 .command_center_menu
                 .update_selection_from_mouse(mouse_event.column, mouse_event.row);
 
+            let mut result = CommandCenterMenuResult::Handled;
+
             if let Some(action) = app_state.command_center_menu.get_selected_action() {
                 match action {
                     MenuAction::Exit => {
-                        app_state.should_exit = true;
+                        // Return ShowExitPrompt to trigger confirmation dialog
+                        result = CommandCenterMenuResult::ShowExitPrompt;
                     }
                     MenuAction::CopySelection => {
                         if let FocusState::Window(window_id) = window_manager.get_focus() {
@@ -742,7 +755,7 @@ pub fn handle_command_center_menu_mouse(
             }
             app_state.command_center_menu.hide();
             app_state.top_bar.close_command_center();
-            return true;
+            return result;
         } else {
             // Clicked outside menu - hide it
             app_state.command_center_menu.hide();
@@ -755,7 +768,7 @@ pub fn handle_command_center_menu_mouse(
             .update_selection_from_mouse(mouse_event.column, mouse_event.row);
     }
 
-    false
+    CommandCenterMenuResult::NotHandled
 }
 
 /// Shows the taskbar menu for a window button right-click.
