@@ -1,8 +1,8 @@
 //! TopBar container that manages widget layout and rendering
 
 use super::{
-    BatteryWidget, ClipboardWidget, DateTimeWidget, ExitWidget, NewTermWidget, Widget,
-    WidgetAlignment, WidgetClickResult, WidgetContext,
+    BatteryWidget, ClipboardWidget, CommandCenterWidget, DateTimeWidget, ExitWidget, NewTermWidget,
+    Widget, WidgetAlignment, WidgetClickResult, WidgetContext,
 };
 use crate::rendering::{Cell, Theme, VideoBuffer};
 use crate::window::manager::FocusState;
@@ -27,8 +27,9 @@ pub struct TopBar {
     // Center-aligned widgets
     clipboard: ClipboardWidget,
 
-    // Right-aligned widgets
+    // Right-aligned widgets (from left to right: battery, command_center)
     battery: BatteryWidget,
+    command_center: CommandCenterWidget,
     datetime: DateTimeWidget,
 
     // Exit widget (code only, not rendered)
@@ -44,6 +45,7 @@ impl TopBar {
             new_term: NewTermWidget::new(),
             clipboard: ClipboardWidget::new(),
             battery: BatteryWidget::new(),
+            command_center: CommandCenterWidget::new(),
             datetime: DateTimeWidget::new(show_date_in_clock),
             exit: ExitWidget::new(),
             positions: Vec::new(),
@@ -61,6 +63,7 @@ impl TopBar {
         self.new_term.update(ctx);
         self.clipboard.update(ctx);
         self.battery.update(ctx);
+        self.command_center.update(ctx);
         self.datetime.update(ctx);
         self.exit.update(ctx);
 
@@ -84,19 +87,35 @@ impl TopBar {
         }
         let left_end = left_x + self.new_term.width();
 
-        // Right section: Battery only (positioned from right edge)
-        let mut right_total_width = 0u16;
-        if self.battery.is_visible(ctx) {
-            let battery_width = self.battery.width();
-            right_total_width = battery_width;
-            let battery_x = ctx.cols.saturating_sub(battery_width);
+        // Right section: Command Center (rightmost), then Battery
+        // Position from right edge: Command Center first (rightmost)
+        let mut right_x = ctx.cols;
+
+        // Command Center (always visible, rightmost with 1 char padding from edge)
+        if self.command_center.is_visible(ctx) {
+            let cc_width = self.command_center.width();
+            right_x = right_x.saturating_sub(cc_width + 1); // +1 for right edge padding
             self.positions.push(WidgetPosition {
                 alignment: WidgetAlignment::Right,
-                index: 0,
-                x: battery_x,
+                index: 1, // index 1 for command center
+                x: right_x,
+                width: cc_width,
+            });
+        }
+
+        // Battery (left of command center)
+        if self.battery.is_visible(ctx) {
+            let battery_width = self.battery.width();
+            right_x = right_x.saturating_sub(battery_width);
+            self.positions.push(WidgetPosition {
+                alignment: WidgetAlignment::Right,
+                index: 0, // index 0 for battery
+                x: right_x,
                 width: battery_width,
             });
         }
+
+        let right_total_width = ctx.cols.saturating_sub(right_x);
 
         // Center section: DateTime (and Clipboard if visible)
         // Calculate center area boundaries
@@ -185,6 +204,9 @@ impl TopBar {
                     self.datetime.render(buffer, pos.x, theme, ctx.focus)
                 }
                 (WidgetAlignment::Right, 0) => self.battery.render(buffer, pos.x, theme, ctx.focus),
+                (WidgetAlignment::Right, 1) => {
+                    self.command_center.render(buffer, pos.x, theme, ctx.focus)
+                }
                 _ => {}
             }
 
@@ -214,6 +236,9 @@ impl TopBar {
                 (WidgetAlignment::Right, 0) => {
                     self.battery.update_hover(mouse_x, mouse_y, pos.x);
                 }
+                (WidgetAlignment::Right, 1) => {
+                    self.command_center.update_hover(mouse_x, mouse_y, pos.x);
+                }
                 _ => {}
             }
         }
@@ -234,6 +259,9 @@ impl TopBar {
                 }
                 (WidgetAlignment::Center, 1) => self.datetime.handle_click(mouse_x, mouse_y, pos.x),
                 (WidgetAlignment::Right, 0) => self.battery.handle_click(mouse_x, mouse_y, pos.x),
+                (WidgetAlignment::Right, 1) => {
+                    self.command_center.handle_click(mouse_x, mouse_y, pos.x)
+                }
                 _ => WidgetClickResult::NotHandled,
             };
 
@@ -250,6 +278,7 @@ impl TopBar {
         self.new_term.reset_state();
         self.clipboard.reset_state();
         self.battery.reset_state();
+        self.command_center.reset_state();
         self.datetime.reset_state();
         self.exit.reset_state();
     }
@@ -257,6 +286,31 @@ impl TopBar {
     /// Check if the battery widget is hovered (for compatibility)
     pub fn is_battery_hovered(&self) -> bool {
         self.battery.is_hovered()
+    }
+
+    /// Get mutable reference to command center widget
+    pub fn command_center_mut(&mut self) -> &mut CommandCenterWidget {
+        &mut self.command_center
+    }
+
+    /// Check if command center menu is open
+    pub fn is_command_center_open(&self) -> bool {
+        self.command_center.is_menu_open()
+    }
+
+    /// Close command center menu
+    pub fn close_command_center(&mut self) {
+        self.command_center.close_menu();
+    }
+
+    /// Get the X position of the command center widget for menu positioning
+    pub fn get_command_center_x(&self) -> u16 {
+        for pos in &self.positions {
+            if pos.alignment == WidgetAlignment::Right && pos.index == 1 {
+                return pos.x;
+            }
+        }
+        0
     }
 }
 

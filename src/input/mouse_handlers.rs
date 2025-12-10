@@ -455,6 +455,27 @@ pub fn handle_topbar_click(
         WidgetClickResult::ShowExitPrompt(message, prompt_cols, prompt_rows) => {
             TopBarClickResult::ShowExitPrompt(message, prompt_cols, prompt_rows)
         }
+
+        WidgetClickResult::ToggleCommandCenter => {
+            // Toggle the Command Center dropdown menu
+            if app_state.command_center_menu.visible {
+                app_state.command_center_menu.hide();
+                app_state.top_bar.close_command_center();
+            } else {
+                let button_x = app_state.top_bar.get_command_center_x();
+                // Use show_bounded to auto-adjust position if menu would overflow
+                app_state
+                    .command_center_menu
+                    .show_bounded(button_x, 1, cols);
+            }
+            TopBarClickResult::Handled
+        }
+
+        WidgetClickResult::CommandCenterExit => {
+            // Exit was selected from Command Center menu
+            app_state.should_exit = true;
+            TopBarClickResult::Handled
+        }
     }
 }
 
@@ -545,7 +566,8 @@ pub fn handle_context_menu_mouse(
                         MenuAction::Close
                         | MenuAction::Restore
                         | MenuAction::Maximize
-                        | MenuAction::CloseWindow => {}
+                        | MenuAction::CloseWindow
+                        | MenuAction::Exit => {}
                     }
                 }
             }
@@ -609,7 +631,8 @@ pub fn handle_taskbar_menu_mouse(
                         MenuAction::Copy
                         | MenuAction::Paste
                         | MenuAction::SelectAll
-                        | MenuAction::Close => {}
+                        | MenuAction::Close
+                        | MenuAction::Exit => {}
                     }
                 }
             }
@@ -646,6 +669,47 @@ pub fn show_context_menu(
             return true;
         }
     }
+    false
+}
+
+/// Handles Command Center menu mouse interactions.
+/// Returns true if the event was handled.
+pub fn handle_command_center_menu_mouse(
+    app_state: &mut AppState,
+    mouse_event: &MouseEvent,
+) -> bool {
+    if !app_state.command_center_menu.visible {
+        return false;
+    }
+
+    if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
+        if app_state
+            .command_center_menu
+            .contains_point(mouse_event.column, mouse_event.row)
+        {
+            // Update selection to clicked item before getting action
+            app_state
+                .command_center_menu
+                .update_selection_from_mouse(mouse_event.column, mouse_event.row);
+
+            if let Some(MenuAction::Exit) = app_state.command_center_menu.get_selected_action() {
+                app_state.should_exit = true;
+            }
+            app_state.command_center_menu.hide();
+            app_state.top_bar.close_command_center();
+            return true;
+        } else {
+            // Clicked outside menu - hide it
+            app_state.command_center_menu.hide();
+            app_state.top_bar.close_command_center();
+        }
+    } else if mouse_event.kind == MouseEventKind::Moved {
+        // Update menu selection on hover
+        app_state
+            .command_center_menu
+            .update_selection_from_mouse(mouse_event.column, mouse_event.row);
+    }
+
     false
 }
 

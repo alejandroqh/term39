@@ -8,6 +8,7 @@ use crate::window::manager::FocusState;
 
 pub mod battery;
 pub mod clipboard;
+pub mod command_center;
 pub mod datetime;
 pub mod exit;
 pub mod new_term;
@@ -16,6 +17,7 @@ pub mod topbar;
 // Re-export main types
 pub use battery::BatteryWidget;
 pub use clipboard::ClipboardWidget;
+pub use command_center::CommandCenterWidget;
 pub use datetime::DateTimeWidget;
 pub use exit::ExitWidget;
 pub use new_term::NewTermWidget;
@@ -42,6 +44,10 @@ pub enum WidgetClickResult {
     Paste,
     /// Widget requests clearing clipboard
     ClearClipboard,
+    /// Widget requests toggling Command Center menu
+    ToggleCommandCenter,
+    /// Widget requests exit action from Command Center
+    CommandCenterExit,
 }
 
 /// Alignment of widget within its container

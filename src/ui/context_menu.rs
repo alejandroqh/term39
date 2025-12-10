@@ -13,6 +13,8 @@ pub enum MenuAction {
     Restore,
     Maximize,
     CloseWindow,
+    // Command Center menu actions
+    Exit,
 }
 
 /// Menu item definition
@@ -52,6 +54,8 @@ pub struct ContextMenu {
     pub items: Vec<MenuItem>,
     pub selected_index: usize,
     pub visible: bool,
+    /// Optional minimum width for the menu (used by Command Center)
+    min_width: Option<u16>,
 }
 
 impl ContextMenu {
@@ -69,6 +73,7 @@ impl ContextMenu {
             items,
             selected_index: 0,
             visible: false,
+            min_width: None,
         }
     }
 
@@ -86,7 +91,30 @@ impl ContextMenu {
             items,
             selected_index: 0,
             visible: false,
+            min_width: None,
         }
+    }
+
+    /// Create a Command Center dropdown menu
+    pub fn new_command_center_menu(x: u16, y: u16, menu_width: u16) -> Self {
+        // Use simple label - the icon will be rendered separately via shortcut mechanism
+        // or we handle alignment in the render function using min_width
+        let items = vec![MenuItem::new("Exit", Some('\u{23FB}'), MenuAction::Exit)];
+
+        Self {
+            x,
+            y,
+            items,
+            selected_index: 0,
+            visible: false,
+            min_width: Some(menu_width),
+        }
+    }
+
+    /// Update menu items (used for Command Center to adjust width)
+    pub fn set_items(&mut self, items: Vec<MenuItem>) {
+        self.items = items;
+        self.selected_index = 0;
     }
 
     /// Show the menu at a new position
@@ -95,6 +123,26 @@ impl ContextMenu {
         self.y = y;
         self.visible = true;
         self.selected_index = 0;
+    }
+
+    /// Show the menu with bounds checking to prevent overflow
+    /// Adjusts x position if menu would exceed screen width
+    pub fn show_bounded(&mut self, x: u16, y: u16, screen_width: u16) {
+        let total_width = self.total_width_with_shadow();
+        // Ensure menu + shadow fits within screen
+        self.x = if x + total_width > screen_width {
+            screen_width.saturating_sub(total_width)
+        } else {
+            x
+        };
+        self.y = y;
+        self.visible = true;
+        self.selected_index = 0;
+    }
+
+    /// Get total width including shadow (for bounds calculations)
+    pub fn total_width_with_shadow(&self) -> u16 {
+        self.calculate_width() + 1 // +1 for shadow column
     }
 
     /// Hide the menu
@@ -184,7 +232,11 @@ impl ContextMenu {
             .unwrap_or(0);
 
         // Width = border + padding + label + padding + shortcut + padding + border
-        (max_label_len + 8) as u16
+        let content_width = (max_label_len + 8) as u16;
+
+        // Use min_width if set and larger than content width
+        self.min_width
+            .map_or(content_width, |min| min.max(content_width))
     }
 
     /// Render the menu to video buffer

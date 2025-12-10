@@ -1,6 +1,6 @@
 //! Battery widget for the top bar
 //!
-//! Shows battery level as a block bar or percentage on hover.
+//! Shows battery icon with percentage and charging indicator.
 //! Only available when the "battery" feature is enabled.
 
 use super::{Widget, WidgetAlignment, WidgetClickResult, WidgetContext};
@@ -11,7 +11,7 @@ use crossterm::style::Color;
 #[cfg(feature = "battery")]
 use crate::ui::ui_render::battery_support::{BatteryInfo, get_battery_color, get_battery_info};
 
-/// Widget displaying battery status
+/// Widget displaying battery status with icon and percentage
 pub struct BatteryWidget {
     hovered: bool,
     #[cfg(feature = "battery")]
@@ -36,77 +36,111 @@ impl BatteryWidget {
         self.hovered
     }
 
+    /// Get the battery icon based on charge level
     #[cfg(feature = "battery")]
-    fn render_bar(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, info: &BatteryInfo) {
-        let pct = info.percentage;
-        let is_charging = info.is_charging;
-        let battery_color = get_battery_color(pct, is_charging);
-        let charging_icon = '\u{2248}'; // ≈
-        let charging_color = Color::Yellow;
-
-        let filled = ((pct as f32 / 20.0).round() as usize).min(5);
-        let blocks: String = (0..5)
-            .map(|i| {
-                if is_charging && i == 3 {
-                    ' '
-                } else if is_charging && i == 4 {
-                    charging_icon
-                } else if i < filled {
-                    '\u{2588}' // █
-                } else {
-                    '\u{2591}' // ░
-                }
-            })
-            .collect();
-
-        let battery_text = format!("| [{}] ", blocks);
-
-        for (i, ch) in battery_text.chars().enumerate() {
-            let fg = if ch == charging_icon {
-                charging_color
-            } else if ch == '\u{2588}' {
-                battery_color
-            } else if ch == '\u{2591}' {
-                Color::DarkGrey
-            } else {
-                theme.clock_fg
-            };
-
-            buffer.set(x + i as u16, 0, Cell::new_unchecked(ch, fg, theme.clock_bg));
+    fn get_battery_icon(percentage: u8) -> char {
+        // Battery icons showing different fill levels
+        // Using block elements to create battery appearance
+        if percentage >= 75 {
+            '\u{2588}' // █ Full block - full battery
+        } else if percentage >= 50 {
+            '\u{2593}' // ▓ Dark shade - 3/4 battery
+        } else if percentage >= 25 {
+            '\u{2592}' // ▒ Medium shade - half battery
+        } else if percentage >= 10 {
+            '\u{2591}' // ░ Light shade - low battery
+        } else {
+            '\u{2581}' // ▁ Lower one eighth block - critical
         }
     }
 
     #[cfg(feature = "battery")]
-    fn render_percentage(
+    fn render_widget(
         &self,
         buffer: &mut VideoBuffer,
         x: u16,
         theme: &Theme,
         info: &BatteryInfo,
+        focus: FocusState,
     ) {
         let pct = info.percentage;
         let is_charging = info.is_charging;
         let battery_color = get_battery_color(pct, is_charging);
-        let charging_icon = '\u{2248}'; // ≈
+
+        // Use same colors as datetime widget
+        let bg_color = match focus {
+            FocusState::Desktop | FocusState::Topbar => theme.topbar_bg_focused,
+            FocusState::Window(_) => theme.topbar_bg_unfocused,
+        };
+        let fg_color = theme.window_border_unfocused_fg;
+
+        // Charging indicator: ↯
+        let charging_icon = '\u{21AF}'; // ↯ (zigzag arrow - lightning bolt alternative)
         let charging_color = Color::Yellow;
 
-        let battery_text = if is_charging {
-            format!("| [{}{:>4}] ", charging_icon, format!("{}%", pct))
-        } else {
-            format!("| [{:>5}] ", format!("{}%", pct))
-        };
+        // Battery body using box drawing: [███]+
+        let battery_icon = Self::get_battery_icon(pct);
 
-        for (i, ch) in battery_text.chars().enumerate() {
-            let fg = if ch == charging_icon {
-                charging_color
-            } else if (3..=7).contains(&i) {
+        // Build the display string: "| 85% ↯[███]+ " or "| 85% [███]+ "
+        let mut current_x = x;
+
+        // Separator "| "
+        buffer.set(current_x, 0, Cell::new_unchecked('|', fg_color, bg_color));
+        current_x += 1;
+        buffer.set(current_x, 0, Cell::new_unchecked(' ', fg_color, bg_color));
+        current_x += 1;
+
+        // Percentage text first (right-aligned in 4 chars: "100%" or " 85%")
+        let pct_str = format!("{:>3}%", pct);
+        for ch in pct_str.chars() {
+            buffer.set(
+                current_x,
+                0,
+                Cell::new_unchecked(ch, battery_color, bg_color),
+            );
+            current_x += 1;
+        }
+
+        // Space before battery icon
+        buffer.set(current_x, 0, Cell::new_unchecked(' ', fg_color, bg_color));
+        current_x += 1;
+
+        // Charging icon (if charging)
+        if is_charging {
+            buffer.set(
+                current_x,
+                0,
+                Cell::new_unchecked(charging_icon, charging_color, bg_color),
+            );
+            current_x += 1;
+        }
+
+        // Battery body: [███]+
+        // Opening bracket
+        buffer.set(current_x, 0, Cell::new_unchecked('[', fg_color, bg_color));
+        current_x += 1;
+
+        // Battery fill (3 characters)
+        let filled_count = ((pct as f32 / 100.0) * 3.0).ceil() as usize;
+        for i in 0..3 {
+            let ch = if i < filled_count { battery_icon } else { ' ' };
+            let fg = if i < filled_count {
                 battery_color
             } else {
-                theme.clock_fg
+                Color::DarkGrey
             };
-
-            buffer.set(x + i as u16, 0, Cell::new_unchecked(ch, fg, theme.clock_bg));
+            buffer.set(current_x, 0, Cell::new_unchecked(ch, fg, bg_color));
+            current_x += 1;
         }
+
+        // Closing bracket and terminal
+        buffer.set(current_x, 0, Cell::new_unchecked(']', fg_color, bg_color));
+        current_x += 1;
+        buffer.set(current_x, 0, Cell::new_unchecked('+', fg_color, bg_color));
+        current_x += 1;
+
+        // Trailing space
+        buffer.set(current_x, 0, Cell::new_unchecked(' ', fg_color, bg_color));
     }
 }
 
@@ -118,22 +152,36 @@ impl Default for BatteryWidget {
 
 impl Widget for BatteryWidget {
     fn width(&self) -> u16 {
-        10 // "| [█████] " or "| [ 100%] "
+        // "| 100% [███]+ " = 14 chars (without charging icon)
+        // "| 100% ↯[███]+ " = 15 chars (with charging icon)
+        // Use max width to ensure consistent layout
+        #[cfg(feature = "battery")]
+        {
+            if let Some(ref info) = self.cached_info {
+                if info.is_charging {
+                    15 // "| 100% ↯[███]+ "
+                } else {
+                    14 // "| 100% [███]+ "
+                }
+            } else {
+                14
+            }
+        }
+        #[cfg(not(feature = "battery"))]
+        {
+            0
+        }
     }
 
-    fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, _focus: FocusState) {
+    fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, focus: FocusState) {
         #[cfg(feature = "battery")]
         if let Some(ref info) = self.cached_info {
-            if self.hovered {
-                self.render_percentage(buffer, x, theme, info);
-            } else {
-                self.render_bar(buffer, x, theme, info);
-            }
+            self.render_widget(buffer, x, theme, info, focus);
         }
 
         #[cfg(not(feature = "battery"))]
         {
-            let _ = (buffer, x, theme);
+            let _ = (buffer, x, theme, focus);
         }
     }
 

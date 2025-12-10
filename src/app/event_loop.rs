@@ -1,9 +1,10 @@
 use crate::app::{AppConfig, AppState};
 use crate::input::mouse_handlers::{
-    ModalMouseResult, TopBarClickResult, handle_auto_tiling_click, handle_config_window_mouse,
-    handle_context_menu_mouse, handle_error_dialog_mouse, handle_pin_setup_mouse,
-    handle_prompt_mouse, handle_selection_mouse, handle_taskbar_menu_mouse, handle_topbar_click,
-    show_context_menu, show_taskbar_menu, update_bar_button_hover_states,
+    ModalMouseResult, TopBarClickResult, handle_auto_tiling_click,
+    handle_command_center_menu_mouse, handle_config_window_mouse, handle_context_menu_mouse,
+    handle_error_dialog_mouse, handle_pin_setup_mouse, handle_prompt_mouse, handle_selection_mouse,
+    handle_taskbar_menu_mouse, handle_topbar_click, show_context_menu, show_taskbar_menu,
+    update_bar_button_hover_states,
 };
 use crate::lockscreen::PinSetupState;
 use crate::rendering::RenderBackend;
@@ -634,6 +635,11 @@ pub fn run(
                             app_config.tiling_gaps,
                         )
                     {
+                        handled = true;
+                    }
+
+                    // Handle command center menu interactions
+                    if !handled && handle_command_center_menu_mouse(app_state, &mouse_event) {
                         handled = true;
                     }
 
