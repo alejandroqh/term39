@@ -81,12 +81,10 @@ impl BatteryWidget {
         // Battery body using box drawing: [███]+
         let battery_icon = Self::get_battery_icon(pct);
 
-        // Build the display string: "| 85% ↯[███]+ " or "| 85% [███]+ "
+        // Build the display string: " 85% ↯[███]+ " or " 85% [███]+ "
         let mut current_x = x;
 
-        // Separator "| "
-        buffer.set(current_x, 0, Cell::new_unchecked('|', fg_color, bg_color));
-        current_x += 1;
+        // Leading space
         buffer.set(current_x, 0, Cell::new_unchecked(' ', fg_color, bg_color));
         current_x += 1;
 
@@ -152,19 +150,19 @@ impl Default for BatteryWidget {
 
 impl Widget for BatteryWidget {
     fn width(&self) -> u16 {
-        // "| 100% [███]+ " = 14 chars (without charging icon)
-        // "| 100% ↯[███]+ " = 15 chars (with charging icon)
+        // " 100% [███]+ " = 13 chars (without charging icon)
+        // " 100% ↯[███]+ " = 14 chars (with charging icon)
         // Use max width to ensure consistent layout
         #[cfg(feature = "battery")]
         {
             if let Some(ref info) = self.cached_info {
                 if info.is_charging {
-                    15 // "| 100% ↯[███]+ "
+                    14 // " 100% ↯[███]+ "
                 } else {
-                    14 // "| 100% [███]+ "
+                    13 // " 100% [███]+ "
                 }
             } else {
-                14
+                13
             }
         }
         #[cfg(not(feature = "battery"))]
