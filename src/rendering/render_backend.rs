@@ -161,6 +161,12 @@ pub struct FramebufferBackend {
     // Queue of pending scroll events (scroll_direction, col, row)
     // scroll_direction: 0=up, 1=down
     scroll_event_queue: VecDeque<(u8, u16, u16)>,
+    // Cached char dimensions for pixel-to-cell coordinate conversion
+    // These are fixed after initialization (mode doesn't change)
+    cached_char_width: usize,
+    cached_char_height: usize,
+    cached_cols: usize,
+    cached_rows: usize,
 }
 
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
@@ -203,26 +209,27 @@ impl FramebufferBackend {
             cursor_tracker.set_sensitivity(sens);
         }
 
-        // Calculate initial cell position from cursor tracker's pixel position
+        // Calculate and cache char dimensions for pixel-to-cell coordinate conversion
         // This fixes incorrect position_changed detection on first mouse movement
         // Note: cursor_tracker.x/y are in LOGICAL (unscaled) pixel coordinates
         // bounded by (base_width, base_height) from pixel_dimensions()
         let (cols, rows) = renderer.dimensions();
         let (base_width, base_height) = renderer.pixel_dimensions();
 
-        let char_width = if cols > 0 { base_width / cols } else { 1 };
-        let char_height = if rows > 0 { base_height / rows } else { 1 };
+        // Cache these values - they don't change after initialization
+        let cached_char_width = if cols > 0 { base_width / cols } else { 1 };
+        let cached_char_height = if rows > 0 { base_height / rows } else { 1 };
 
         // Convert logical pixel position directly to cell coordinates
         // No offset subtraction needed (cursor is bounded to content area)
         // No scale division needed (cursor is already in logical pixel space)
-        let initial_col = if char_width > 0 {
-            (cursor_tracker.x / char_width).min(cols.saturating_sub(1)) as u16
+        let initial_col = if cached_char_width > 0 {
+            (cursor_tracker.x / cached_char_width).min(cols.saturating_sub(1)) as u16
         } else {
             0
         };
-        let initial_row = if char_height > 0 {
-            (cursor_tracker.y / char_height).min(rows.saturating_sub(1)) as u16
+        let initial_row = if cached_char_height > 0 {
+            (cursor_tracker.y / cached_char_height).min(rows.saturating_sub(1)) as u16
         } else {
             0
         };
@@ -240,6 +247,10 @@ impl FramebufferBackend {
             prev_row: initial_row,
             button_event_queue: VecDeque::new(),
             scroll_event_queue: VecDeque::new(),
+            cached_char_width,
+            cached_char_height,
+            cached_cols: cols,
+            cached_rows: rows,
         })
     }
 
@@ -259,30 +270,32 @@ impl FramebufferBackend {
     /// Note: cursor_tracker.x/y are in LOGICAL (unscaled) pixel coordinates
     #[allow(dead_code)]
     fn queue_mouse_event(&mut self, event_type: u8, button_id: u8) {
-        // Calculate coordinates at the time of the event
-        let (cols, rows) = self.renderer.dimensions();
-        let (base_width, base_height) = self.renderer.pixel_dimensions();
-
-        // Add division-by-zero protection
-        let char_width = if cols > 0 { base_width / cols } else { 1 };
-        let char_height = if rows > 0 { base_height / rows } else { 1 };
-
-        // Convert logical pixel position directly to cell coordinates
-        // No offset subtraction needed (cursor is bounded to content area)
-        // No scale division needed (cursor is already in logical pixel space)
-        let col = if char_width > 0 {
-            (self.cursor_tracker.x / char_width).min(cols.saturating_sub(1)) as u16
-        } else {
-            0
-        };
-        let row = if char_height > 0 {
-            (self.cursor_tracker.y / char_height).min(rows.saturating_sub(1)) as u16
-        } else {
-            0
-        };
+        // Use cached char dimensions for fast pixel-to-cell conversion
+        let col = self.pixel_to_col(self.cursor_tracker.x);
+        let row = self.pixel_to_row(self.cursor_tracker.y);
 
         self.button_event_queue
             .push_back((event_type, button_id, col, row));
+    }
+
+    /// Convert pixel X coordinate to cell column using cached dimensions
+    #[inline(always)]
+    fn pixel_to_col(&self, x: usize) -> u16 {
+        if self.cached_char_width > 0 {
+            (x / self.cached_char_width).min(self.cached_cols.saturating_sub(1)) as u16
+        } else {
+            0
+        }
+    }
+
+    /// Convert pixel Y coordinate to cell row using cached dimensions
+    #[inline(always)]
+    fn pixel_to_row(&self, y: usize) -> u16 {
+        if self.cached_char_height > 0 {
+            (y / self.cached_char_height).min(self.cached_rows.saturating_sub(1)) as u16
+        } else {
+            0
+        }
     }
 }
 
@@ -331,41 +344,28 @@ impl RenderBackend for FramebufferBackend {
         if let Some(ref mut mouse_input) = self.mouse_input {
             let mut moved = false;
 
-            // Helper function to calculate cell coordinates from pixel position
-            // Note: tracker.x/y are in LOGICAL (unscaled) pixel coordinates
-            // bounded by (base_width, base_height) from pixel_dimensions()
-            let calc_coords =
-                |tracker: &crate::framebuffer::CursorTracker,
-                 renderer: &crate::framebuffer::FramebufferRenderer| {
-                    let (cols, rows) = renderer.dimensions();
-                    let (base_width, base_height) = renderer.pixel_dimensions();
-
-                    let char_width = if cols > 0 { base_width / cols } else { 1 };
-                    let char_height = if rows > 0 { base_height / rows } else { 1 };
-
-                    // Convert logical pixel position directly to cell coordinates
-                    // No offset subtraction needed (cursor is bounded to content area)
-                    // No scale division needed (cursor is already in logical pixel space)
-                    let col = if char_width > 0 {
-                        (tracker.x / char_width).min(cols.saturating_sub(1)) as u16
-                    } else {
-                        0
-                    };
-                    let row = if char_height > 0 {
-                        (tracker.y / char_height).min(rows.saturating_sub(1)) as u16
-                    } else {
-                        0
-                    };
-
-                    (col, row)
-                };
+            // Cache dimension values for the loop to avoid repeated struct field accesses
+            let char_width = self.cached_char_width;
+            let char_height = self.cached_char_height;
+            let max_col = self.cached_cols.saturating_sub(1);
+            let max_row = self.cached_rows.saturating_sub(1);
 
             // Process all pending mouse events
             while let Ok(Some(event)) = mouse_input.read_event() {
                 self.cursor_tracker.update(event.dx, event.dy);
 
-                // Calculate current cell position
-                let (col, row) = calc_coords(&self.cursor_tracker, &self.renderer);
+                // Calculate current cell position using cached dimensions
+                // This is inlined for performance (called on every mouse event)
+                let col = if char_width > 0 {
+                    (self.cursor_tracker.x / char_width).min(max_col) as u16
+                } else {
+                    0
+                };
+                let row = if char_height > 0 {
+                    (self.cursor_tracker.y / char_height).min(max_row) as u16
+                } else {
+                    0
+                };
 
                 // Check if cursor moved to a different cell
                 let position_changed = col != self.prev_col || row != self.prev_row;

@@ -17,7 +17,8 @@ pub fn show_splash_screen(
     let (cols, rows) = buffer.dimensions();
 
     // Clear screen to black (outside the splash box)
-    let black_cell = Cell::new(' ', theme.splash_fg, Color::Black);
+    // Use new_unchecked for performance - theme colors are pre-validated
+    let black_cell = Cell::new_unchecked(' ', theme.splash_fg, Color::Black);
     for y in 0..rows {
         for x in 0..cols {
             buffer.set(x, y, black_cell);
@@ -73,22 +74,23 @@ pub fn show_splash_screen(
     let content_bg = theme.splash_bg;
 
     // Draw top border using charset
+    // Use new_unchecked for performance - theme colors are pre-validated
     buffer.set(
         window_x,
         window_y,
-        Cell::new(charset.border_top_left, border_color, content_bg),
+        Cell::new_unchecked(charset.border_top_left, border_color, content_bg),
     );
     for x in 1..window_width - 1 {
         buffer.set(
             window_x + x,
             window_y,
-            Cell::new(charset.border_horizontal, border_color, content_bg),
+            Cell::new_unchecked(charset.border_horizontal, border_color, content_bg),
         );
     }
     buffer.set(
         window_x + window_width - 1,
         window_y,
-        Cell::new(charset.border_top_right, border_color, content_bg),
+        Cell::new_unchecked(charset.border_top_right, border_color, content_bg),
     );
 
     // Draw middle rows (content area)
@@ -97,7 +99,7 @@ pub fn show_splash_screen(
         buffer.set(
             window_x,
             window_y + y,
-            Cell::new(charset.border_vertical, border_color, content_bg),
+            Cell::new_unchecked(charset.border_vertical, border_color, content_bg),
         );
 
         // Content
@@ -105,7 +107,7 @@ pub fn show_splash_screen(
             buffer.set(
                 window_x + x,
                 window_y + y,
-                Cell::new(' ', theme.splash_fg, content_bg),
+                Cell::new_unchecked(' ', theme.splash_fg, content_bg),
             );
         }
 
@@ -113,7 +115,7 @@ pub fn show_splash_screen(
         buffer.set(
             window_x + window_width - 1,
             window_y + y,
-            Cell::new(charset.border_vertical, border_color, content_bg),
+            Cell::new_unchecked(charset.border_vertical, border_color, content_bg),
         );
     }
 
@@ -121,19 +123,19 @@ pub fn show_splash_screen(
     buffer.set(
         window_x,
         window_y + window_height - 1,
-        Cell::new(charset.border_bottom_left, border_color, content_bg),
+        Cell::new_unchecked(charset.border_bottom_left, border_color, content_bg),
     );
     for x in 1..window_width - 1 {
         buffer.set(
             window_x + x,
             window_y + window_height - 1,
-            Cell::new(charset.border_horizontal, border_color, content_bg),
+            Cell::new_unchecked(charset.border_horizontal, border_color, content_bg),
         );
     }
     buffer.set(
         window_x + window_width - 1,
         window_y + window_height - 1,
-        Cell::new(charset.border_bottom_right, border_color, content_bg),
+        Cell::new_unchecked(charset.border_bottom_right, border_color, content_bg),
     );
 
     // Draw shadow (right and bottom) using shared function
@@ -224,7 +226,7 @@ pub fn show_splash_screen(
             buffer.set(
                 line_x + j as u16,
                 license_start_y + i as u16,
-                Cell::new(ch, theme.splash_fg, content_bg),
+                Cell::new_unchecked(ch, theme.splash_fg, content_bg),
             );
         }
     }

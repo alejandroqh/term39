@@ -285,12 +285,13 @@ impl Prompt {
         let default_fg_color = self.prompt_type.foreground_color(theme);
 
         // Fill the entire prompt area with the background color
+        // Use new_unchecked for performance - theme colors are pre-validated
         for y in 0..self.height {
             for x in 0..self.width {
                 buffer.set(
                     self.x + x,
                     self.y + y,
-                    Cell::new(' ', default_fg_color, bg_color),
+                    Cell::new_unchecked(' ', default_fg_color, bg_color),
                 );
             }
         }
@@ -309,18 +310,22 @@ impl Prompt {
         };
 
         // Top border
-        buffer.set(self.x, self.y, Cell::new(tl, default_fg_color, bg_color));
+        buffer.set(
+            self.x,
+            self.y,
+            Cell::new_unchecked(tl, default_fg_color, bg_color),
+        );
         for bx in 1..self.width - 1 {
             buffer.set(
                 self.x + bx,
                 self.y,
-                Cell::new(h, default_fg_color, bg_color),
+                Cell::new_unchecked(h, default_fg_color, bg_color),
             );
         }
         buffer.set(
             self.x + self.width - 1,
             self.y,
-            Cell::new(tr, default_fg_color, bg_color),
+            Cell::new_unchecked(tr, default_fg_color, bg_color),
         );
 
         // Side borders
@@ -328,12 +333,12 @@ impl Prompt {
             buffer.set(
                 self.x,
                 self.y + by,
-                Cell::new(v, default_fg_color, bg_color),
+                Cell::new_unchecked(v, default_fg_color, bg_color),
             );
             buffer.set(
                 self.x + self.width - 1,
                 self.y + by,
-                Cell::new(v, default_fg_color, bg_color),
+                Cell::new_unchecked(v, default_fg_color, bg_color),
             );
         }
 
@@ -341,19 +346,19 @@ impl Prompt {
         buffer.set(
             self.x,
             self.y + self.height - 1,
-            Cell::new(bl, default_fg_color, bg_color),
+            Cell::new_unchecked(bl, default_fg_color, bg_color),
         );
         for bx in 1..self.width - 1 {
             buffer.set(
                 self.x + bx,
                 self.y + self.height - 1,
-                Cell::new(h, default_fg_color, bg_color),
+                Cell::new_unchecked(h, default_fg_color, bg_color),
             );
         }
         buffer.set(
             self.x + self.width - 1,
             self.y + self.height - 1,
-            Cell::new(br, default_fg_color, bg_color),
+            Cell::new_unchecked(br, default_fg_color, bg_color),
         );
 
         // Render message (with alignment and color support)
@@ -393,7 +398,11 @@ impl Prompt {
                     }
                 } else {
                     // Render character with current color
-                    buffer.set(current_x, line_y, Cell::new(ch, current_color, bg_color));
+                    buffer.set(
+                        current_x,
+                        line_y,
+                        Cell::new_unchecked(ch, current_color, bg_color),
+                    );
                     current_x += 1;
                 }
             }
@@ -448,26 +457,39 @@ impl Prompt {
             };
 
             // Render button: [ Text ] or   Text
+            // Use new_unchecked for performance - button colors are pre-validated
             buffer.set(
                 button_x,
                 button_y,
-                Cell::new(left_bracket, button_fg, button_bg),
+                Cell::new_unchecked(left_bracket, button_fg, button_bg),
             );
             button_x += 1;
-            buffer.set(button_x, button_y, Cell::new(' ', button_fg, button_bg));
+            buffer.set(
+                button_x,
+                button_y,
+                Cell::new_unchecked(' ', button_fg, button_bg),
+            );
             button_x += 1;
 
             for ch in button.text.chars() {
-                buffer.set(button_x, button_y, Cell::new(ch, button_fg, button_bg));
+                buffer.set(
+                    button_x,
+                    button_y,
+                    Cell::new_unchecked(ch, button_fg, button_bg),
+                );
                 button_x += 1;
             }
 
-            buffer.set(button_x, button_y, Cell::new(' ', button_fg, button_bg));
+            buffer.set(
+                button_x,
+                button_y,
+                Cell::new_unchecked(' ', button_fg, button_bg),
+            );
             button_x += 1;
             buffer.set(
                 button_x,
                 button_y,
-                Cell::new(right_bracket, button_fg, button_bg),
+                Cell::new_unchecked(right_bracket, button_fg, button_bg),
             );
             button_x += 1;
 

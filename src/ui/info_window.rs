@@ -96,10 +96,11 @@ impl InfoWindow {
         let vertical = charset.border_vertical();
 
         // Draw top border with title
+        // Use new_unchecked for performance - theme colors are pre-validated
         buffer.set(
             self.x,
             self.y,
-            Cell::new(top_left, border_color, content_bg),
+            Cell::new_unchecked(top_left, border_color, content_bg),
         );
 
         let title_text = format!(" {} ", self.title);
@@ -110,7 +111,7 @@ impl InfoWindow {
             buffer.set(
                 self.x + x,
                 self.y,
-                Cell::new(horizontal, border_color, content_bg),
+                Cell::new_unchecked(horizontal, border_color, content_bg),
             );
         }
 
@@ -119,7 +120,7 @@ impl InfoWindow {
             buffer.set(
                 title_start + i as u16,
                 self.y,
-                Cell::new(ch, title_fg, title_bg),
+                Cell::new_unchecked(ch, title_fg, title_bg),
             );
         }
 
@@ -128,14 +129,14 @@ impl InfoWindow {
             buffer.set(
                 self.x + x,
                 self.y,
-                Cell::new(horizontal, border_color, content_bg),
+                Cell::new_unchecked(horizontal, border_color, content_bg),
             );
         }
 
         buffer.set(
             self.x + self.width - 1,
             self.y,
-            Cell::new(top_right, border_color, content_bg),
+            Cell::new_unchecked(top_right, border_color, content_bg),
         );
 
         // Draw content area with side borders
@@ -144,7 +145,7 @@ impl InfoWindow {
             buffer.set(
                 self.x,
                 self.y + y,
-                Cell::new(vertical, border_color, content_bg),
+                Cell::new_unchecked(vertical, border_color, content_bg),
             );
 
             // Content area
@@ -152,7 +153,7 @@ impl InfoWindow {
                 buffer.set(
                     self.x + x,
                     self.y + y,
-                    Cell::new(' ', content_fg, content_bg),
+                    Cell::new_unchecked(' ', content_fg, content_bg),
                 );
             }
 
@@ -160,7 +161,7 @@ impl InfoWindow {
             buffer.set(
                 self.x + self.width - 1,
                 self.y + y,
-                Cell::new(vertical, border_color, content_bg),
+                Cell::new_unchecked(vertical, border_color, content_bg),
             );
         }
 
@@ -168,21 +169,21 @@ impl InfoWindow {
         buffer.set(
             self.x,
             self.y + self.height - 1,
-            Cell::new(bottom_left, border_color, content_bg),
+            Cell::new_unchecked(bottom_left, border_color, content_bg),
         );
 
         for x in 1..(self.width - 1) {
             buffer.set(
                 self.x + x,
                 self.y + self.height - 1,
-                Cell::new(horizontal, border_color, content_bg),
+                Cell::new_unchecked(horizontal, border_color, content_bg),
             );
         }
 
         buffer.set(
             self.x + self.width - 1,
             self.y + self.height - 1,
-            Cell::new(bottom_right, border_color, content_bg),
+            Cell::new_unchecked(bottom_right, border_color, content_bg),
         );
 
         // Render content lines with color code support
@@ -217,7 +218,11 @@ impl InfoWindow {
                 } else {
                     // Render character with current color
                     if current_x < self.x + self.width - 3 {
-                        buffer.set(current_x, line_y, Cell::new(ch, current_color, content_bg));
+                        buffer.set(
+                            current_x,
+                            line_y,
+                            Cell::new_unchecked(ch, current_color, content_bg),
+                        );
                         current_x += 1;
                     }
                 }
@@ -233,7 +238,7 @@ impl InfoWindow {
             buffer.set(
                 instruction_x + i as u16,
                 instruction_y,
-                Cell::new(ch, theme.config_instructions_fg, content_bg),
+                Cell::new_unchecked(ch, theme.config_instructions_fg, content_bg),
             );
         }
 

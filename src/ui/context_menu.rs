@@ -204,22 +204,23 @@ impl ContextMenu {
 
         // Render borders
         // Top border
+        // Use new_unchecked for performance - theme colors are pre-validated
         buffer.set(
             self.x,
             self.y,
-            Cell::new(charset.border_top_left(), border_color, bg_color),
+            Cell::new_unchecked(charset.border_top_left(), border_color, bg_color),
         );
         for dx in 1..width - 1 {
             buffer.set(
                 self.x + dx,
                 self.y,
-                Cell::new(charset.border_horizontal(), border_color, bg_color),
+                Cell::new_unchecked(charset.border_horizontal(), border_color, bg_color),
             );
         }
         buffer.set(
             self.x + width - 1,
             self.y,
-            Cell::new(charset.border_top_right(), border_color, bg_color),
+            Cell::new_unchecked(charset.border_top_right(), border_color, bg_color),
         );
 
         // Content rows
@@ -231,7 +232,7 @@ impl ContextMenu {
             buffer.set(
                 self.x,
                 row,
-                Cell::new(charset.border_vertical(), border_color, bg_color),
+                Cell::new_unchecked(charset.border_vertical(), border_color, bg_color),
             );
 
             if item.is_separator {
@@ -240,7 +241,7 @@ impl ContextMenu {
                     buffer.set(
                         self.x + dx,
                         row,
-                        Cell::new(charset.border_horizontal(), border_color, bg_color),
+                        Cell::new_unchecked(charset.border_horizontal(), border_color, bg_color),
                     );
                 }
             } else {
@@ -250,29 +251,33 @@ impl ContextMenu {
 
                 // Padding + label
                 let mut dx = 1;
-                buffer.set(self.x + dx, row, Cell::new(' ', item_fg, item_bg));
+                buffer.set(self.x + dx, row, Cell::new_unchecked(' ', item_fg, item_bg));
                 dx += 1;
 
                 for ch in item.label.chars() {
-                    buffer.set(self.x + dx, row, Cell::new(ch, item_fg, item_bg));
+                    buffer.set(self.x + dx, row, Cell::new_unchecked(ch, item_fg, item_bg));
                     dx += 1;
                 }
 
                 // Padding to shortcut
                 while dx < width - 3 {
-                    buffer.set(self.x + dx, row, Cell::new(' ', item_fg, item_bg));
+                    buffer.set(self.x + dx, row, Cell::new_unchecked(' ', item_fg, item_bg));
                     dx += 1;
                 }
 
                 // Shortcut
                 if let Some(shortcut) = item.shortcut {
-                    buffer.set(self.x + dx, row, Cell::new(shortcut, item_fg, item_bg));
+                    buffer.set(
+                        self.x + dx,
+                        row,
+                        Cell::new_unchecked(shortcut, item_fg, item_bg),
+                    );
                     dx += 1;
                 }
 
                 // Fill remaining space
                 while dx < width - 1 {
-                    buffer.set(self.x + dx, row, Cell::new(' ', item_fg, item_bg));
+                    buffer.set(self.x + dx, row, Cell::new_unchecked(' ', item_fg, item_bg));
                     dx += 1;
                 }
             }
@@ -281,7 +286,7 @@ impl ContextMenu {
             buffer.set(
                 self.x + width - 1,
                 row,
-                Cell::new(charset.border_vertical(), border_color, bg_color),
+                Cell::new_unchecked(charset.border_vertical(), border_color, bg_color),
             );
         }
 
@@ -290,19 +295,19 @@ impl ContextMenu {
         buffer.set(
             self.x,
             bottom_y,
-            Cell::new(charset.border_bottom_left(), border_color, bg_color),
+            Cell::new_unchecked(charset.border_bottom_left(), border_color, bg_color),
         );
         for dx in 1..width - 1 {
             buffer.set(
                 self.x + dx,
                 bottom_y,
-                Cell::new(charset.border_horizontal(), border_color, bg_color),
+                Cell::new_unchecked(charset.border_horizontal(), border_color, bg_color),
             );
         }
         buffer.set(
             self.x + width - 1,
             bottom_y,
-            Cell::new(charset.border_bottom_right(), border_color, bg_color),
+            Cell::new_unchecked(charset.border_bottom_right(), border_color, bg_color),
         );
 
         // Render shadow
@@ -322,17 +327,26 @@ impl ContextMenu {
         let shadow_bg = Color::Black;
 
         // Right shadow
+        // Use new_unchecked for performance - shadow colors are intentionally low contrast
         for dy in 1..=height {
             let x = self.x + width;
             let y = self.y + dy;
-            buffer.set(x, y, Cell::new(charset.shadow, shadow_fg, shadow_bg));
+            buffer.set(
+                x,
+                y,
+                Cell::new_unchecked(charset.shadow, shadow_fg, shadow_bg),
+            );
         }
 
         // Bottom shadow
         for dx in 2..=width {
             let x = self.x + dx;
             let y = self.y + height;
-            buffer.set(x, y, Cell::new(charset.shadow, shadow_fg, shadow_bg));
+            buffer.set(
+                x,
+                y,
+                Cell::new_unchecked(charset.shadow, shadow_fg, shadow_bg),
+            );
         }
     }
 }

@@ -62,21 +62,42 @@ impl Button {
         let mut current_x = self.x;
 
         // Render "[ "
-        buffer.set(current_x, self.y, Cell::new('[', fg_color, bg_color));
+        // Use new_unchecked for performance - theme colors are pre-validated
+        buffer.set(
+            current_x,
+            self.y,
+            Cell::new_unchecked('[', fg_color, bg_color),
+        );
         current_x += 1;
-        buffer.set(current_x, self.y, Cell::new(' ', fg_color, bg_color));
+        buffer.set(
+            current_x,
+            self.y,
+            Cell::new_unchecked(' ', fg_color, bg_color),
+        );
         current_x += 1;
 
         // Render label
         for ch in self.label.chars() {
-            buffer.set(current_x, self.y, Cell::new(ch, fg_color, bg_color));
+            buffer.set(
+                current_x,
+                self.y,
+                Cell::new_unchecked(ch, fg_color, bg_color),
+            );
             current_x += 1;
         }
 
         // Render " ]"
-        buffer.set(current_x, self.y, Cell::new(' ', fg_color, bg_color));
+        buffer.set(
+            current_x,
+            self.y,
+            Cell::new_unchecked(' ', fg_color, bg_color),
+        );
         current_x += 1;
-        buffer.set(current_x, self.y, Cell::new(']', fg_color, bg_color));
+        buffer.set(
+            current_x,
+            self.y,
+            Cell::new_unchecked(']', fg_color, bg_color),
+        );
     }
 }
 

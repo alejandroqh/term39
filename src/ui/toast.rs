@@ -54,28 +54,33 @@ impl Toast {
         };
 
         // Draw top border
-        buffer.set(x, y, Cell::new(top_left, fg, bg));
+        // Use new_unchecked for performance - theme colors are pre-validated
+        buffer.set(x, y, Cell::new_unchecked(top_left, fg, bg));
         for dx in 1..width - 1 {
-            buffer.set(x + dx, y, Cell::new(horizontal, fg, bg));
+            buffer.set(x + dx, y, Cell::new_unchecked(horizontal, fg, bg));
         }
-        buffer.set(x + width - 1, y, Cell::new(top_right, fg, bg));
+        buffer.set(x + width - 1, y, Cell::new_unchecked(top_right, fg, bg));
 
         // Draw middle row with message
         let msg_y = y + 1;
-        buffer.set(x, msg_y, Cell::new(vertical, fg, bg));
-        buffer.set(x + 1, msg_y, Cell::new(' ', fg, bg));
+        buffer.set(x, msg_y, Cell::new_unchecked(vertical, fg, bg));
+        buffer.set(x + 1, msg_y, Cell::new_unchecked(' ', fg, bg));
         for (i, ch) in self.message.chars().enumerate() {
-            buffer.set(x + 2 + i as u16, msg_y, Cell::new(ch, fg, bg));
+            buffer.set(x + 2 + i as u16, msg_y, Cell::new_unchecked(ch, fg, bg));
         }
-        buffer.set(x + 2 + message_len, msg_y, Cell::new(' ', fg, bg));
-        buffer.set(x + width - 1, msg_y, Cell::new(vertical, fg, bg));
+        buffer.set(x + 2 + message_len, msg_y, Cell::new_unchecked(' ', fg, bg));
+        buffer.set(x + width - 1, msg_y, Cell::new_unchecked(vertical, fg, bg));
 
         // Draw bottom border
         let bottom_y = y + 2;
-        buffer.set(x, bottom_y, Cell::new(bottom_left, fg, bg));
+        buffer.set(x, bottom_y, Cell::new_unchecked(bottom_left, fg, bg));
         for dx in 1..width - 1 {
-            buffer.set(x + dx, bottom_y, Cell::new(horizontal, fg, bg));
+            buffer.set(x + dx, bottom_y, Cell::new_unchecked(horizontal, fg, bg));
         }
-        buffer.set(x + width - 1, bottom_y, Cell::new(bottom_right, fg, bg));
+        buffer.set(
+            x + width - 1,
+            bottom_y,
+            Cell::new_unchecked(bottom_right, fg, bg),
+        );
     }
 }

@@ -355,7 +355,8 @@ impl FramebufferRenderer {
     }
 
     /// Render a single character at text position (col, row)
-    /// Uses single-pass rendering for optimal performance
+    /// Uses scanline-based rendering for optimal performance.
+    /// Optimized: Renders entire scanlines directly to framebuffer instead of per-pixel calls.
     #[inline]
     pub fn render_char(&mut self, col: usize, row: usize, cell: &Cell) {
         if !self.mode.is_valid_position(col, row) {
@@ -370,30 +371,101 @@ impl FramebufferRenderer {
         let fg_color = self.color_to_rgb(cell.fg_color);
         let bg_color = self.color_to_rgb(cell.bg_color);
 
-        // Copy glyph data to stack-allocated buffer to avoid borrow conflicts with put_pixel
-        // Max glyph size: 24 rows * 3 bytes/row = 72 bytes (covers all standard fonts up to 24px)
-        let glyph_src = self.font.get_glyph(cell.character);
-        let glyph_len = glyph_src.len().min(72);
-        let mut glyph_data = [0u8; 72];
-        glyph_data[..glyph_len].copy_from_slice(&glyph_src[..glyph_len]);
-
+        // Get glyph data reference (no copy needed for scanline rendering)
+        let glyph = self.font.get_glyph(cell.character);
+        let glyph_len = glyph.len();
         let is_width_8 = self.font.is_width_8;
         let bytes_per_row = self.font.bytes_per_row;
 
-        // Single-pass rendering: check pixel and render immediately
-        // This eliminates the intermediate array and reduces memory accesses
+        // Fast path for scale=1 with 4-byte pixels (most common case)
+        // Render entire scanlines directly to framebuffer
+        if self.scale == 1 && self.bytes_per_pixel == 4 {
+            let frame = self.framebuffer.frame.as_mut();
+            let line_length = self.line_length;
+            let r_offset = self.r_offset;
+            let g_offset = self.g_offset;
+            let b_offset = self.b_offset;
+            let frame_len = frame.len();
+            let offset_x = self.offset_x;
+            let offset_y = self.offset_y;
+
+            for py in 0..font_height {
+                let actual_y = (y_offset + py) + offset_y;
+                if actual_y >= self.height_pixels {
+                    break;
+                }
+
+                let row_base = actual_y * line_length;
+                let x_base = (x_offset + offset_x) * 4; // bytes_per_pixel = 4
+
+                // Get glyph row data
+                let glyph_byte = if is_width_8 {
+                    if py < glyph_len { glyph[py] } else { 0 }
+                } else {
+                    let row_start = py * bytes_per_row;
+                    if row_start < glyph_len {
+                        glyph[row_start]
+                    } else {
+                        0
+                    }
+                };
+
+                // Render 8 pixels per scanline (common case for 8-pixel-wide fonts)
+                for px in 0..font_width.min(8) {
+                    let offset = row_base + x_base + px * 4;
+                    if offset + 3 >= frame_len {
+                        break;
+                    }
+                    let is_set = (glyph_byte & (0x80 >> px)) != 0;
+                    let (r, g, b) = if is_set { fg_color } else { bg_color };
+                    frame[offset + r_offset] = r;
+                    frame[offset + g_offset] = g;
+                    frame[offset + b_offset] = b;
+                    frame[offset + 3] = 255;
+                }
+
+                // Handle wider fonts (9-16 pixels wide)
+                if font_width > 8 && !is_width_8 {
+                    let glyph_byte2 = {
+                        let row_start = py * bytes_per_row;
+                        if row_start + 1 < glyph_len {
+                            glyph[row_start + 1]
+                        } else {
+                            0
+                        }
+                    };
+                    for px in 8..font_width {
+                        let offset = row_base + x_base + px * 4;
+                        if offset + 3 >= frame_len {
+                            break;
+                        }
+                        let is_set = (glyph_byte2 & (0x80 >> (px - 8))) != 0;
+                        let (r, g, b) = if is_set { fg_color } else { bg_color };
+                        frame[offset + r_offset] = r;
+                        frame[offset + g_offset] = g;
+                        frame[offset + b_offset] = b;
+                        frame[offset + 3] = 255;
+                    }
+                }
+            }
+            return;
+        }
+
+        // Fallback path for scaled rendering or non-32bpp modes
+        // Copy glyph data to stack buffer to avoid borrow conflicts with put_pixel
+        let mut glyph_data = [0u8; 72];
+        let copy_len = glyph_len.min(72);
+        glyph_data[..copy_len].copy_from_slice(&glyph[..copy_len]);
+
         for py in 0..font_height {
             for px in 0..font_width {
-                // Inline pixel checking to avoid borrow conflicts with put_pixel
                 let is_set = if is_width_8 {
-                    // Fast path for 8-pixel-wide fonts
-                    py < glyph_len && (glyph_data[py] & (0x80 >> px)) != 0
+                    py < copy_len && (glyph_data[py] & (0x80 >> px)) != 0
                 } else {
-                    // General path for wider fonts
                     let row_start = py * bytes_per_row;
                     let byte_index = row_start + (px >> 3);
                     let bit_index = 7 - (px & 7);
-                    byte_index < glyph_len && (glyph_data[byte_index] & (1 << bit_index)) != 0
+                    byte_index < copy_len && (glyph_data[byte_index] & (1 << bit_index)) != 0
                 };
                 let color = if is_set { fg_color } else { bg_color };
                 self.put_pixel(x_offset + px, y_offset + py, color.0, color.1, color.2);

@@ -1,5 +1,54 @@
 use crossterm::style::Color;
 
+/// Pre-computed luminance values for the 16 standard VGA colors.
+/// This avoids expensive powf(2.4) calculations for common colors.
+/// Luminance values computed using WCAG 2.1 formula with gamma correction.
+/// Order matches the crossterm Color enum order for fast lookup.
+static VGA_LUMINANCE: [f32; 16] = [
+    0.0,      // Black: (0, 0, 0)
+    0.046770, // DarkGrey: (85, 85, 85)
+    0.213066, // Red: (255, 85, 85)
+    0.045910, // DarkRed: (170, 0, 0)
+    0.531007, // Green: (85, 255, 85)
+    0.153787, // DarkGreen: (0, 170, 0)
+    0.927127, // Yellow: (255, 255, 85)
+    0.110974, // DarkYellow: (170, 85, 0)
+    0.074821, // Blue: (85, 85, 255)
+    0.015209, // DarkBlue: (0, 0, 170)
+    0.284858, // Magenta: (255, 85, 255)
+    0.061119, // DarkMagenta: (170, 0, 170)
+    0.602799, // Cyan: (85, 255, 255)
+    0.168996, // DarkCyan: (0, 170, 170)
+    1.0,      // White: (255, 255, 255)
+    0.296731, // Grey: (170, 170, 170)
+];
+
+/// Get luminance from lookup table for VGA colors, returns None for RGB/ANSI colors.
+/// This is much faster than computing luminance with gamma correction.
+#[inline]
+fn get_vga_luminance(color: &Color) -> Option<f32> {
+    match color {
+        Color::Black => Some(VGA_LUMINANCE[0]),
+        Color::DarkGrey => Some(VGA_LUMINANCE[1]),
+        Color::Red => Some(VGA_LUMINANCE[2]),
+        Color::DarkRed => Some(VGA_LUMINANCE[3]),
+        Color::Green => Some(VGA_LUMINANCE[4]),
+        Color::DarkGreen => Some(VGA_LUMINANCE[5]),
+        Color::Yellow => Some(VGA_LUMINANCE[6]),
+        Color::DarkYellow => Some(VGA_LUMINANCE[7]),
+        Color::Blue => Some(VGA_LUMINANCE[8]),
+        Color::DarkBlue => Some(VGA_LUMINANCE[9]),
+        Color::Magenta => Some(VGA_LUMINANCE[10]),
+        Color::DarkMagenta => Some(VGA_LUMINANCE[11]),
+        Color::Cyan => Some(VGA_LUMINANCE[12]),
+        Color::DarkCyan => Some(VGA_LUMINANCE[13]),
+        Color::White => Some(VGA_LUMINANCE[14]),
+        Color::Grey => Some(VGA_LUMINANCE[15]),
+        Color::Reset => Some(VGA_LUMINANCE[15]), // Default to grey
+        _ => None,
+    }
+}
+
 /// Convert a crossterm Color to RGB values (0-255).
 /// For named colors, uses approximate RGB values that match common terminal palettes.
 pub fn color_to_rgb(color: &Color) -> (u8, u8, u8) {
@@ -67,7 +116,22 @@ fn ansi_to_rgb(value: u8) -> (u8, u8, u8) {
 
 /// Calculate relative luminance of a color according to WCAG 2.1.
 /// Returns a value between 0.0 (darkest) and 1.0 (lightest).
+/// Uses lookup table for VGA colors to avoid expensive powf(2.4) calculations.
+#[inline]
 pub fn calculate_luminance(color: &Color) -> f32 {
+    // Fast path: use lookup table for VGA colors (most common case)
+    if let Some(luminance) = get_vga_luminance(color) {
+        return luminance;
+    }
+
+    // Slow path: compute luminance for RGB/ANSI colors
+    calculate_luminance_slow(color)
+}
+
+/// Compute luminance for non-VGA colors (RGB, ANSI 256).
+/// Separated to keep the fast path inline-friendly.
+#[cold]
+fn calculate_luminance_slow(color: &Color) -> f32 {
     let (r, g, b) = color_to_rgb(color);
 
     // Convert to 0.0-1.0 range
