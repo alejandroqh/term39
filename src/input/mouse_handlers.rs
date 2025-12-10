@@ -760,14 +760,20 @@ pub fn handle_selection_mouse(
                 return false;
             }
 
-            // Check if clicking on a different window than the focused one
-            // If so, let the window manager handle focus change first
-            if let Some(clicked_window_id) =
-                window_manager.window_at(mouse_event.column, mouse_event.row)
-            {
+            // Check if clicking on a window
+            let clicked_window_id = window_manager.window_at(mouse_event.column, mouse_event.row);
+
+            // If clicking on empty space (no window), let window manager handle it
+            // This allows focus_desktop() to be called
+            if clicked_window_id.is_none() {
+                return false;
+            }
+
+            // If clicking on a different window than the focused one,
+            // let the window manager handle focus change first
+            if let Some(clicked_id) = clicked_window_id {
                 if let FocusState::Window(focused_id) = window_manager.get_focus() {
-                    if clicked_window_id != focused_id {
-                        // Clicking on a different window - let window manager handle focus
+                    if clicked_id != focused_id {
                         return false;
                     }
                 }
