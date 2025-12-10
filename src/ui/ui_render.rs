@@ -1,4 +1,5 @@
 use super::button::{Button, ButtonState};
+use super::widgets::{TopBar, WidgetContext};
 use crate::app::config_manager::AppConfig;
 use crate::input::keyboard_mode::{KeyboardMode, WindowSubMode};
 use crate::rendering::{Cell, Charset, Theme, VideoBuffer};
@@ -7,7 +8,7 @@ use chrono::{Datelike, Local, NaiveDate};
 use crossterm::style::Color;
 
 #[cfg(feature = "battery")]
-mod battery_support {
+pub mod battery_support {
     use crossterm::style::Color;
     use starship_battery::{Manager, State};
     use std::cell::RefCell;
@@ -329,6 +330,37 @@ pub fn render_top_bar(
             Cell::new_unchecked(ch, theme.clock_fg, theme.clock_bg),
         );
     }
+}
+
+/// Render the top bar using the widget system
+///
+/// This function updates the TopBar with current state and renders it.
+pub fn render_top_bar_widgets(
+    buffer: &mut VideoBuffer,
+    top_bar: &mut TopBar,
+    focus: FocusState,
+    has_clipboard_content: bool,
+    has_selection: bool,
+    show_date_in_clock: bool,
+    theme: &Theme,
+) {
+    let (cols, rows) = buffer.dimensions();
+
+    // Create context for widgets
+    let ctx = WidgetContext::new(
+        cols,
+        rows,
+        focus,
+        has_clipboard_content,
+        has_selection,
+        show_date_in_clock,
+    );
+
+    // Update widget state and layout
+    top_bar.update(&ctx);
+
+    // Render the top bar
+    top_bar.render(buffer, theme, &ctx);
 }
 
 /// Render the keyboard mode indicator in the bottom bar

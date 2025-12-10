@@ -10,3 +10,4 @@ pub mod slight_input;
 pub mod splash_screen;
 pub mod toast;
 pub mod ui_render;
+pub mod widgets;

@@ -105,6 +105,8 @@ pub fn run(
             charset,
             theme,
             app_config,
+            has_clipboard_content,
+            has_selection,
         )?;
 
         // Auto-reposition remaining windows if any were closed
@@ -497,6 +499,11 @@ pub fn run(
 
                     // Update button hover states (always active)
                     if !handled {
+                        // Get clipboard and selection state for hover updates
+                        let hover_clipboard = clipboard_manager.has_content();
+                        let hover_selection =
+                            window_manager.focused_window_has_meaningful_selection();
+                        let focus = window_manager.get_focus();
                         update_bar_button_hover_states(
                             app_state,
                             mouse_event.column,
@@ -504,6 +511,9 @@ pub fn run(
                             cols,
                             rows,
                             app_config.show_date_in_clock,
+                            hover_clipboard,
+                            hover_selection,
+                            focus,
                         );
                     }
 

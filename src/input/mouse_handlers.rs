@@ -12,9 +12,9 @@ use crate::ui::config_window::ConfigAction;
 use crate::ui::context_menu::MenuAction;
 use crate::ui::error_dialog::ErrorDialog;
 use crate::ui::prompt::PromptAction;
+use crate::ui::widgets::{WidgetClickResult, WidgetContext};
 use crate::utils::ClipboardManager;
 use crate::window::manager::{FocusState, WindowManager};
-use chrono::Local;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 use crossterm::event::Event;
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
@@ -135,31 +135,45 @@ pub fn update_bar_button_hover_states(
     cols: u16,
     rows: u16,
     show_date_in_clock: bool,
+    has_clipboard_content: bool,
+    has_selection: bool,
+    focus: FocusState,
 ) {
     let bar_y = rows.saturating_sub(1);
 
     // Fast path: if mouse is not on top or bottom bar, reset all buttons
     if mouse_row != 0 && mouse_row != bar_y {
-        reset_top_bar_buttons(app_state);
+        // Reset TopBar widget hover states
+        let ctx = WidgetContext::new(
+            cols,
+            rows,
+            focus,
+            has_clipboard_content,
+            has_selection,
+            show_date_in_clock,
+        );
+        app_state.top_bar.update_hover(mouse_col, mouse_row, &ctx);
         app_state.auto_tiling_button.set_state(ButtonState::Normal);
+
+        // Legacy: keep battery_hovered in sync
+        app_state.battery_hovered = app_state.top_bar.is_battery_hovered();
         return;
     }
 
     if mouse_row == 0 {
-        // Top bar - update top bar buttons
-        update_single_button_hover(&mut app_state.new_terminal_button, mouse_col, mouse_row);
-        update_single_button_hover(&mut app_state.paste_button, mouse_col, mouse_row);
-        update_single_button_hover(&mut app_state.clear_clipboard_button, mouse_col, mouse_row);
-        update_single_button_hover(&mut app_state.copy_button, mouse_col, mouse_row);
-        update_single_button_hover(&mut app_state.clear_selection_button, mouse_col, mouse_row);
-        update_single_button_hover(&mut app_state.exit_button, mouse_col, mouse_row);
+        // Top bar - use widget-based hover
+        let ctx = WidgetContext::new(
+            cols,
+            rows,
+            focus,
+            has_clipboard_content,
+            has_selection,
+            show_date_in_clock,
+        );
+        app_state.top_bar.update_hover(mouse_col, mouse_row, &ctx);
 
-        // Battery indicator hover state (top bar, right side before clock)
-        let battery_width = 10u16; // "| [#####] "
-        let clock_width = if show_date_in_clock { 20u16 } else { 12u16 };
-        let battery_start = cols.saturating_sub(battery_width + clock_width);
-        let battery_end = battery_start + battery_width;
-        app_state.battery_hovered = mouse_col >= battery_start && mouse_col < battery_end;
+        // Legacy: keep battery_hovered in sync
+        app_state.battery_hovered = app_state.top_bar.is_battery_hovered();
 
         // Reset bottom bar button when on top bar
         app_state.auto_tiling_button.set_state(ButtonState::Normal);
@@ -175,8 +189,17 @@ pub fn update_bar_button_hover_states(
             app_state.auto_tiling_button.set_state(ButtonState::Normal);
         }
 
-        // Reset top bar buttons when on bottom bar
-        reset_top_bar_buttons(app_state);
+        // Reset TopBar widget hover states when on bottom bar
+        let ctx = WidgetContext::new(
+            cols,
+            rows,
+            focus,
+            has_clipboard_content,
+            has_selection,
+            show_date_in_clock,
+        );
+        app_state.top_bar.update_hover(mouse_col, mouse_row, &ctx);
+        app_state.battery_hovered = false;
     }
 }
 
@@ -337,151 +360,102 @@ pub fn handle_topbar_click(
     cols: u16,
     rows: u16,
     tiling_gaps: bool,
-    no_exit: bool,
-    show_date_in_clock: bool,
+    _no_exit: bool,
+    _show_date_in_clock: bool,
 ) -> TopBarClickResult {
     // Only handle left clicks on row 0
     if mouse_event.kind != MouseEventKind::Down(MouseButton::Left) || mouse_event.row != 0 {
         return TopBarClickResult::NotHandled;
     }
 
-    // New Terminal button
-    if app_state
-        .new_terminal_button
-        .contains(mouse_event.column, mouse_event.row)
-    {
-        app_state
-            .new_terminal_button
-            .set_state(ButtonState::Pressed);
+    // Use the widget-based click handling
+    let widget_result = app_state
+        .top_bar
+        .handle_click(mouse_event.column, mouse_event.row);
 
-        // Check if this will be the first window
-        let is_first_window = window_manager.window_count() == 0;
+    // Process the widget result
+    match widget_result {
+        WidgetClickResult::NotHandled => TopBarClickResult::NotHandled,
 
-        let (width, height) = WindowManager::calculate_window_size(cols, rows);
-        let (x, y) = if app_state.auto_tiling_enabled {
-            let x = (cols.saturating_sub(width)) / 2;
-            let y = 1 + (rows.saturating_sub(2).saturating_sub(height)) / 2;
-            (x, y.max(1))
-        } else {
-            window_manager.get_cascade_position(width, height, cols, rows)
-        };
+        WidgetClickResult::Handled => TopBarClickResult::Handled,
 
-        match window_manager.create_window(
-            x,
-            y,
-            width,
-            height,
-            format!("Terminal {}", window_manager.window_count() + 1),
-            None,
-        ) {
-            Ok(window_id) => {
-                // When auto-tiling is enabled and this is the first window, maximize it
-                if app_state.auto_tiling_enabled && is_first_window {
-                    window_manager.maximize_window(window_id, cols, rows, tiling_gaps);
-                } else if app_state.auto_tiling_enabled {
-                    // For subsequent windows, use auto-positioning
-                    window_manager.auto_position_windows(cols, rows, tiling_gaps);
+        WidgetClickResult::CreateTerminal => {
+            // Check if this will be the first window
+            let is_first_window = window_manager.window_count() == 0;
+
+            let (width, height) = WindowManager::calculate_window_size(cols, rows);
+            let (x, y) = if app_state.auto_tiling_enabled {
+                let x = (cols.saturating_sub(width)) / 2;
+                let y = 1 + (rows.saturating_sub(2).saturating_sub(height)) / 2;
+                (x, y.max(1))
+            } else {
+                window_manager.get_cascade_position(width, height, cols, rows)
+            };
+
+            match window_manager.create_window(
+                x,
+                y,
+                width,
+                height,
+                format!("Terminal {}", window_manager.window_count() + 1),
+                None,
+            ) {
+                Ok(window_id) => {
+                    // When auto-tiling is enabled and this is the first window, maximize it
+                    if app_state.auto_tiling_enabled && is_first_window {
+                        window_manager.maximize_window(window_id, cols, rows, tiling_gaps);
+                    } else if app_state.auto_tiling_enabled {
+                        // For subsequent windows, use auto-positioning
+                        window_manager.auto_position_windows(cols, rows, tiling_gaps);
+                    }
+                }
+                Err(error_msg) => {
+                    app_state.active_error_dialog = Some(ErrorDialog::new(cols, rows, error_msg));
                 }
             }
-            Err(error_msg) => {
-                app_state.active_error_dialog = Some(ErrorDialog::new(cols, rows, error_msg));
-            }
+            TopBarClickResult::Handled
         }
-        return TopBarClickResult::Handled;
-    }
 
-    // Copy button
-    if app_state
-        .copy_button
-        .contains(mouse_event.column, mouse_event.row)
-    {
-        app_state.copy_button.set_state(ButtonState::Pressed);
+        WidgetClickResult::CopySelection => {
+            if let FocusState::Window(window_id) = window_manager.get_focus() {
+                if let Some(text) = window_manager.get_selected_text(window_id) {
+                    let _ = clipboard_manager.copy(text);
+                    window_manager.clear_selection(window_id);
+                }
+            }
+            TopBarClickResult::Handled
+        }
 
-        if let FocusState::Window(window_id) = window_manager.get_focus() {
-            if let Some(text) = window_manager.get_selected_text(window_id) {
-                let _ = clipboard_manager.copy(text);
+        WidgetClickResult::ClearSelection => {
+            if let FocusState::Window(window_id) = window_manager.get_focus() {
                 window_manager.clear_selection(window_id);
             }
+            TopBarClickResult::Handled
         }
-        return TopBarClickResult::Handled;
-    }
 
-    // Clear Selection button
-    if app_state
-        .clear_selection_button
-        .contains(mouse_event.column, mouse_event.row)
-    {
-        app_state
-            .clear_selection_button
-            .set_state(ButtonState::Pressed);
-
-        if let FocusState::Window(window_id) = window_manager.get_focus() {
-            window_manager.clear_selection(window_id);
-        }
-        return TopBarClickResult::Handled;
-    }
-
-    // Paste button
-    if app_state
-        .paste_button
-        .contains(mouse_event.column, mouse_event.row)
-    {
-        app_state.paste_button.set_state(ButtonState::Pressed);
-
-        if let FocusState::Window(window_id) = window_manager.get_focus() {
-            if let Ok(text) = clipboard_manager.paste() {
-                let _ = window_manager.paste_to_window(window_id, &text);
+        WidgetClickResult::Paste => {
+            if let FocusState::Window(window_id) = window_manager.get_focus() {
+                if let Ok(text) = clipboard_manager.paste() {
+                    let _ = window_manager.paste_to_window(window_id, &text);
+                }
             }
+            TopBarClickResult::Handled
         }
-        return TopBarClickResult::Handled;
+
+        WidgetClickResult::ClearClipboard => {
+            clipboard_manager.clear();
+            TopBarClickResult::Handled
+        }
+
+        WidgetClickResult::OpenCalendar => {
+            app_state.active_calendar = Some(crate::ui::ui_render::CalendarState::new());
+            TopBarClickResult::Handled
+        }
+
+        WidgetClickResult::ShowExitPrompt(message, prompt_cols, prompt_rows) => {
+            TopBarClickResult::ShowExitPrompt(message, prompt_cols, prompt_rows)
+        }
     }
-
-    // Clear Clipboard button
-    if app_state
-        .clear_clipboard_button
-        .contains(mouse_event.column, mouse_event.row)
-    {
-        app_state
-            .clear_clipboard_button
-            .set_state(ButtonState::Pressed);
-        clipboard_manager.clear();
-        return TopBarClickResult::Handled;
-    }
-
-    // Exit button
-    if !no_exit
-        && app_state
-            .exit_button
-            .contains(mouse_event.column, mouse_event.row)
-    {
-        app_state.exit_button.set_state(ButtonState::Pressed);
-
-        let message = if window_manager.window_count() > 0 {
-            "Exit with open windows?\nAll terminal sessions will be closed.".to_string()
-        } else {
-            "Exit term39?".to_string()
-        };
-
-        return TopBarClickResult::ShowExitPrompt(message, cols, rows);
-    }
-
-    // Clock click (opens calendar)
-    let now = Local::now();
-    let time_str = if show_date_in_clock {
-        now.format("%a %b %d, %H:%M").to_string()
-    } else {
-        now.format("%H:%M:%S").to_string()
-    };
-    let clock_with_separator = format!("| {} ", time_str);
-    let clock_width = clock_with_separator.len() as u16;
-    let time_pos = cols.saturating_sub(clock_width);
-
-    if mouse_event.column >= time_pos && mouse_event.column < cols {
-        app_state.active_calendar = Some(crate::ui::ui_render::CalendarState::new());
-        return TopBarClickResult::Handled;
-    }
-
-    TopBarClickResult::NotHandled
 }
 
 /// Handles click on the auto-tiling toggle button in the bottom bar.

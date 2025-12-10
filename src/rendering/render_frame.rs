@@ -22,6 +22,8 @@ pub fn render_frame(
     charset: &Charset,
     theme: &Theme,
     app_config: &AppConfig,
+    has_clipboard_content: bool,
+    has_selection: bool,
 ) -> io::Result<bool> {
     // Get current dimensions from backend
     let (cols, rows) = backend.dimensions();
@@ -29,20 +31,16 @@ pub fn render_frame(
     // Render the background (every frame for consistency)
     ui_render::render_background(video_buffer, charset, theme);
 
-    // Render the top bar
+    // Render the top bar using widget system
     let focus = window_manager.get_focus();
-    ui_render::render_top_bar(
+    ui_render::render_top_bar_widgets(
         video_buffer,
+        &mut app_state.top_bar,
         focus,
-        &app_state.new_terminal_button,
-        &app_state.paste_button,
-        &app_state.clear_clipboard_button,
-        &app_state.copy_button,
-        &app_state.clear_selection_button,
-        &app_state.exit_button,
-        app_config,
+        has_clipboard_content,
+        has_selection,
+        app_config.show_date_in_clock,
         theme,
-        app_state.battery_hovered,
     );
 
     // Render all windows (returns true if any were closed)

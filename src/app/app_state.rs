@@ -10,6 +10,7 @@ use crate::ui::prompt::Prompt;
 use crate::ui::slight_input::SlightInput;
 use crate::ui::toast::Toast;
 use crate::ui::ui_render::CalendarState;
+use crate::ui::widgets::TopBar;
 use std::time::Instant;
 
 /// Centralizes all mutable application state
@@ -28,7 +29,7 @@ pub struct AppState {
     pub taskbar_menu: ContextMenu,
     pub taskbar_menu_window_id: Option<u32>,
 
-    // Top Bar Buttons
+    // Top Bar Buttons (legacy - will be replaced by TopBar)
     pub new_terminal_button: Button,
     pub paste_button: Button,
     pub clear_clipboard_button: Button,
@@ -36,7 +37,10 @@ pub struct AppState {
     pub clear_selection_button: Button,
     pub exit_button: Button,
 
-    // Battery indicator hover state
+    // New Widget-based Top Bar
+    pub top_bar: TopBar,
+
+    // Battery indicator hover state (legacy - TopBar manages this internally)
     pub battery_hovered: bool,
 
     // Bottom Bar Buttons
@@ -130,7 +134,7 @@ impl AppState {
             taskbar_menu,
             taskbar_menu_window_id: None,
 
-            // Top Bar Buttons
+            // Top Bar Buttons (legacy)
             new_terminal_button,
             paste_button,
             clear_clipboard_button,
@@ -138,7 +142,10 @@ impl AppState {
             clear_selection_button,
             exit_button,
 
-            // Battery indicator hover state
+            // New Widget-based Top Bar
+            top_bar: TopBar::new(config.show_date_in_clock),
+
+            // Battery indicator hover state (legacy)
             battery_hovered: false,
 
             // Bottom Bar Button
