@@ -1736,9 +1736,9 @@ impl WindowManager {
         }
     }
 
-    /// Check if a window is currently being dragged or resized
+    /// Check if a window is currently being dragged or resized (includes pivot dragging)
     pub fn is_dragging_or_resizing(&self) -> bool {
-        self.dragging.is_some() || self.resizing.is_some()
+        self.dragging.is_some() || self.resizing.is_some() || self.pivot_dragging.is_some()
     }
 
     /// Check if a point is on a window's title bar or resize edge

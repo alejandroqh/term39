@@ -628,7 +628,18 @@ pub fn run(
                     }
 
                     // Handle text selection (left-click, drag, mouse forwarding)
+                    // Skip selection handling if clicking on the pivot (let window manager handle it)
+                    let on_pivot = app_state.auto_tiling_enabled
+                        && app_config.tiling_gaps
+                        && window_manager.is_point_on_pivot(
+                            mouse_event.column,
+                            mouse_event.row,
+                            cols,
+                            rows,
+                            app_config.tiling_gaps,
+                        );
                     if !handled
+                        && !on_pivot
                         && app_state.active_prompt.is_none()
                         && !app_state.context_menu.visible
                         && handle_selection_mouse(app_state, window_manager, &mouse_event)
