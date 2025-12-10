@@ -767,7 +767,9 @@ impl WindowManager {
         }
 
         match event.kind {
-            MouseEventKind::Down(MouseButton::Left) => self.handle_mouse_down(buffer, x, y, gaps),
+            MouseEventKind::Down(MouseButton::Left) => {
+                self.handle_mouse_down(buffer, x, y, gaps, auto_tiling)
+            }
             MouseEventKind::Drag(MouseButton::Left) => {
                 // Pass modifiers to check if Control is pressed (to disable snap)
                 self.handle_mouse_drag(buffer, x, y, event.modifiers);
@@ -789,7 +791,14 @@ impl WindowManager {
         }
     }
 
-    fn handle_mouse_down(&mut self, buffer: &mut VideoBuffer, x: u16, y: u16, gaps: bool) -> bool {
+    fn handle_mouse_down(
+        &mut self,
+        buffer: &mut VideoBuffer,
+        x: u16,
+        y: u16,
+        gaps: bool,
+        auto_tiling: bool,
+    ) -> bool {
         // Find window at click position
         if let Some(window_id) = self.window_at(x, y) {
             // Extract all needed data from window before any mutable operations
@@ -888,6 +897,11 @@ impl WindowManager {
                 // Check if clicking on a resizable border (only if not maximized)
                 if !is_maximized {
                     if let Some(edge) = resize_edge {
+                        // Don't allow resize if window is locked (auto-tiled first 4)
+                        if self.is_window_tiled_locked(window_id, auto_tiling) {
+                            self.focus_window(window_id);
+                            return false;
+                        }
                         // Focus the window when clicking on resize border
                         self.focus_window(window_id);
                         self.resizing = Some(ResizeState {
@@ -958,8 +972,8 @@ impl WindowManager {
                             time: now,
                         });
 
-                        // Only start dragging if not maximized
-                        if !is_maximized {
+                        // Only start dragging if not maximized and not locked
+                        if !is_maximized && !self.is_window_tiled_locked(window_id, auto_tiling) {
                             let offset_x = x as i16 - win_x as i16;
                             let offset_y = y as i16 - win_y as i16;
 
@@ -2201,6 +2215,26 @@ impl WindowManager {
             .iter()
             .filter(|w| !w.window.is_minimized)
             .count()
+    }
+
+    /// Check if a window is in the locked tiled set (first 4 visible windows when auto-tiling)
+    /// Locked windows cannot be moved or resized manually (but pivot still works)
+    pub fn is_window_tiled_locked(&self, window_id: u32, auto_tiling_enabled: bool) -> bool {
+        if !auto_tiling_enabled {
+            return false;
+        }
+
+        // Get visible windows sorted by ID (creation order)
+        let mut visible_ids: Vec<u32> = self
+            .windows
+            .iter()
+            .filter(|w| !w.window.is_minimized)
+            .map(|w| w.id())
+            .collect();
+        visible_ids.sort();
+
+        // Check if this window is in the first 4
+        visible_ids.iter().take(4).any(|&id| id == window_id)
     }
 
     /// Check if pivot should be visible

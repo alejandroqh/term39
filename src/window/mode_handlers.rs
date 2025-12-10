@@ -21,6 +21,15 @@ pub const DIR_DOWN: u8 = 1;
 pub const DIR_UP: u8 = 2;
 pub const DIR_RIGHT: u8 = 3;
 
+/// Helper to check if focused window is locked (auto-tiled first 4)
+fn is_focused_window_locked(window_manager: &WindowManager, auto_tiling_enabled: bool) -> bool {
+    if let Some(focused_id) = window_manager.get_focused_window_id() {
+        window_manager.is_window_tiled_locked(focused_id, auto_tiling_enabled)
+    } else {
+        false
+    }
+}
+
 /// Handle keyboard input when in Window Mode
 /// Returns true if event was consumed
 pub fn handle_window_mode_keyboard(
@@ -130,24 +139,33 @@ fn handle_navigation_mode(
         }
 
         // Snap to full halves (Shift + h/j/k/l)
+        // Don't snap locked windows (auto-tiled first 4)
         KeyCode::Char('H') | KeyCode::Left if has_shift => {
-            let (x, y, w, h) = SnapPosition::FullLeft.calculate_rect(cols, rows, top_y);
-            window_manager.snap_focused_window(x, y, w, h);
+            if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
+                let (x, y, w, h) = SnapPosition::FullLeft.calculate_rect(cols, rows, top_y);
+                window_manager.snap_focused_window(x, y, w, h);
+            }
             true
         }
         KeyCode::Char('J') | KeyCode::Down if has_shift => {
-            let (x, y, w, h) = SnapPosition::FullBottom.calculate_rect(cols, rows, top_y);
-            window_manager.snap_focused_window(x, y, w, h);
+            if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
+                let (x, y, w, h) = SnapPosition::FullBottom.calculate_rect(cols, rows, top_y);
+                window_manager.snap_focused_window(x, y, w, h);
+            }
             true
         }
         KeyCode::Char('K') | KeyCode::Up if has_shift => {
-            let (x, y, w, h) = SnapPosition::FullTop.calculate_rect(cols, rows, top_y);
-            window_manager.snap_focused_window(x, y, w, h);
+            if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
+                let (x, y, w, h) = SnapPosition::FullTop.calculate_rect(cols, rows, top_y);
+                window_manager.snap_focused_window(x, y, w, h);
+            }
             true
         }
         KeyCode::Char('L') | KeyCode::Right if has_shift => {
-            let (x, y, w, h) = SnapPosition::FullRight.calculate_rect(cols, rows, top_y);
-            window_manager.snap_focused_window(x, y, w, h);
+            if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
+                let (x, y, w, h) = SnapPosition::FullRight.calculate_rect(cols, rows, top_y);
+                window_manager.snap_focused_window(x, y, w, h);
+            }
             true
         }
 
@@ -240,49 +258,68 @@ fn handle_navigation_mode(
         }
 
         // Numpad-style snap positions (1-9)
+        // Don't snap locked windows (auto-tiled first 4)
         KeyCode::Char('1') => {
-            let (x, y, w, h) = SnapPosition::BottomLeft.calculate_rect(cols, rows, top_y);
-            window_manager.snap_focused_window(x, y, w, h);
+            if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
+                let (x, y, w, h) = SnapPosition::BottomLeft.calculate_rect(cols, rows, top_y);
+                window_manager.snap_focused_window(x, y, w, h);
+            }
             true
         }
         KeyCode::Char('2') => {
-            let (x, y, w, h) = SnapPosition::BottomCenter.calculate_rect(cols, rows, top_y);
-            window_manager.snap_focused_window(x, y, w, h);
+            if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
+                let (x, y, w, h) = SnapPosition::BottomCenter.calculate_rect(cols, rows, top_y);
+                window_manager.snap_focused_window(x, y, w, h);
+            }
             true
         }
         KeyCode::Char('3') => {
-            let (x, y, w, h) = SnapPosition::BottomRight.calculate_rect(cols, rows, top_y);
-            window_manager.snap_focused_window(x, y, w, h);
+            if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
+                let (x, y, w, h) = SnapPosition::BottomRight.calculate_rect(cols, rows, top_y);
+                window_manager.snap_focused_window(x, y, w, h);
+            }
             true
         }
         KeyCode::Char('4') => {
-            let (x, y, w, h) = SnapPosition::MiddleLeft.calculate_rect(cols, rows, top_y);
-            window_manager.snap_focused_window(x, y, w, h);
+            if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
+                let (x, y, w, h) = SnapPosition::MiddleLeft.calculate_rect(cols, rows, top_y);
+                window_manager.snap_focused_window(x, y, w, h);
+            }
             true
         }
         KeyCode::Char('5') => {
-            let (x, y, w, h) = SnapPosition::Center.calculate_rect(cols, rows, top_y);
-            window_manager.snap_focused_window(x, y, w, h);
+            if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
+                let (x, y, w, h) = SnapPosition::Center.calculate_rect(cols, rows, top_y);
+                window_manager.snap_focused_window(x, y, w, h);
+            }
             true
         }
         KeyCode::Char('6') => {
-            let (x, y, w, h) = SnapPosition::MiddleRight.calculate_rect(cols, rows, top_y);
-            window_manager.snap_focused_window(x, y, w, h);
+            if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
+                let (x, y, w, h) = SnapPosition::MiddleRight.calculate_rect(cols, rows, top_y);
+                window_manager.snap_focused_window(x, y, w, h);
+            }
             true
         }
         KeyCode::Char('7') => {
-            let (x, y, w, h) = SnapPosition::TopLeft.calculate_rect(cols, rows, top_y);
-            window_manager.snap_focused_window(x, y, w, h);
+            if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
+                let (x, y, w, h) = SnapPosition::TopLeft.calculate_rect(cols, rows, top_y);
+                window_manager.snap_focused_window(x, y, w, h);
+            }
             true
         }
         KeyCode::Char('8') => {
-            let (x, y, w, h) = SnapPosition::TopCenter.calculate_rect(cols, rows, top_y);
-            window_manager.snap_focused_window(x, y, w, h);
+            if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
+                let (x, y, w, h) = SnapPosition::TopCenter.calculate_rect(cols, rows, top_y);
+                window_manager.snap_focused_window(x, y, w, h);
+            }
             true
         }
         KeyCode::Char('9') => {
-            let (x, y, w, h) = SnapPosition::TopRight.calculate_rect(cols, rows, top_y);
-            window_manager.snap_focused_window(x, y, w, h);
+            if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
+                let (x, y, w, h) = SnapPosition::TopRight.calculate_rect(cols, rows, top_y);
+                window_manager.snap_focused_window(x, y, w, h);
+            }
             true
         }
 
@@ -328,6 +365,26 @@ fn handle_move_mode(
     rows: u16,
     top_y: u16,
 ) -> bool {
+    // Check if focused window is locked (auto-tiled first 4)
+    // Locked windows cannot be moved, but allow exiting move mode
+    if let Some(focused_id) = window_manager.get_focused_window_id() {
+        if window_manager.is_window_tiled_locked(focused_id, app_state.auto_tiling_enabled) {
+            // Allow exiting move mode but block actual movement
+            match key_event.code {
+                KeyCode::Enter
+                | KeyCode::Esc
+                | KeyCode::F(8)
+                | KeyCode::Char('m')
+                | KeyCode::Char('`') => {
+                    app_state.keyboard_mode.return_to_navigation();
+                    app_state.move_state.reset();
+                }
+                _ => {}
+            }
+            return true;
+        }
+    }
+
     let has_shift = key_event.modifiers.contains(KeyModifiers::SHIFT);
 
     match key_event.code {
@@ -452,6 +509,26 @@ fn handle_resize_mode(
     window_manager: &mut WindowManager,
     _resize_direction: ResizeDirection, // Kept for API compatibility
 ) -> bool {
+    // Check if focused window is locked (auto-tiled first 4)
+    // Locked windows cannot be resized, but allow exiting resize mode
+    if let Some(focused_id) = window_manager.get_focused_window_id() {
+        if window_manager.is_window_tiled_locked(focused_id, app_state.auto_tiling_enabled) {
+            // Allow exiting resize mode but block actual resizing
+            match key_event.code {
+                KeyCode::Enter
+                | KeyCode::Esc
+                | KeyCode::F(8)
+                | KeyCode::Char('r')
+                | KeyCode::Char('`') => {
+                    app_state.keyboard_mode.return_to_navigation();
+                    app_state.resize_state.reset();
+                }
+                _ => {}
+            }
+            return true;
+        }
+    }
+
     let has_shift = key_event.modifiers.contains(KeyModifiers::SHIFT);
 
     match key_event.code {
