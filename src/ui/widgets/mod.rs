@@ -7,19 +7,15 @@ use crate::rendering::{Theme, VideoBuffer};
 use crate::window::manager::FocusState;
 
 pub mod battery;
-pub mod clipboard;
 pub mod command_center;
 pub mod datetime;
-pub mod exit;
 pub mod new_term;
 pub mod topbar;
 
 // Re-export main types
 pub use battery::BatteryWidget;
-pub use clipboard::ClipboardWidget;
 pub use command_center::CommandCenterWidget;
 pub use datetime::DateTimeWidget;
-pub use exit::ExitWidget;
 pub use new_term::NewTermWidget;
 pub use topbar::TopBar;
 
@@ -28,26 +24,12 @@ pub use topbar::TopBar;
 pub enum WidgetClickResult {
     /// Click was not handled by this widget
     NotHandled,
-    /// Click was handled, no further action needed
-    Handled,
-    /// Widget requests showing exit prompt
-    ShowExitPrompt(String, u16, u16),
     /// Widget requests opening calendar
     OpenCalendar,
     /// Widget requests creating new terminal
     CreateTerminal,
-    /// Widget requests copying selected text
-    CopySelection,
-    /// Widget requests clearing selection
-    ClearSelection,
-    /// Widget requests pasting from clipboard
-    Paste,
-    /// Widget requests clearing clipboard
-    ClearClipboard,
     /// Widget requests toggling Command Center menu
     ToggleCommandCenter,
-    /// Widget requests exit action from Command Center
-    CommandCenterExit,
 }
 
 /// Alignment of widget within its container
@@ -62,9 +44,12 @@ pub enum WidgetAlignment {
 #[derive(Clone, Copy, Debug)]
 pub struct WidgetContext {
     pub cols: u16,
+    #[allow(dead_code)]
     pub rows: u16,
     pub focus: FocusState,
+    #[allow(dead_code)]
     pub has_clipboard_content: bool,
+    #[allow(dead_code)]
     pub has_selection: bool,
     pub show_date_in_clock: bool,
 }
@@ -116,5 +101,6 @@ pub trait Widget {
     fn update(&mut self, ctx: &WidgetContext);
 
     /// Get widget alignment preference
+    #[allow(dead_code)]
     fn alignment(&self) -> WidgetAlignment;
 }

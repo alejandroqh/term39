@@ -1,6 +1,5 @@
 use super::button::{Button, ButtonState};
 use super::widgets::{TopBar, WidgetContext};
-use crate::app::config_manager::AppConfig;
 use crate::input::keyboard_mode::{KeyboardMode, WindowSubMode};
 use crate::rendering::{Cell, Charset, Theme, VideoBuffer};
 use crate::window::manager::{FocusState, WindowManager};
@@ -85,9 +84,6 @@ pub mod battery_support {
         }
     }
 }
-
-#[cfg(feature = "battery")]
-use battery_support::{get_battery_color, get_battery_info};
 
 // Calendar state structure
 pub struct CalendarState {
@@ -175,160 +171,6 @@ pub fn render_background(buffer: &mut VideoBuffer, charset: &Charset, theme: &Th
         for x in 0..cols {
             buffer.set(x, y, background_cell);
         }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn render_top_bar(
-    buffer: &mut VideoBuffer,
-    focus: FocusState,
-    new_terminal_button: &Button,
-    paste_button: &Button,
-    clear_clipboard_button: &Button,
-    copy_button: &Button,
-    clear_selection_button: &Button,
-    exit_button: &Button,
-    app_config: &AppConfig,
-    theme: &Theme,
-    #[cfg(feature = "battery")] battery_hovered: bool,
-    #[cfg(not(feature = "battery"))] _battery_hovered: bool,
-) {
-    let (cols, _rows) = buffer.dimensions();
-
-    // Change background and foreground colors based on focus
-    // Desktop/Topbar: focused colors (same appearance)
-    // Window: unfocused (dimmed) colors
-    let (bg_color, fg_color) = match focus {
-        FocusState::Desktop | FocusState::Topbar => {
-            (theme.topbar_bg_focused, theme.topbar_fg_focused)
-        }
-        FocusState::Window(_) => (theme.topbar_bg_unfocused, theme.topbar_fg_unfocused),
-    };
-
-    // Use new_unchecked for performance - theme colors are pre-validated
-    let bar_cell = Cell::new_unchecked(' ', fg_color, bg_color);
-
-    // Create a blank top bar
-    for x in 0..cols {
-        buffer.set(x, 0, bar_cell);
-    }
-
-    // Left section - New Terminal button (always visible)
-    new_terminal_button.render(buffer, theme);
-
-    // Center section - Copy/Paste/Clear buttons (visible based on state)
-    copy_button.render(buffer, theme);
-    clear_selection_button.render(buffer, theme);
-    paste_button.render(buffer, theme);
-    clear_clipboard_button.render(buffer, theme);
-
-    // Right section - Exit button (before clock)
-    exit_button.render(buffer, theme);
-
-    // Right section - Battery indicator and Clock with dark background
-    let now = Local::now();
-
-    // Format clock based on configuration
-    let time_str = if app_config.show_date_in_clock {
-        // Show date and time: "Tue Nov 11, 09:21"
-        now.format("%a %b %d, %H:%M").to_string()
-    } else {
-        // Show time only with seconds: "09:21:45"
-        now.format("%H:%M:%S").to_string()
-    };
-
-    // Format: "| Tue Nov 11, 09:21 " or "| 09:21:45 " (with separator and trailing space)
-    let clock_with_separator = format!("| {} ", time_str);
-    let clock_width = clock_with_separator.len() as u16;
-
-    // Get battery info and create block bar indicator
-    #[cfg(feature = "battery")]
-    let battery_info = get_battery_info();
-    #[cfg(feature = "battery")]
-    let battery_width = if battery_info.is_some() { 10u16 } else { 0u16 }; // "| [█████] " or "| [████⚡] " when charging
-    #[cfg(not(feature = "battery"))]
-    let battery_width = 0u16;
-
-    // Calculate positions (battery comes before clock)
-    let total_width = battery_width + clock_width;
-    let start_pos = cols.saturating_sub(total_width);
-
-    // Render battery indicator (block bar or percentage text on hover)
-    #[cfg(feature = "battery")]
-    if let Some(info) = battery_info {
-        let pct = info.percentage;
-        let is_charging = info.is_charging;
-        let battery_color = get_battery_color(pct, is_charging);
-        let charging_icon = '≈'; // Approximately equal for charging (CP437 247)
-        let charging_color = Color::Yellow;
-
-        if battery_hovered {
-            // Show percentage text on hover: "| [ 100%] " or "| [⚡ 89%] " (10 chars)
-            let battery_text = if is_charging {
-                format!("| [{}{:>4}] ", charging_icon, format!("{}%", pct))
-            } else {
-                format!("| [{:>5}] ", format!("{}%", pct))
-            };
-            for (i, ch) in battery_text.chars().enumerate() {
-                let fg = if ch == charging_icon {
-                    charging_color
-                } else if (3..=7).contains(&i) {
-                    battery_color
-                } else {
-                    theme.clock_fg
-                };
-                buffer.set(
-                    start_pos + i as u16,
-                    0,
-                    Cell::new_unchecked(ch, fg, theme.clock_bg),
-                );
-            }
-        } else {
-            // Show block bar: "| [█████] " or "| [███ ≈] " (10 chars)
-            let filled = ((pct as f32 / 20.0).round() as usize).min(5);
-            let blocks: String = (0..5)
-                .map(|i| {
-                    if is_charging && i == 3 {
-                        ' '
-                    } else if is_charging && i == 4 {
-                        charging_icon
-                    } else if i < filled {
-                        '█'
-                    } else {
-                        '░'
-                    }
-                })
-                .collect();
-            let battery_text = format!("| [{}] ", blocks);
-
-            for (i, ch) in battery_text.chars().enumerate() {
-                let fg = if ch == charging_icon {
-                    charging_color
-                } else if ch == '█' {
-                    battery_color
-                } else if ch == '░' {
-                    Color::DarkGrey
-                } else {
-                    theme.clock_fg
-                };
-                buffer.set(
-                    start_pos + i as u16,
-                    0,
-                    Cell::new_unchecked(ch, fg, theme.clock_bg),
-                );
-            }
-        }
-    }
-
-    // Render clock with dark background
-    let clock_pos = start_pos + battery_width;
-    // Use new_unchecked for performance - theme colors are pre-validated
-    for (i, ch) in clock_with_separator.chars().enumerate() {
-        buffer.set(
-            clock_pos + i as u16,
-            0,
-            Cell::new_unchecked(ch, theme.clock_fg, theme.clock_bg),
-        );
     }
 }
 

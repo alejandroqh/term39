@@ -96,38 +96,9 @@ pub fn map_fb_scroll_event(scroll_direction: u8, col: u16, row: u16) -> Event {
 // Button Hover State Management
 // ============================================================================
 
-/// Helper to update a single button's hover state based on mouse position.
-#[inline]
-fn update_single_button_hover(
-    button: &mut crate::ui::button::Button,
-    mouse_col: u16,
-    mouse_row: u16,
-) {
-    let state = if button.contains(mouse_col, mouse_row) {
-        ButtonState::Hovered
-    } else {
-        ButtonState::Normal
-    };
-    button.set_state(state);
-}
-
-/// Resets all top bar buttons to Normal state.
-fn reset_top_bar_buttons(app_state: &mut AppState) {
-    app_state.new_terminal_button.set_state(ButtonState::Normal);
-    app_state.paste_button.set_state(ButtonState::Normal);
-    app_state
-        .clear_clipboard_button
-        .set_state(ButtonState::Normal);
-    app_state.copy_button.set_state(ButtonState::Normal);
-    app_state
-        .clear_selection_button
-        .set_state(ButtonState::Normal);
-    app_state.exit_button.set_state(ButtonState::Normal);
-    app_state.battery_hovered = false;
-}
-
 /// Updates hover states for all top and bottom bar buttons based on mouse position.
 /// Uses early exit optimization when mouse is not on bar areas.
+#[allow(clippy::too_many_arguments)]
 pub fn update_bar_button_hover_states(
     app_state: &mut AppState,
     mouse_col: u16,
@@ -345,8 +316,6 @@ pub enum TopBarClickResult {
     NotHandled,
     /// Click was handled
     Handled,
-    /// Exit prompt should be shown
-    ShowExitPrompt(String, u16, u16),
 }
 
 /// Handles clicks on top bar buttons (New Terminal, Copy, Paste, etc.).
@@ -376,8 +345,6 @@ pub fn handle_topbar_click(
     // Process the widget result
     match widget_result {
         WidgetClickResult::NotHandled => TopBarClickResult::NotHandled,
-
-        WidgetClickResult::Handled => TopBarClickResult::Handled,
 
         WidgetClickResult::CreateTerminal => {
             // Check if this will be the first window
@@ -416,44 +383,9 @@ pub fn handle_topbar_click(
             TopBarClickResult::Handled
         }
 
-        WidgetClickResult::CopySelection => {
-            if let FocusState::Window(window_id) = window_manager.get_focus() {
-                if let Some(text) = window_manager.get_selected_text(window_id) {
-                    let _ = clipboard_manager.copy(text);
-                    window_manager.clear_selection(window_id);
-                }
-            }
-            TopBarClickResult::Handled
-        }
-
-        WidgetClickResult::ClearSelection => {
-            if let FocusState::Window(window_id) = window_manager.get_focus() {
-                window_manager.clear_selection(window_id);
-            }
-            TopBarClickResult::Handled
-        }
-
-        WidgetClickResult::Paste => {
-            if let FocusState::Window(window_id) = window_manager.get_focus() {
-                if let Ok(text) = clipboard_manager.paste() {
-                    let _ = window_manager.paste_to_window(window_id, &text);
-                }
-            }
-            TopBarClickResult::Handled
-        }
-
-        WidgetClickResult::ClearClipboard => {
-            clipboard_manager.clear();
-            TopBarClickResult::Handled
-        }
-
         WidgetClickResult::OpenCalendar => {
             app_state.active_calendar = Some(crate::ui::ui_render::CalendarState::new());
             TopBarClickResult::Handled
-        }
-
-        WidgetClickResult::ShowExitPrompt(message, prompt_cols, prompt_rows) => {
-            TopBarClickResult::ShowExitPrompt(message, prompt_cols, prompt_rows)
         }
 
         WidgetClickResult::ToggleCommandCenter => {
@@ -482,12 +414,6 @@ pub fn handle_topbar_click(
                     .command_center_menu
                     .show_bounded(button_x, 1, cols);
             }
-            TopBarClickResult::Handled
-        }
-
-        WidgetClickResult::CommandCenterExit => {
-            // Exit was selected from Command Center menu
-            app_state.should_exit = true;
             TopBarClickResult::Handled
         }
     }

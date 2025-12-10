@@ -347,7 +347,9 @@ pub struct Theme {
     pub topbar_bg_focused: Color,
     pub topbar_fg_unfocused: Color,
     pub topbar_fg_focused: Color,
+    #[allow(dead_code)]
     pub clock_bg: Color,
+    #[allow(dead_code)]
     pub clock_fg: Color,
 
     // Windows - Title bar colors

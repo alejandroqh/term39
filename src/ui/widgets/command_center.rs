@@ -27,16 +27,6 @@ impl CommandCenterWidget {
         }
     }
 
-    /// Check if the menu is currently open
-    pub fn is_menu_open(&self) -> bool {
-        self.menu_open
-    }
-
-    /// Open the dropdown menu
-    pub fn open_menu(&mut self) {
-        self.menu_open = true;
-    }
-
     /// Close the dropdown menu
     pub fn close_menu(&mut self) {
         self.menu_open = false;
@@ -45,16 +35,6 @@ impl CommandCenterWidget {
     /// Toggle the dropdown menu
     pub fn toggle_menu(&mut self) {
         self.menu_open = !self.menu_open;
-    }
-
-    /// Get the X position where the menu should appear (right-aligned under the button)
-    pub fn get_menu_x(&self, button_x: u16) -> u16 {
-        button_x
-    }
-
-    /// Get the Y position where the menu should appear (below the topbar)
-    pub fn get_menu_y(&self) -> u16 {
-        1 // Below the topbar
     }
 }
 

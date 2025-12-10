@@ -35,6 +35,7 @@ impl Button {
     }
 
     /// Check if a point (x, y) is inside the button
+    #[allow(dead_code)]
     pub fn contains(&self, x: u16, y: u16) -> bool {
         if !self.enabled {
             return false;
@@ -48,6 +49,7 @@ impl Button {
     }
 
     /// Render the button to the video buffer
+    #[allow(dead_code)]
     pub fn render(&self, buffer: &mut VideoBuffer, theme: &Theme) {
         if !self.enabled {
             return;

@@ -108,7 +108,11 @@ impl ContextMenu {
         let items = vec![
             MenuItem::new("Copy", Some('\u{29C9}'), MenuAction::CopySelection),
             MenuItem::new("Paste", Some('\u{29E0}'), MenuAction::PasteClipboard),
-            MenuItem::new("Clear Clipboard", Some('\u{232B}'), MenuAction::ClearClipboard),
+            MenuItem::new(
+                "Clear Clipboard",
+                Some('\u{232B}'),
+                MenuAction::ClearClipboard,
+            ),
             MenuItem::separator(),
             MenuItem::new("Exit", Some('\u{23FB}'), MenuAction::Exit),
         ];
@@ -130,12 +134,6 @@ impl ContextMenu {
                 item.enabled = enabled;
             }
         }
-    }
-
-    /// Update menu items (used for Command Center to adjust width)
-    pub fn set_items(&mut self, items: Vec<MenuItem>) {
-        self.items = items;
-        self.selected_index = 0;
     }
 
     /// Show the menu at a new position
@@ -200,11 +198,7 @@ impl ContextMenu {
     /// Get currently selected action (returns None if item is disabled)
     pub fn get_selected_action(&self) -> Option<MenuAction> {
         let item = self.items.get(self.selected_index)?;
-        if item.enabled {
-            item.action
-        } else {
-            None
-        }
+        if item.enabled { item.action } else { None }
     }
 
     /// Check if a click position is inside the menu

@@ -532,31 +532,6 @@ pub fn run(
                             app_config.show_date_in_clock,
                         ) {
                             TopBarClickResult::Handled => handled = true,
-                            TopBarClickResult::ShowExitPrompt(message, cols, rows) => {
-                                app_state.active_prompt = Some(
-                                    Prompt::new(
-                                        PromptType::Danger,
-                                        message,
-                                        vec![
-                                            PromptButton::new(
-                                                "Exit".to_string(),
-                                                PromptAction::Confirm,
-                                                true,
-                                            ),
-                                            PromptButton::new(
-                                                "Cancel".to_string(),
-                                                PromptAction::Cancel,
-                                                false,
-                                            ),
-                                        ],
-                                        cols,
-                                        rows,
-                                    )
-                                    .with_selection_indicators(true)
-                                    .with_selected_button(1),
-                                );
-                                handled = true;
-                            }
                             TopBarClickResult::NotHandled => {}
                         }
                     }

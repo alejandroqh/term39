@@ -1,8 +1,8 @@
 //! TopBar container that manages widget layout and rendering
 
 use super::{
-    BatteryWidget, CommandCenterWidget, DateTimeWidget, ExitWidget, NewTermWidget, Widget,
-    WidgetAlignment, WidgetClickResult, WidgetContext,
+    BatteryWidget, CommandCenterWidget, DateTimeWidget, NewTermWidget, Widget, WidgetAlignment,
+    WidgetClickResult, WidgetContext,
 };
 use crate::rendering::{Cell, Theme, VideoBuffer};
 use crate::window::manager::FocusState;
@@ -31,9 +31,6 @@ pub struct TopBar {
     battery: BatteryWidget,
     command_center: CommandCenterWidget,
 
-    // Exit widget (code only, not rendered)
-    exit: ExitWidget,
-
     // Cached positions (updated each frame)
     positions: Vec<WidgetPosition>,
 }
@@ -45,14 +42,8 @@ impl TopBar {
             datetime: DateTimeWidget::new(show_date_in_clock),
             battery: BatteryWidget::new(),
             command_center: CommandCenterWidget::new(),
-            exit: ExitWidget::new(),
             positions: Vec::new(),
         }
-    }
-
-    /// Get mutable reference to exit widget for programmatic exit
-    pub fn exit_widget_mut(&mut self) -> &mut ExitWidget {
-        &mut self.exit
     }
 
     /// Update widget state and calculate positions
@@ -62,7 +53,6 @@ impl TopBar {
         self.datetime.update(ctx);
         self.battery.update(ctx);
         self.command_center.update(ctx);
-        self.exit.update(ctx);
 
         // Recalculate layout
         self.layout(ctx);
@@ -248,22 +238,11 @@ impl TopBar {
         self.datetime.reset_state();
         self.battery.reset_state();
         self.command_center.reset_state();
-        self.exit.reset_state();
     }
 
     /// Check if the battery widget is hovered (for compatibility)
     pub fn is_battery_hovered(&self) -> bool {
         self.battery.is_hovered()
-    }
-
-    /// Get mutable reference to command center widget
-    pub fn command_center_mut(&mut self) -> &mut CommandCenterWidget {
-        &mut self.command_center
-    }
-
-    /// Check if command center menu is open
-    pub fn is_command_center_open(&self) -> bool {
-        self.command_center.is_menu_open()
     }
 
     /// Close command center menu

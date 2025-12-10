@@ -31,6 +31,7 @@ pub struct AppState {
     pub command_center_menu: ContextMenu,
 
     // Top Bar Buttons (legacy - will be replaced by TopBar)
+    #[allow(dead_code)]
     pub new_terminal_button: Button,
     pub paste_button: Button,
     pub clear_clipboard_button: Button,
