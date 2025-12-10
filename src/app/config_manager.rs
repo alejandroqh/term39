@@ -41,7 +41,7 @@ fn default_auto_tiling_on_startup() -> bool {
 }
 
 fn default_tiling_gaps() -> bool {
-    false // Default to false (no gaps between tiled windows)
+    true // Default to true (gaps between tiled windows for better visual separation)
 }
 
 fn default_show_date_in_clock() -> bool {
@@ -72,7 +72,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             auto_tiling_on_startup: false,
-            tiling_gaps: false,
+            tiling_gaps: true,
             show_date_in_clock: true,
             theme: default_theme(),
             background_char_index: default_background_char_index(),
