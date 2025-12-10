@@ -462,6 +462,20 @@ pub fn handle_topbar_click(
                 app_state.command_center_menu.hide();
                 app_state.top_bar.close_command_center();
             } else {
+                // Update enabled states based on current context
+                let has_selection = window_manager.focused_window_has_selection();
+                let has_clipboard_content = clipboard_manager.has_content();
+
+                app_state
+                    .command_center_menu
+                    .set_item_enabled(MenuAction::CopySelection, has_selection);
+                app_state
+                    .command_center_menu
+                    .set_item_enabled(MenuAction::PasteClipboard, has_clipboard_content);
+                app_state
+                    .command_center_menu
+                    .set_item_enabled(MenuAction::ClearClipboard, has_clipboard_content);
+
                 let button_x = app_state.top_bar.get_command_center_x();
                 // Use show_bounded to auto-adjust position if menu would overflow
                 app_state
@@ -567,7 +581,10 @@ pub fn handle_context_menu_mouse(
                         | MenuAction::Restore
                         | MenuAction::Maximize
                         | MenuAction::CloseWindow
-                        | MenuAction::Exit => {}
+                        | MenuAction::Exit
+                        | MenuAction::CopySelection
+                        | MenuAction::PasteClipboard
+                        | MenuAction::ClearClipboard => {}
                     }
                 }
             }
@@ -632,7 +649,10 @@ pub fn handle_taskbar_menu_mouse(
                         | MenuAction::Paste
                         | MenuAction::SelectAll
                         | MenuAction::Close
-                        | MenuAction::Exit => {}
+                        | MenuAction::Exit
+                        | MenuAction::CopySelection
+                        | MenuAction::PasteClipboard
+                        | MenuAction::ClearClipboard => {}
                     }
                 }
             }
@@ -676,6 +696,8 @@ pub fn show_context_menu(
 /// Returns true if the event was handled.
 pub fn handle_command_center_menu_mouse(
     app_state: &mut AppState,
+    window_manager: &mut WindowManager,
+    clipboard_manager: &mut ClipboardManager,
     mouse_event: &MouseEvent,
 ) -> bool {
     if !app_state.command_center_menu.visible {
@@ -692,8 +714,31 @@ pub fn handle_command_center_menu_mouse(
                 .command_center_menu
                 .update_selection_from_mouse(mouse_event.column, mouse_event.row);
 
-            if let Some(MenuAction::Exit) = app_state.command_center_menu.get_selected_action() {
-                app_state.should_exit = true;
+            if let Some(action) = app_state.command_center_menu.get_selected_action() {
+                match action {
+                    MenuAction::Exit => {
+                        app_state.should_exit = true;
+                    }
+                    MenuAction::CopySelection => {
+                        if let FocusState::Window(window_id) = window_manager.get_focus() {
+                            if let Some(text) = window_manager.get_selected_text(window_id) {
+                                let _ = clipboard_manager.copy(text);
+                                window_manager.clear_selection(window_id);
+                            }
+                        }
+                    }
+                    MenuAction::PasteClipboard => {
+                        if let FocusState::Window(window_id) = window_manager.get_focus() {
+                            if let Ok(text) = clipboard_manager.paste() {
+                                let _ = window_manager.paste_to_window(window_id, &text);
+                            }
+                        }
+                    }
+                    MenuAction::ClearClipboard => {
+                        clipboard_manager.clear();
+                    }
+                    _ => {}
+                }
             }
             app_state.command_center_menu.hide();
             app_state.top_bar.close_command_center();

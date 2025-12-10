@@ -457,6 +457,7 @@ pub struct Theme {
     pub menu_selected_bg: Color,
     pub menu_selected_fg: Color,
     pub menu_shadow_fg: Color,
+    pub menu_disabled_fg: Color,
 
     // Snap preview
     pub snap_preview_border: Color,
@@ -615,6 +616,7 @@ impl Theme {
             menu_selected_bg: Color::Cyan,
             menu_selected_fg: Color::Black,
             menu_shadow_fg: Color::DarkGrey,
+            menu_disabled_fg: Color::DarkGrey,
 
             // Snap preview
             snap_preview_border: Color::Yellow,
@@ -773,6 +775,7 @@ impl Theme {
             menu_selected_bg: Color::White,
             menu_selected_fg: Color::Black,
             menu_shadow_fg: Color::DarkGrey,
+            menu_disabled_fg: Color::DarkGrey,
 
             // Snap preview
             snap_preview_border: Color::White,
@@ -933,6 +936,7 @@ impl Theme {
             menu_selected_bg: DRACULA_PURPLE,
             menu_selected_fg: DRACULA_FOREGROUND,
             menu_shadow_fg: PURE_BLACK,
+            menu_disabled_fg: DRACULA_COMMENT,
 
             // Snap preview
             snap_preview_border: DRACULA_CYAN,
@@ -1105,6 +1109,7 @@ impl Theme {
             menu_selected_bg: DARCULA_ORANGE, // Orange accent for selection
             menu_selected_fg: DARCULA_BACKGROUND,
             menu_shadow_fg: PURE_BLACK,
+            menu_disabled_fg: DARCULA_COMMENT,
 
             // Snap preview
             snap_preview_border: DARCULA_ORANGE, // Orange accent
@@ -1264,6 +1269,7 @@ impl Theme {
             menu_selected_bg: Color::Green,
             menu_selected_fg: Color::Black,
             menu_shadow_fg: Color::DarkGreen,
+            menu_disabled_fg: Color::DarkGreen,
 
             // Snap preview
             snap_preview_border: Color::Green,
@@ -1423,6 +1429,7 @@ impl Theme {
             menu_selected_bg: Color::Yellow,
             menu_selected_fg: Color::Black,
             menu_shadow_fg: Color::DarkYellow,
+            menu_disabled_fg: Color::DarkYellow,
 
             // Snap preview
             snap_preview_border: Color::Yellow,
@@ -1582,6 +1589,7 @@ impl Theme {
             menu_selected_bg: Color::Cyan,
             menu_selected_fg: Color::Black,
             menu_shadow_fg: Color::Black,
+            menu_disabled_fg: Color::DarkGrey,
 
             // Snap preview
             snap_preview_border: Color::Cyan,
@@ -1741,6 +1749,7 @@ impl Theme {
             menu_selected_bg: QBASIC_ROYAL_BLUE,
             menu_selected_fg: Color::White,
             menu_shadow_fg: PURE_BLACK,
+            menu_disabled_fg: QBASIC_DARK_GREY,
 
             // Snap preview
             snap_preview_border: QBASIC_CYAN,
@@ -1900,6 +1909,7 @@ impl Theme {
             menu_selected_bg: TURBO_BLUE_PURPLE,
             menu_selected_fg: Color::White,
             menu_shadow_fg: PURE_BLACK,
+            menu_disabled_fg: Color::DarkGrey,
 
             // Snap preview
             snap_preview_border: TURBO_TEAL,
@@ -2059,6 +2069,7 @@ impl Theme {
             menu_selected_bg: NC_YELLOW,
             menu_selected_fg: PURE_BLACK,
             menu_shadow_fg: PURE_BLACK,
+            menu_disabled_fg: Color::DarkGrey,
 
             // Snap preview
             snap_preview_border: NC_YELLOW,
@@ -2218,6 +2229,7 @@ impl Theme {
             menu_selected_bg: XT_YELLOW,
             menu_selected_fg: PURE_BLACK,
             menu_shadow_fg: PURE_BLACK,
+            menu_disabled_fg: XT_LIGHT_PURPLE,
 
             // Snap preview
             snap_preview_border: XT_YELLOW,
@@ -2377,6 +2389,7 @@ impl Theme {
             menu_selected_bg: WP_RED,
             menu_selected_fg: Color::White,
             menu_shadow_fg: PURE_BLACK,
+            menu_disabled_fg: Color::DarkGrey,
 
             // Snap preview
             snap_preview_border: WP_BRIGHT_CYAN,
@@ -2536,6 +2549,7 @@ impl Theme {
             menu_selected_bg: DB_BLUE,
             menu_selected_fg: Color::White,
             menu_shadow_fg: PURE_BLACK,
+            menu_disabled_fg: DB_LIGHT_GREY,
 
             // Snap preview
             snap_preview_border: DB_YELLOW,
@@ -2694,6 +2708,7 @@ impl Theme {
             menu_selected_bg: Color::Cyan,
             menu_selected_fg: Color::Black,
             menu_shadow_fg: Color::DarkGrey,
+            menu_disabled_fg: Color::DarkGrey,
 
             // Snap preview
             snap_preview_border: Color::Yellow,

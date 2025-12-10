@@ -639,7 +639,14 @@ pub fn run(
                     }
 
                     // Handle command center menu interactions
-                    if !handled && handle_command_center_menu_mouse(app_state, &mouse_event) {
+                    if !handled
+                        && handle_command_center_menu_mouse(
+                            app_state,
+                            window_manager,
+                            clipboard_manager,
+                            &mouse_event,
+                        )
+                    {
                         handled = true;
                     }
 

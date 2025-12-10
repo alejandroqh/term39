@@ -14,6 +14,9 @@ pub enum MenuAction {
     Maximize,
     CloseWindow,
     // Command Center menu actions
+    CopySelection,
+    PasteClipboard,
+    ClearClipboard,
     Exit,
 }
 
@@ -24,6 +27,7 @@ pub struct MenuItem {
     pub shortcut: Option<char>,
     pub action: Option<MenuAction>,
     pub is_separator: bool,
+    pub enabled: bool,
 }
 
 impl MenuItem {
@@ -33,16 +37,17 @@ impl MenuItem {
             shortcut,
             action: Some(action),
             is_separator: false,
+            enabled: true,
         }
     }
 
-    #[allow(dead_code)]
     pub fn separator() -> Self {
         Self {
             label: String::new(),
             shortcut: None,
             action: None,
             is_separator: true,
+            enabled: true,
         }
     }
 }
@@ -97,9 +102,16 @@ impl ContextMenu {
 
     /// Create a Command Center dropdown menu
     pub fn new_command_center_menu(x: u16, y: u16, menu_width: u16) -> Self {
-        // Use simple label - the icon will be rendered separately via shortcut mechanism
-        // or we handle alignment in the render function using min_width
-        let items = vec![MenuItem::new("Exit", Some('\u{23FB}'), MenuAction::Exit)];
+        // Clipboard operations + Exit
+        // Copy, Paste, Clear Clipboard are always visible but enabled/disabled based on context
+        // Icons: ⧉ (U+29C9) Copy, ⧠ (U+29E0) Paste, ⌫ (U+232B) Clear, ⏻ (U+23FB) Power/Exit
+        let items = vec![
+            MenuItem::new("Copy", Some('\u{29C9}'), MenuAction::CopySelection),
+            MenuItem::new("Paste", Some('\u{29E0}'), MenuAction::PasteClipboard),
+            MenuItem::new("Clear Clipboard", Some('\u{232B}'), MenuAction::ClearClipboard),
+            MenuItem::separator(),
+            MenuItem::new("Exit", Some('\u{23FB}'), MenuAction::Exit),
+        ];
 
         Self {
             x,
@@ -108,6 +120,15 @@ impl ContextMenu {
             selected_index: 0,
             visible: false,
             min_width: Some(menu_width),
+        }
+    }
+
+    /// Update the enabled state of a menu item by action
+    pub fn set_item_enabled(&mut self, action: MenuAction, enabled: bool) {
+        for item in &mut self.items {
+            if item.action == Some(action) {
+                item.enabled = enabled;
+            }
         }
     }
 
@@ -176,9 +197,14 @@ impl ContextMenu {
         }
     }
 
-    /// Get currently selected action
+    /// Get currently selected action (returns None if item is disabled)
     pub fn get_selected_action(&self) -> Option<MenuAction> {
-        self.items.get(self.selected_index)?.action
+        let item = self.items.get(self.selected_index)?;
+        if item.enabled {
+            item.action
+        } else {
+            None
+        }
     }
 
     /// Check if a click position is inside the menu
@@ -194,6 +220,7 @@ impl ContextMenu {
     }
 
     /// Update selection based on mouse position, returns true if selection changed
+    /// Skips disabled items and separators
     pub fn update_selection_from_mouse(&mut self, x: u16, y: u16) -> bool {
         if !self.visible {
             return false;
@@ -212,8 +239,10 @@ impl ContextMenu {
         }
 
         let item_index = (y - self.y - 1) as usize;
-        if item_index < self.items.len() && !self.items[item_index].is_separator {
-            if self.selected_index != item_index {
+        if item_index < self.items.len() {
+            let item = &self.items[item_index];
+            // Only select enabled, non-separator items
+            if !item.is_separator && item.enabled && self.selected_index != item_index {
                 self.selected_index = item_index;
                 return true;
             }
@@ -253,6 +282,7 @@ impl ContextMenu {
         let border_color = theme.menu_border;
         let selected_fg = theme.menu_selected_fg;
         let selected_bg = theme.menu_selected_bg;
+        let disabled_fg = theme.menu_disabled_fg;
 
         // Render borders
         // Top border
@@ -278,7 +308,8 @@ impl ContextMenu {
         // Content rows
         for (i, item) in self.items.iter().enumerate() {
             let row = self.y + 1 + i as u16;
-            let is_selected = i == self.selected_index && !item.is_separator;
+            // Only show selection highlight for enabled items
+            let is_selected = i == self.selected_index && !item.is_separator && item.enabled;
 
             // Left border
             buffer.set(
@@ -297,8 +328,14 @@ impl ContextMenu {
                     );
                 }
             } else {
-                // Render menu item
-                let item_fg = if is_selected { selected_fg } else { fg_color };
+                // Render menu item - use disabled color if not enabled
+                let item_fg = if !item.enabled {
+                    disabled_fg
+                } else if is_selected {
+                    selected_fg
+                } else {
+                    fg_color
+                };
                 let item_bg = if is_selected { selected_bg } else { bg_color };
 
                 // Padding + label
