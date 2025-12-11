@@ -7,14 +7,14 @@ use crate::window::manager::FocusState;
 
 /// Widget for creating new terminal windows
 pub struct NewTermWidget {
-    label: String,
+    label: &'static str,
     state: ButtonState,
 }
 
 impl NewTermWidget {
     pub fn new() -> Self {
         Self {
-            label: "+New Terminal".to_string(),
+            label: "+New Terminal",
             state: ButtonState::Normal,
         }
     }

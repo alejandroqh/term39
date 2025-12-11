@@ -14,7 +14,7 @@ pub mod battery_support {
     use std::time::{Duration, Instant};
 
     /// Battery information including percentage and charging state
-    #[derive(Clone)]
+    #[derive(Clone, Copy)]
     pub struct BatteryInfo {
         pub percentage: u8,
         pub is_charging: bool,
@@ -44,7 +44,7 @@ pub mod battery_support {
                 cache.last_update = Instant::now();
             }
 
-            cache.info.clone()
+            cache.info
         })
     }
 

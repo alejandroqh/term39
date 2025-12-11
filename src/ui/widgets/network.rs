@@ -39,10 +39,16 @@ pub fn get_network_info(interface: &str) -> Option<NetworkInfo> {
     NETWORK_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();
 
+        // Check if interface changed (avoid allocation if same)
+        let interface_changed = cache.interface != interface;
+
         // Refresh if interface changed or more than 1 second has passed
-        if cache.interface != interface || cache.last_update.elapsed() >= Duration::from_secs(1) {
+        if interface_changed || cache.last_update.elapsed() >= Duration::from_secs(1) {
             cache.info = fetch_network_info(interface);
-            cache.interface = interface.to_string();
+            // Only allocate new string when interface actually changed
+            if interface_changed {
+                cache.interface = interface.to_string();
+            }
             cache.last_update = Instant::now();
         }
 

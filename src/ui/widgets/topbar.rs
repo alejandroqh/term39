@@ -28,8 +28,12 @@ pub struct TopBar {
     network: NetworkWidget,
     command_center: CommandCenterWidget,
 
-    // Cached positions (updated each frame)
+    // Cached positions (updated only when layout changes)
     positions: Vec<WidgetPosition>,
+
+    // Layout cache state
+    last_cols: u16,
+    layout_dirty: bool,
 }
 
 impl TopBar {
@@ -41,12 +45,15 @@ impl TopBar {
             network: NetworkWidget::new(),
             command_center: CommandCenterWidget::new(),
             positions: Vec::new(),
+            last_cols: 0,
+            layout_dirty: true, // Force initial layout
         }
     }
 
     /// Configure the network widget with interface name and enabled state
     pub fn configure_network(&mut self, interface: &str, enabled: bool) {
         self.network.configure(interface, enabled);
+        self.layout_dirty = true; // Network widget visibility may change
     }
 
     /// Update widget state and calculate positions
@@ -58,8 +65,17 @@ impl TopBar {
         self.network.update(ctx);
         self.command_center.update(ctx);
 
-        // Recalculate layout
-        self.layout(ctx);
+        // Only recalculate layout if terminal size changed
+        if ctx.cols != self.last_cols {
+            self.last_cols = ctx.cols;
+            self.layout_dirty = true;
+        }
+
+        // Recalculate layout only when dirty
+        if self.layout_dirty {
+            self.layout(ctx);
+            self.layout_dirty = false;
+        }
     }
 
     /// Calculate widget positions based on current context

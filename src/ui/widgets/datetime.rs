@@ -3,12 +3,16 @@
 use super::{Widget, WidgetAlignment, WidgetClickResult, WidgetContext};
 use crate::rendering::{Cell, Theme, VideoBuffer};
 use crate::window::manager::FocusState;
-use chrono::Local;
+use chrono::{Local, Timelike};
 
 /// Widget displaying date and/or time
 pub struct DateTimeWidget {
     show_date: bool,
     hovered: bool,
+    /// Cached formatted time string to avoid repeated allocations
+    cached_time: String,
+    /// Last second value to detect when to refresh
+    last_second: u32,
 }
 
 impl DateTimeWidget {
@@ -16,17 +20,26 @@ impl DateTimeWidget {
         Self {
             show_date,
             hovered: false,
+            cached_time: String::new(),
+            last_second: 60, // Invalid value to force initial update
         }
     }
 
-    fn get_time_string(&self) -> String {
+    /// Refresh the cached time string if the second has changed
+    fn refresh_time_if_needed(&mut self) {
         let now = Local::now();
-        if self.show_date {
-            // Show date and time: "Tue Nov 11, 09:21"
-            now.format("%a %b %d, %H:%M").to_string()
-        } else {
-            // Show time only with seconds: "09:21:45"
-            now.format("%H:%M:%S").to_string()
+        let current_second = now.second();
+
+        // Only regenerate when second changes or cache is empty
+        if current_second != self.last_second || self.cached_time.is_empty() {
+            self.last_second = current_second;
+            self.cached_time = if self.show_date {
+                // Show date and time: "Tue Nov 11, 09:21"
+                now.format("%a %b %d, %H:%M").to_string()
+            } else {
+                // Show time only with seconds: "09:21:45"
+                now.format("%H:%M:%S").to_string()
+            };
         }
     }
 }
@@ -40,12 +53,12 @@ impl Default for DateTimeWidget {
 impl Widget for DateTimeWidget {
     fn width(&self) -> u16 {
         // Just the time string with padding: " Tue Nov 11, 09:21 " or " 09:21:45 "
-        let time_str = self.get_time_string();
-        (time_str.len() + 2) as u16 // " " + time + " "
+        // Use cached string length (add 2 for padding spaces)
+        (self.cached_time.len() + 2) as u16
     }
 
     fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, focus: FocusState) {
-        let time_str = format!(" {} ", self.get_time_string());
+        let time_str = format!(" {} ", &self.cached_time);
 
         // Use topbar background with window border fg color for text
         let bg_color = match focus {
@@ -84,7 +97,13 @@ impl Widget for DateTimeWidget {
     }
 
     fn update(&mut self, ctx: &WidgetContext) {
-        self.show_date = ctx.show_date_in_clock;
+        // Check if show_date setting changed - if so, force cache refresh
+        if self.show_date != ctx.show_date_in_clock {
+            self.show_date = ctx.show_date_in_clock;
+            self.last_second = 60; // Force refresh on next call
+        }
+        // Refresh time string if needed (only when second changes)
+        self.refresh_time_if_needed();
     }
 
     fn alignment(&self) -> WidgetAlignment {

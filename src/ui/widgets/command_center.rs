@@ -10,7 +10,7 @@ use crate::window::manager::FocusState;
 
 /// Widget for the Command Center dropdown menu
 pub struct CommandCenterWidget {
-    label: String,
+    label: &'static str,
     state: ButtonState,
     /// Whether the dropdown menu is currently open
     menu_open: bool,
@@ -21,7 +21,7 @@ impl CommandCenterWidget {
 
     pub fn new() -> Self {
         Self {
-            label: Self::LABEL.to_string(),
+            label: Self::LABEL,
             state: ButtonState::Normal,
             menu_open: false,
         }
