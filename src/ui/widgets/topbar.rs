@@ -75,7 +75,6 @@ impl TopBar {
                 x: left_x,
             });
         }
-        let left_end = left_x + self.new_term.width();
 
         // Right section: Command Center (rightmost), then Network, then Battery
         // Position from right edge: Command Center first (rightmost)
@@ -114,19 +113,12 @@ impl TopBar {
             });
         }
 
-        let right_total_width = ctx.cols.saturating_sub(right_x);
-
         // Center section: DateTime only
-        // Calculate center area boundaries
-        let center_start = left_end + 2; // +2 for separator space
-        let center_end = ctx.cols.saturating_sub(right_total_width + 2); // +2 for separator space
-        let available_center = center_end.saturating_sub(center_start);
-
-        // Calculate total center width needed
+        // Calculate true screen center (not remaining space center)
         let datetime_width = self.datetime.width();
 
-        // Center the widget in available space
-        let center_x = center_start + available_center.saturating_sub(datetime_width) / 2;
+        // Center the widget on the total screen width
+        let center_x = ctx.cols.saturating_sub(datetime_width) / 2;
 
         // Position datetime (center)
         if self.datetime.is_visible(ctx) {
