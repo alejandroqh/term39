@@ -611,6 +611,7 @@ pub fn handle_context_menu_mouse(
                         | MenuAction::PasteClipboard
                         | MenuAction::ClearClipboard
                         | MenuAction::Settings
+                        | MenuAction::Help
                         | MenuAction::About => {}
                     }
                 }
@@ -681,6 +682,7 @@ pub fn handle_taskbar_menu_mouse(
                         | MenuAction::PasteClipboard
                         | MenuAction::ClearClipboard
                         | MenuAction::Settings
+                        | MenuAction::Help
                         | MenuAction::About => {}
                     }
                 }
@@ -729,6 +731,8 @@ pub enum CommandCenterMenuResult {
     Handled,
     /// Settings was requested - show config window
     ShowSettings,
+    /// Help was requested - show help window
+    ShowHelp,
     /// About was requested - show about window
     ShowAbout,
     /// Exit was requested - show confirmation prompt
@@ -768,6 +772,10 @@ pub fn handle_command_center_menu_mouse(
                     MenuAction::Settings => {
                         // Return ShowSettings to trigger config window
                         result = CommandCenterMenuResult::ShowSettings;
+                    }
+                    MenuAction::Help => {
+                        // Return ShowHelp to trigger help window
+                        result = CommandCenterMenuResult::ShowHelp;
                     }
                     MenuAction::About => {
                         // Return ShowAbout to trigger about window

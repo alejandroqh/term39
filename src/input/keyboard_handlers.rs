@@ -494,7 +494,7 @@ pub fn forward_to_terminal(key_event: KeyEvent, window_manager: &mut WindowManag
 
 // Helper functions
 
-fn show_help_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
+pub fn show_help_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
     let (cols, rows) = backend.dimensions();
 
     // Platform-specific modifier key text

@@ -18,6 +18,7 @@ pub enum MenuAction {
     PasteClipboard,
     ClearClipboard,
     Settings,
+    Help,
     About,
     Exit,
 }
@@ -117,6 +118,7 @@ impl ContextMenu {
             ),
             MenuItem::separator(),
             MenuItem::new("Settings...", Some('\u{2699}'), MenuAction::Settings),
+            MenuItem::new("Help...", Some('?'), MenuAction::Help),
             MenuItem::new("About...", Some('\u{24D8}'), MenuAction::About),
             MenuItem::separator(),
             MenuItem::new("Exit", Some('\u{23FB}'), MenuAction::Exit),
