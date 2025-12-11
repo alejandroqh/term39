@@ -196,6 +196,9 @@ pub struct TerminalGrid {
     pub charset_g1: CharacterSet,
     /// Active character set: true = G0, false = G1 (toggled by SI/SO)
     pub charset_use_g0: bool,
+    /// Generation counter - incremented when grid content changes
+    /// Used for render cache invalidation
+    generation: u64,
 }
 
 impl TerminalGrid {
@@ -241,6 +244,7 @@ impl TerminalGrid {
             charset_g0: CharacterSet::Ascii,
             charset_g1: CharacterSet::Ascii,
             charset_use_g0: true, // Default: use G0
+            generation: 0,
         }
     }
 
@@ -263,6 +267,13 @@ impl TerminalGrid {
     #[allow(dead_code)]
     pub fn scrollback_len(&self) -> usize {
         self.scrollback.len()
+    }
+
+    /// Get the current generation counter
+    /// This is incremented whenever grid content changes
+    #[allow(dead_code)]
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     /// Get the currently active character set
@@ -471,6 +482,8 @@ impl TerminalGrid {
         self.synchronized_output = false;
         self.sync_snapshot = None;
         self.sync_cursor_snapshot = None;
+        // Increment generation when sync mode ends to trigger re-render with live data
+        self.generation = self.generation.wrapping_add(1);
     }
 
     /// Write a character at the current cursor position
@@ -598,6 +611,10 @@ impl TerminalGrid {
                         }
                     }
                 }
+
+                // Increment generation when a printable character is written
+                // Uses wrapping to avoid overflow panic
+                self.generation = self.generation.wrapping_add(1);
             }
         }
     }
@@ -745,6 +762,7 @@ impl TerminalGrid {
                     .insert(insert_pos, vec![TerminalCell::default(); self.cols]);
             }
         }
+        self.generation = self.generation.wrapping_add(1);
     }
 
     /// Scroll the scroll region down by n lines
@@ -761,6 +779,7 @@ impl TerminalGrid {
                 );
             }
         }
+        self.generation = self.generation.wrapping_add(1);
     }
 
     /// Clear the screen
@@ -774,6 +793,7 @@ impl TerminalGrid {
                 cell.attrs = CellAttributes::default();
             }
         }
+        self.generation = self.generation.wrapping_add(1);
     }
 
     /// Clear the current line
@@ -786,6 +806,7 @@ impl TerminalGrid {
                 cell.bg = bg;
                 cell.attrs = CellAttributes::default();
             }
+            self.generation = self.generation.wrapping_add(1);
         }
     }
 
@@ -801,6 +822,7 @@ impl TerminalGrid {
                     cell.attrs = CellAttributes::default();
                 }
             }
+            self.generation = self.generation.wrapping_add(1);
         }
     }
 
@@ -816,6 +838,7 @@ impl TerminalGrid {
                     cell.attrs = CellAttributes::default();
                 }
             }
+            self.generation = self.generation.wrapping_add(1);
         }
     }
 
@@ -836,6 +859,7 @@ impl TerminalGrid {
                 }
             }
         }
+        self.generation = self.generation.wrapping_add(1);
     }
 
     /// Erase from beginning of screen to cursor (inclusive)
@@ -856,6 +880,7 @@ impl TerminalGrid {
 
         // Clear from beginning of current line to cursor (inclusive)
         self.erase_to_bol();
+        self.generation = self.generation.wrapping_add(1);
     }
 
     /// Delete n characters at cursor, shifting remaining characters left (DCH)
@@ -884,6 +909,7 @@ impl TerminalGrid {
                     cell.attrs = CellAttributes::default();
                 }
             }
+            self.generation = self.generation.wrapping_add(1);
         }
     }
 
@@ -913,6 +939,7 @@ impl TerminalGrid {
                     cell.attrs = CellAttributes::default();
                 }
             }
+            self.generation = self.generation.wrapping_add(1);
         }
     }
 
@@ -928,6 +955,7 @@ impl TerminalGrid {
                     cell.attrs = CellAttributes::default();
                 }
             }
+            self.generation = self.generation.wrapping_add(1);
         }
     }
 
@@ -1031,6 +1059,7 @@ impl TerminalGrid {
             self.clear_screen();
             // Reset cursor to home position
             self.cursor = Cursor::default();
+            self.generation = self.generation.wrapping_add(1);
         }
     }
 
@@ -1069,6 +1098,8 @@ impl TerminalGrid {
             // Reset scroll region to full screen (alt screen may have set custom regions)
             self.scroll_region_top = 0;
             self.scroll_region_bottom = current_rows.saturating_sub(1);
+
+            self.generation = self.generation.wrapping_add(1);
         }
     }
 
@@ -1142,6 +1173,8 @@ impl TerminalGrid {
         for row in &mut self.scrollback {
             row.resize(self.cols, TerminalCell::default());
         }
+
+        self.generation = self.generation.wrapping_add(1);
     }
 
     /// Set cursor position (for session restoration)

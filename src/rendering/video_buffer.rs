@@ -70,6 +70,9 @@ pub struct VideoBuffer {
     /// TTY cursor position (for raw mouse input mode)
     /// When set, the cell at this position will be rendered with inverted colors
     tty_cursor: Option<(u16, u16)>,
+    /// Track dirty rows for optimized rendering
+    /// Only rows marked dirty need to be processed during present()
+    dirty_rows: Vec<bool>,
 }
 
 impl VideoBuffer {
@@ -84,6 +87,8 @@ impl VideoBuffer {
             front_buffer: vec![default_cell; size],
             back_buffer: vec![default_cell; size],
             tty_cursor: None,
+            // All rows dirty initially to ensure first frame renders completely
+            dirty_rows: vec![true; height as usize],
         }
     }
 
@@ -110,9 +115,16 @@ impl VideoBuffer {
     }
 
     /// Set cell at position in back buffer
+    /// Only marks row dirty if cell actually changed
     pub fn set(&mut self, x: u16, y: u16, cell: Cell) {
         if let Some(i) = self.index(x, y) {
-            self.back_buffer[i] = cell;
+            // Only update and mark dirty if cell actually changed
+            if self.back_buffer[i] != cell {
+                self.back_buffer[i] = cell;
+                if (y as usize) < self.dirty_rows.len() {
+                    self.dirty_rows[y as usize] = true;
+                }
+            }
         }
     }
 
@@ -121,6 +133,15 @@ impl VideoBuffer {
     pub fn clear(&mut self, cell: Cell) {
         for c in &mut self.back_buffer {
             *c = cell;
+        }
+        // Mark all rows dirty after clear
+        self.mark_all_dirty();
+    }
+
+    /// Mark all rows as dirty (for full refresh scenarios)
+    pub fn mark_all_dirty(&mut self) {
+        for dirty in &mut self.dirty_rows {
+            *dirty = true;
         }
     }
 
@@ -154,11 +175,14 @@ impl VideoBuffer {
             cell.fg_color = shadow_fg;
             cell.bg_color = shadow_bg;
         }
+        // Mark all rows dirty since shadow affects entire screen
+        self.mark_all_dirty();
     }
 
     /// Present back buffer to screen, only updating changed cells
     /// Uses queued commands for batched I/O - significantly reduces syscalls
     /// Optimized with run-length encoding for consecutive cells
+    /// Skips rows that haven't been marked dirty for additional performance
     pub fn present(&mut self, stdout: &mut io::Stdout) -> io::Result<()> {
         // Hide cursor at the START of rendering to prevent any cursor flicker
         // This ensures the cursor stays hidden even if PTY output or other
@@ -180,6 +204,11 @@ impl VideoBuffer {
         let cursor_pos = self.tty_cursor;
 
         for y in 0..self.height {
+            // Skip rows that haven't changed (dirty row optimization)
+            if (y as usize) < self.dirty_rows.len() && !self.dirty_rows[y as usize] {
+                continue;
+            }
+
             // Calculate row start index once per row
             let row_start = (y as usize) * (self.width as usize);
 
@@ -252,6 +281,11 @@ impl VideoBuffer {
                 run_char_count = 0;
                 in_run = false;
             }
+        }
+
+        // Clear dirty flags after processing all rows
+        for dirty in &mut self.dirty_rows {
+            *dirty = false;
         }
 
         // Update front buffer to reflect what's actually displayed

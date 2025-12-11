@@ -54,6 +54,9 @@ pub struct TerminalWindow {
     // Track user input (for dirty state detection)
     created_at: Instant,
     has_user_input: bool,
+    /// Last rendered grid generation (for change detection optimization)
+    /// When this matches the grid's generation, we can skip re-rendering content
+    last_rendered_generation: u64,
 }
 
 /// Mouse tracking state - all flags retrieved with a single mutex lock
@@ -109,6 +112,7 @@ impl TerminalWindow {
             pending_close_confirmation: None,
             created_at: Instant::now(),
             has_user_input: false,
+            last_rendered_generation: 0,
         })
     }
 
@@ -188,8 +192,18 @@ impl TerminalWindow {
         let content_width = new_width.saturating_sub(4).max(1); // -2 left, -2 right
         let content_height = new_height.saturating_sub(2).max(1); // -1 title, -1 bottom
 
+        // Invalidate render cache since window dimensions changed
+        self.invalidate_render_cache();
+
         self.emulator
             .resize(content_width as usize, content_height as usize)
+    }
+
+    /// Invalidate the render cache to force re-rendering on next frame
+    /// Call this when window state changes that affect rendering (resize, focus, selection)
+    #[inline]
+    fn invalidate_render_cache(&mut self) {
+        self.last_rendered_generation = u64::MAX;
     }
 
     /// Scroll up in the scrollback buffer
@@ -451,7 +465,11 @@ impl TerminalWindow {
 
     /// Set focus state
     pub fn set_focused(&mut self, focused: bool) {
-        self.window.is_focused = focused;
+        if self.window.is_focused != focused {
+            self.window.is_focused = focused;
+            // Invalidate render cache since cursor visibility changes with focus
+            self.invalidate_render_cache();
+        }
     }
 
     /// Check if a point is within the window
