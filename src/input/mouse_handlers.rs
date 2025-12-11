@@ -306,6 +306,105 @@ pub fn handle_config_window_mouse(
     false
 }
 
+/// Handles mouse events on the help window.
+/// Returns true if the event was handled.
+pub fn handle_help_window_mouse(app_state: &mut AppState, mouse_event: &MouseEvent) -> bool {
+    if let Some(ref help_window) = app_state.active_help_window {
+        if mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+            && help_window.is_close_button_click(mouse_event.column, mouse_event.row)
+        {
+            app_state.active_help_window = None;
+            return true;
+        }
+        // Consume clicks inside the window
+        if mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+            && help_window.contains_point(mouse_event.column, mouse_event.row)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// Handles mouse events on the about window.
+/// Returns true if the event was handled.
+pub fn handle_about_window_mouse(app_state: &mut AppState, mouse_event: &MouseEvent) -> bool {
+    if let Some(ref about_window) = app_state.active_about_window {
+        if mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+            && about_window.is_close_button_click(mouse_event.column, mouse_event.row)
+        {
+            app_state.active_about_window = None;
+            return true;
+        }
+        // Consume clicks inside the window
+        if mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+            && about_window.contains_point(mouse_event.column, mouse_event.row)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// Handles mouse events on the window mode help window.
+/// Returns true if the event was handled.
+pub fn handle_winmode_help_window_mouse(
+    app_state: &mut AppState,
+    mouse_event: &MouseEvent,
+) -> bool {
+    if let Some(ref winmode_help_window) = app_state.active_winmode_help_window {
+        if mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+            && winmode_help_window.is_close_button_click(mouse_event.column, mouse_event.row)
+        {
+            app_state.active_winmode_help_window = None;
+            return true;
+        }
+        // Consume clicks inside the window
+        if mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+            && winmode_help_window.contains_point(mouse_event.column, mouse_event.row)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// Handles mouse events on the calendar.
+/// Returns true if the event was handled.
+pub fn handle_calendar_mouse(
+    app_state: &mut AppState,
+    mouse_event: &MouseEvent,
+    cols: u16,
+    rows: u16,
+) -> bool {
+    use crate::ui::ui_render::is_calendar_close_button_click;
+
+    if app_state.active_calendar.is_some() {
+        if mouse_event.kind == MouseEventKind::Down(MouseButton::Left)
+            && is_calendar_close_button_click(mouse_event.column, mouse_event.row, cols, rows)
+        {
+            app_state.active_calendar = None;
+            return true;
+        }
+        // Consume clicks inside the calendar area
+        if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
+            // Calendar dimensions (must match render_calendar)
+            let width = 42u16;
+            let height = 18u16;
+            let x = (cols.saturating_sub(width)) / 2;
+            let y = (rows.saturating_sub(height)) / 2;
+            if mouse_event.column >= x
+                && mouse_event.column < x + width
+                && mouse_event.row >= y
+                && mouse_event.row < y + height
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 // ============================================================================
 // Top Bar Button Click Handlers
 // ============================================================================

@@ -308,14 +308,37 @@ impl ConfigWindow {
             );
         }
 
-        // Fill top border after title
-        for x in (title_start + title.len() as u16 - self.x)..(self.width - 1) {
+        // Fill top border after title (leave space for [X] button)
+        let close_button_start = self.width - 5;
+        for x in (title_start + title.len() as u16 - self.x)..close_button_start {
             buffer.set(
                 self.x + x,
                 self.y,
                 Cell::new(horizontal, border_color, content_bg),
             );
         }
+
+        // Render [X] close button
+        buffer.set(
+            self.x + self.width - 5,
+            self.y,
+            Cell::new('[', border_color, content_bg),
+        );
+        buffer.set(
+            self.x + self.width - 4,
+            self.y,
+            Cell::new('X', crossterm::style::Color::Red, content_bg),
+        );
+        buffer.set(
+            self.x + self.width - 3,
+            self.y,
+            Cell::new(']', border_color, content_bg),
+        );
+        buffer.set(
+            self.x + self.width - 2,
+            self.y,
+            Cell::new(horizontal, border_color, content_bg),
+        );
 
         buffer.set(
             self.x + self.width - 1,
@@ -932,8 +955,19 @@ impl ConfigWindow {
         }
     }
 
+    /// Check if a click is on the [X] close button
+    pub fn is_close_button_click(&self, x: u16, y: u16) -> bool {
+        // [X] is at positions (self.x + self.width - 5) to (self.x + self.width - 3), row self.y
+        y == self.y && x >= self.x + self.width - 5 && x <= self.x + self.width - 3
+    }
+
     /// Handle mouse click and return appropriate action
     pub fn handle_click(&self, x: u16, y: u16, config: &AppConfig) -> ConfigAction {
+        // Check if click is on [X] close button
+        if self.is_close_button_click(x, y) {
+            return ConfigAction::Close;
+        }
+
         // Check if click is on auto tiling row
         if y == self.auto_arrange_row {
             // Click anywhere on the row toggles the option

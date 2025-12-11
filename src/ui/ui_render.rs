@@ -525,6 +525,23 @@ pub fn render_calendar(
         }
     }
 
+    // Render [X] close button in top-right corner
+    buffer.set(
+        x + width - 4,
+        y,
+        Cell::new_unchecked('[', fg_color, bg_color),
+    );
+    buffer.set(
+        x + width - 3,
+        y,
+        Cell::new_unchecked('X', Color::Red, bg_color),
+    );
+    buffer.set(
+        x + width - 2,
+        y,
+        Cell::new_unchecked(']', fg_color, bg_color),
+    );
+
     // Render day headers (Su  Mo  Tu  We  Th  Fr  Sa)
     let day_headers = "Su   Mo   Tu   We   Th   Fr   Sa";
     let header_len = day_headers.len() as u16;
@@ -579,7 +596,7 @@ pub fn render_calendar(
     }
 
     // Render navigation hints at bottom
-    let hint = "\u{2190}\u{2192} Month | \u{2191}\u{2193} Year | T Today | ESC Close";
+    let hint = "\u{2190}\u{2192} Month | \u{2191}\u{2193} Year | T Today | ESC/[X]";
     let hint_len = hint.chars().count() as u16;
     let hint_x = if hint_len < width {
         x + (width - hint_len) / 2
@@ -614,4 +631,16 @@ pub fn render_calendar(
             Cell::new_unchecked(shadow_char, theme.window_shadow_color, Color::Black),
         );
     }
+}
+
+/// Check if a click is on the calendar's [X] close button
+pub fn is_calendar_close_button_click(click_x: u16, click_y: u16, cols: u16, rows: u16) -> bool {
+    // Calendar dimensions (must match render_calendar)
+    let width = 42u16;
+    let height = 18u16;
+    let x = (cols.saturating_sub(width)) / 2;
+    let y = (rows.saturating_sub(height)) / 2;
+
+    // [X] is at positions (x + width - 4) to (x + width - 2), row y
+    click_y == y && click_x >= x + width - 4 && click_x <= x + width - 2
 }

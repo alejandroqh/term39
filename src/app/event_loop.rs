@@ -1,10 +1,11 @@
 use crate::app::{AppConfig, AppState};
 use crate::input::mouse_handlers::{
-    CommandCenterMenuResult, ModalMouseResult, TopBarClickResult, handle_auto_tiling_click,
-    handle_command_center_menu_mouse, handle_config_window_mouse, handle_context_menu_mouse,
-    handle_error_dialog_mouse, handle_pin_setup_mouse, handle_prompt_mouse, handle_selection_mouse,
-    handle_taskbar_menu_mouse, handle_topbar_click, show_context_menu, show_taskbar_menu,
-    update_bar_button_hover_states,
+    CommandCenterMenuResult, ModalMouseResult, TopBarClickResult, handle_about_window_mouse,
+    handle_auto_tiling_click, handle_calendar_mouse, handle_command_center_menu_mouse,
+    handle_config_window_mouse, handle_context_menu_mouse, handle_error_dialog_mouse,
+    handle_help_window_mouse, handle_pin_setup_mouse, handle_prompt_mouse, handle_selection_mouse,
+    handle_taskbar_menu_mouse, handle_topbar_click, handle_winmode_help_window_mouse,
+    show_context_menu, show_taskbar_menu, update_bar_button_hover_states,
 };
 use crate::lockscreen::PinSetupState;
 use crate::rendering::RenderBackend;
@@ -496,6 +497,26 @@ pub fn run(
                             theme,
                         )
                     {
+                        handled = true;
+                    }
+
+                    // Handle help window mouse events
+                    if !handled && handle_help_window_mouse(app_state, &mouse_event) {
+                        handled = true;
+                    }
+
+                    // Handle about window mouse events
+                    if !handled && handle_about_window_mouse(app_state, &mouse_event) {
+                        handled = true;
+                    }
+
+                    // Handle window mode help window mouse events
+                    if !handled && handle_winmode_help_window_mouse(app_state, &mouse_event) {
+                        handled = true;
+                    }
+
+                    // Handle calendar mouse events
+                    if !handled && handle_calendar_mouse(app_state, &mouse_event, cols, rows) {
                         handled = true;
                     }
 

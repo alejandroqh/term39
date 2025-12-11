@@ -124,14 +124,37 @@ impl InfoWindow {
             );
         }
 
-        // Fill top border after title
-        for x in (title_start + title_text.len() as u16 - self.x)..(self.width - 1) {
+        // Fill top border after title (leave space for [X] button)
+        let close_button_start = self.width - 5; // [X] takes positions width-5, width-4, width-3, width-2
+        for x in (title_start + title_text.len() as u16 - self.x)..close_button_start {
             buffer.set(
                 self.x + x,
                 self.y,
                 Cell::new_unchecked(horizontal, border_color, content_bg),
             );
         }
+
+        // Render [X] close button
+        buffer.set(
+            self.x + self.width - 5,
+            self.y,
+            Cell::new_unchecked('[', border_color, content_bg),
+        );
+        buffer.set(
+            self.x + self.width - 4,
+            self.y,
+            Cell::new_unchecked('X', Color::Red, content_bg),
+        );
+        buffer.set(
+            self.x + self.width - 3,
+            self.y,
+            Cell::new_unchecked(']', border_color, content_bg),
+        );
+        buffer.set(
+            self.x + self.width - 2,
+            self.y,
+            Cell::new_unchecked(horizontal, border_color, content_bg),
+        );
 
         buffer.set(
             self.x + self.width - 1,
@@ -230,7 +253,7 @@ impl InfoWindow {
         }
 
         // Render instruction at bottom
-        let instruction = "Press ESC to close";
+        let instruction = "ESC or [X] to close";
         let instruction_x = self.x + (self.width - instruction.len() as u16) / 2;
         let instruction_y = self.y + self.height - 2;
 
@@ -255,8 +278,13 @@ impl InfoWindow {
     }
 
     /// Check if a point is inside the window bounds
-    #[allow(dead_code)]
     pub fn contains_point(&self, x: u16, y: u16) -> bool {
         x >= self.x && x < self.x + self.width && y >= self.y && y < self.y + self.height
+    }
+
+    /// Check if a click is on the [X] close button
+    pub fn is_close_button_click(&self, x: u16, y: u16) -> bool {
+        // [X] is at positions (self.x + self.width - 5) to (self.x + self.width - 3), row self.y
+        y == self.y && x >= self.x + self.width - 5 && x <= self.x + self.width - 3
     }
 }
