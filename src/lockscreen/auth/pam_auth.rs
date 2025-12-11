@@ -7,7 +7,7 @@
 use super::{AuthResult, Authenticator};
 
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "netbsd"))]
-use pam_client::{Context, Flag};
+use pam_client::{Context, Flag, conv_mock::Conversation};
 
 /// PAM-based authenticator for Linux and BSD systems.
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "netbsd"))]
@@ -58,23 +58,16 @@ impl Authenticator for PamAuthenticator {
     }
 
     fn authenticate(&self, username: &str, password: &str) -> AuthResult {
-        // Create PAM context with password conversation handler
-        let mut context = match Context::with_password(&self.service_name) {
+        // Create conversation handler with credentials
+        let conversation = Conversation::with_credentials(username, password);
+
+        // Create PAM context with conversation handler
+        let mut context = match Context::new(&self.service_name, Some(username), conversation) {
             Ok(ctx) => ctx,
             Err(e) => {
                 return AuthResult::SystemError(format!("PAM initialization failed: {}", e));
             }
         };
-
-        // Set the username
-        if let Err(e) = context.set_user(Some(username)) {
-            return AuthResult::SystemError(format!("Failed to set PAM user: {}", e));
-        }
-
-        // Set the password in the conversation handler
-        context
-            .conversation_mut()
-            .set_credentials(username, password);
 
         // Attempt authentication
         match context.authenticate(Flag::NONE) {
