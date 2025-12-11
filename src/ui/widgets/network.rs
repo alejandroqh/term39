@@ -212,18 +212,25 @@ fn get_wifi_signal_strength(_interface: &str) -> Option<u8> {
     None
 }
 
-/// Get signal bars string based on strength percentage
-fn get_signal_bars(strength: u8) -> &'static str {
+use crate::rendering::Charset;
+
+/// Get signal bars based on strength percentage using charset
+fn get_signal_bars(strength: u8, charset: &Charset) -> [char; 4] {
+    let s1 = charset.network_signal_1;
+    let s2 = charset.network_signal_2;
+    let s3 = charset.network_signal_3;
+    let s4 = charset.network_signal_4;
+
     if strength >= 80 {
-        "\u{2582}\u{2584}\u{2586}\u{2588}" // ▂▄▆█ - full signal
+        [s1, s2, s3, s4] // full signal
     } else if strength >= 60 {
-        "\u{2582}\u{2584}\u{2586} " // ▂▄▆  - good signal
+        [s1, s2, s3, ' '] // good signal
     } else if strength >= 40 {
-        "\u{2582}\u{2584}  " // ▂▄   - fair signal
+        [s1, s2, ' ', ' '] // fair signal
     } else if strength >= 20 {
-        "\u{2582}   " // ▂    - weak signal
+        [s1, ' ', ' ', ' '] // weak signal
     } else {
-        "    " // no bars - very weak
+        [' ', ' ', ' ', ' '] // no bars - very weak
     }
 }
 
@@ -296,17 +303,18 @@ impl Widget for NetworkWidget {
         }
     }
 
-    fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, focus: FocusState) {
+    fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, ctx: &WidgetContext) {
         let info = match &self.cached_info {
             Some(info) => info,
             None => return,
         };
 
-        let bg_color = match focus {
+        let bg_color = match ctx.focus {
             FocusState::Desktop | FocusState::Topbar => theme.topbar_bg_focused,
             FocusState::Window(_) => theme.topbar_bg_unfocused,
         };
         let fg_color = theme.window_border_unfocused_fg;
+        let charset = ctx.charset;
 
         let mut current_x = x;
 
@@ -328,9 +336,9 @@ impl Widget for NetworkWidget {
             if info.is_wifi {
                 // WiFi: show signal bars if available
                 if let Some(strength) = info.signal_strength {
-                    let bars = get_signal_bars(strength);
+                    let bars = get_signal_bars(strength, charset);
                     let color = get_signal_color(strength);
-                    for ch in bars.chars() {
+                    for ch in bars {
                         buffer.set(current_x, 0, Cell::new_unchecked(ch, color, bg_color));
                         current_x += 1;
                     }
@@ -339,8 +347,8 @@ impl Widget for NetworkWidget {
                     buffer.set(
                         current_x,
                         0,
-                        Cell::new_unchecked('\u{25A3}', Color::Green, bg_color),
-                    ); // ▣
+                        Cell::new_unchecked(charset.network_connected, Color::Green, bg_color),
+                    );
                     current_x += 1;
                 }
             } else {
@@ -348,8 +356,8 @@ impl Widget for NetworkWidget {
                 buffer.set(
                     current_x,
                     0,
-                    Cell::new_unchecked('\u{25A3}', Color::Green, bg_color),
-                ); // ▣
+                    Cell::new_unchecked(charset.network_connected, Color::Green, bg_color),
+                );
                 current_x += 1;
             }
         } else {
@@ -357,8 +365,8 @@ impl Widget for NetworkWidget {
             buffer.set(
                 current_x,
                 0,
-                Cell::new_unchecked('\u{2717}', Color::Red, bg_color),
-            ); // ✗
+                Cell::new_unchecked(charset.network_disconnected, Color::Red, bg_color),
+            );
             current_x += 1;
         }
 

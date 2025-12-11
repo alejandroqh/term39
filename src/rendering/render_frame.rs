@@ -41,6 +41,7 @@ pub fn render_frame(
         has_selection,
         app_config.show_date_in_clock,
         theme,
+        charset,
     );
 
     // Render all windows (returns true if any were closed)

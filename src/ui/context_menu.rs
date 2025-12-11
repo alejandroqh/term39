@@ -104,24 +104,32 @@ impl ContextMenu {
     }
 
     /// Create a Command Center dropdown menu
-    pub fn new_command_center_menu(x: u16, y: u16, menu_width: u16) -> Self {
+    pub fn new_command_center_menu(x: u16, y: u16, menu_width: u16, charset: &Charset) -> Self {
         // Clipboard operations + Settings + About + Exit
         // Copy, Paste, Clear Clipboard are always visible but enabled/disabled based on context
-        // Icons: ⧉ (U+29C9) Copy, ⧠ (U+29E0) Paste, ⌫ (U+232B) Clear, ⚙ (U+2699) Settings, ⓘ (U+24D8) About, ⏻ (U+23FB) Power/Exit
+        // Icons use charset for Unicode/ASCII compatibility
         let items = vec![
-            MenuItem::new("Copy", Some('\u{29C9}'), MenuAction::CopySelection),
-            MenuItem::new("Paste", Some('\u{29E0}'), MenuAction::PasteClipboard),
+            MenuItem::new("Copy", Some(charset.icon_copy), MenuAction::CopySelection),
+            MenuItem::new(
+                "Paste",
+                Some(charset.icon_paste),
+                MenuAction::PasteClipboard,
+            ),
             MenuItem::new(
                 "Clear Clipboard",
-                Some('\u{232B}'),
+                Some(charset.icon_clear),
                 MenuAction::ClearClipboard,
             ),
             MenuItem::separator(),
-            MenuItem::new("Settings...", Some('\u{2699}'), MenuAction::Settings),
-            MenuItem::new("Help...", Some('?'), MenuAction::Help),
-            MenuItem::new("About...", Some('\u{24D8}'), MenuAction::About),
+            MenuItem::new(
+                "Settings...",
+                Some(charset.icon_settings),
+                MenuAction::Settings,
+            ),
+            MenuItem::new("Help...", Some(charset.icon_help), MenuAction::Help),
+            MenuItem::new("About...", Some(charset.icon_about), MenuAction::About),
             MenuItem::separator(),
-            MenuItem::new("Exit", Some('\u{23FB}'), MenuAction::Exit),
+            MenuItem::new("Exit", Some(charset.icon_exit), MenuAction::Exit),
         ];
 
         Self {

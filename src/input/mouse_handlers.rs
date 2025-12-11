@@ -109,6 +109,7 @@ pub fn update_bar_button_hover_states(
     has_clipboard_content: bool,
     has_selection: bool,
     focus: FocusState,
+    charset: &crate::rendering::Charset,
 ) {
     let bar_y = rows.saturating_sub(1);
 
@@ -122,6 +123,7 @@ pub fn update_bar_button_hover_states(
             has_clipboard_content,
             has_selection,
             show_date_in_clock,
+            charset,
         );
         app_state.top_bar.update_hover(mouse_col, mouse_row, &ctx);
         app_state.auto_tiling_button.set_state(ButtonState::Normal);
@@ -140,6 +142,7 @@ pub fn update_bar_button_hover_states(
             has_clipboard_content,
             has_selection,
             show_date_in_clock,
+            charset,
         );
         app_state.top_bar.update_hover(mouse_col, mouse_row, &ctx);
 
@@ -168,6 +171,7 @@ pub fn update_bar_button_hover_states(
             has_clipboard_content,
             has_selection,
             show_date_in_clock,
+            charset,
         );
         app_state.top_bar.update_hover(mouse_col, mouse_row, &ctx);
         app_state.battery_hovered = false;

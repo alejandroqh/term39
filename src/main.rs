@@ -91,7 +91,7 @@ fn main() -> io::Result<()> {
     if cli_args.tint_terminal {
         app_config.tint_terminal = true;
     }
-    let mut app_state = AppState::new(cols, rows, &app_config);
+    let mut app_state = AppState::new(cols, rows, &app_config, &charset);
 
     // Disable exit button if --no-exit flag is set
     if cli_args.no_exit {

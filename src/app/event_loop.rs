@@ -537,6 +537,7 @@ pub fn run(
                             hover_clipboard,
                             hover_selection,
                             focus,
+                            charset,
                         );
                     }
 

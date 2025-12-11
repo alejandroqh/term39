@@ -50,9 +50,9 @@ impl Widget for CommandCenterWidget {
         (self.label.len() as u16) + 4
     }
 
-    fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, focus: FocusState) {
+    fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, ctx: &WidgetContext) {
         // Use same colors as datetime widget for consistency
-        let bg_color = match focus {
+        let bg_color = match ctx.focus {
             FocusState::Desktop | FocusState::Topbar => theme.topbar_bg_focused,
             FocusState::Window(_) => theme.topbar_bg_unfocused,
         };

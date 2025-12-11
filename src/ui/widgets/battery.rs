@@ -36,21 +36,20 @@ impl BatteryWidget {
         self.hovered
     }
 
-    /// Get the battery icon based on charge level
+    /// Get the battery icon based on charge level using charset
     #[cfg(feature = "battery")]
-    fn get_battery_icon(percentage: u8) -> char {
+    fn get_battery_icon(percentage: u8, charset: &crate::rendering::Charset) -> char {
         // Battery icons showing different fill levels
-        // Using block elements to create battery appearance
         if percentage >= 75 {
-            '\u{2588}' // █ Full block - full battery
+            charset.battery_full // full battery
         } else if percentage >= 50 {
-            '\u{2593}' // ▓ Dark shade - 3/4 battery
+            charset.battery_high // 3/4 battery
         } else if percentage >= 25 {
-            '\u{2592}' // ▒ Medium shade - half battery
+            charset.battery_medium // half battery
         } else if percentage >= 10 {
-            '\u{2591}' // ░ Light shade - low battery
+            charset.battery_low // low battery
         } else {
-            '\u{2581}' // ▁ Lower one eighth block - critical
+            charset.battery_critical // critical
         }
     }
 
@@ -61,25 +60,26 @@ impl BatteryWidget {
         x: u16,
         theme: &Theme,
         info: &BatteryInfo,
-        focus: FocusState,
+        ctx: &WidgetContext,
     ) {
         let pct = info.percentage;
         let is_charging = info.is_charging;
         let battery_color = get_battery_color(pct, is_charging);
+        let charset = ctx.charset;
 
         // Use same colors as datetime widget
-        let bg_color = match focus {
+        let bg_color = match ctx.focus {
             FocusState::Desktop | FocusState::Topbar => theme.topbar_bg_focused,
             FocusState::Window(_) => theme.topbar_bg_unfocused,
         };
         let fg_color = theme.window_border_unfocused_fg;
 
-        // Charging indicator: ↯
-        let charging_icon = '\u{21AF}'; // ↯ (zigzag arrow - lightning bolt alternative)
+        // Charging indicator from charset
+        let charging_icon = charset.battery_charging;
         let charging_color = Color::Yellow;
 
         // Battery body using box drawing: [███]+
-        let battery_icon = Self::get_battery_icon(pct);
+        let battery_icon = Self::get_battery_icon(pct, charset);
 
         // Build the display string: " 85% ↯[███]+ " or " 85% [███]+ "
         let mut current_x = x;
@@ -171,15 +171,15 @@ impl Widget for BatteryWidget {
         }
     }
 
-    fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, focus: FocusState) {
+    fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, ctx: &WidgetContext) {
         #[cfg(feature = "battery")]
         if let Some(ref info) = self.cached_info {
-            self.render_widget(buffer, x, theme, info, focus);
+            self.render_widget(buffer, x, theme, info, ctx);
         }
 
         #[cfg(not(feature = "battery"))]
         {
-            let _ = (buffer, x, theme, focus);
+            let _ = (buffer, x, theme, ctx);
         }
     }
 

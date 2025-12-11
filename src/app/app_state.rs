@@ -1,6 +1,7 @@
 use super::config_manager::AppConfig;
 use crate::input::keyboard_mode::{KeyboardMode, MovementState};
 use crate::lockscreen::{LockScreen, PinSetupDialog};
+use crate::rendering::Charset;
 use crate::ui::button::Button;
 use crate::ui::config_window::ConfigWindow;
 use crate::ui::context_menu::ContextMenu;
@@ -80,7 +81,7 @@ pub struct AppState {
 
 impl AppState {
     /// Creates a new AppState with initial button positions
-    pub fn new(cols: u16, rows: u16, config: &AppConfig) -> Self {
+    pub fn new(cols: u16, rows: u16, config: &AppConfig, charset: &Charset) -> Self {
         let auto_tiling_on_startup = config.auto_tiling_on_startup;
         let tint_terminal = config.tint_terminal;
         // Create the "New Terminal" button
@@ -122,7 +123,7 @@ impl AppState {
         let taskbar_menu = ContextMenu::new_taskbar_menu(0, 0);
 
         // Command Center menu (width matches the button: "[ Command Center ]" = 18 chars)
-        let command_center_menu = ContextMenu::new_command_center_menu(0, 1, 18);
+        let command_center_menu = ContextMenu::new_command_center_menu(0, 1, 18, charset);
 
         Self {
             // Dialog/Popup State

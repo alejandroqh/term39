@@ -57,11 +57,11 @@ impl Widget for DateTimeWidget {
         (self.cached_time.len() + 2) as u16
     }
 
-    fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, focus: FocusState) {
+    fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, ctx: &WidgetContext) {
         let time_str = format!(" {} ", &self.cached_time);
 
         // Use topbar background with window border fg color for text
-        let bg_color = match focus {
+        let bg_color = match ctx.focus {
             FocusState::Desktop | FocusState::Topbar => theme.topbar_bg_focused,
             FocusState::Window(_) => theme.topbar_bg_unfocused,
         };

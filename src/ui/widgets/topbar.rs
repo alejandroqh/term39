@@ -170,15 +170,13 @@ impl TopBar {
         // Render each positioned widget
         for pos in &self.positions {
             match (pos.alignment, pos.index) {
-                (WidgetAlignment::Left, 0) => self.new_term.render(buffer, pos.x, theme, ctx.focus),
-                (WidgetAlignment::Center, 0) => {
-                    self.datetime.render(buffer, pos.x, theme, ctx.focus)
-                }
-                (WidgetAlignment::Right, 0) => self.battery.render(buffer, pos.x, theme, ctx.focus),
+                (WidgetAlignment::Left, 0) => self.new_term.render(buffer, pos.x, theme, ctx),
+                (WidgetAlignment::Center, 0) => self.datetime.render(buffer, pos.x, theme, ctx),
+                (WidgetAlignment::Right, 0) => self.battery.render(buffer, pos.x, theme, ctx),
                 (WidgetAlignment::Right, 1) => {
-                    self.command_center.render(buffer, pos.x, theme, ctx.focus)
+                    self.command_center.render(buffer, pos.x, theme, ctx)
                 }
-                (WidgetAlignment::Right, 2) => self.network.render(buffer, pos.x, theme, ctx.focus),
+                (WidgetAlignment::Right, 2) => self.network.render(buffer, pos.x, theme, ctx),
                 _ => {}
             }
         }

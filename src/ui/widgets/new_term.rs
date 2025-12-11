@@ -3,7 +3,6 @@
 use super::{Widget, WidgetAlignment, WidgetClickResult, WidgetContext};
 use crate::rendering::{Cell, Theme, VideoBuffer};
 use crate::ui::button::ButtonState;
-use crate::window::manager::FocusState;
 
 /// Widget for creating new terminal windows
 pub struct NewTermWidget {
@@ -32,7 +31,7 @@ impl Widget for NewTermWidget {
         (self.label.len() as u16) + 4
     }
 
-    fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, _focus: FocusState) {
+    fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, _ctx: &WidgetContext) {
         let (fg_color, bg_color) = match self.state {
             ButtonState::Normal => (theme.button_normal_fg, theme.button_normal_bg),
             ButtonState::Hovered => (theme.button_hovered_fg, theme.button_hovered_bg),

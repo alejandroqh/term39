@@ -3,7 +3,7 @@
 //! This module provides a widget-based architecture for the top bar,
 //! allowing modular and reusable UI components.
 
-use crate::rendering::{Theme, VideoBuffer};
+use crate::rendering::{Charset, Theme, VideoBuffer};
 use crate::window::manager::FocusState;
 
 pub mod battery;
@@ -44,7 +44,7 @@ pub enum WidgetAlignment {
 
 /// Context passed to widgets for rendering and updates
 #[derive(Clone, Copy, Debug)]
-pub struct WidgetContext {
+pub struct WidgetContext<'a> {
     pub cols: u16,
     #[allow(dead_code)]
     pub rows: u16,
@@ -54,9 +54,10 @@ pub struct WidgetContext {
     #[allow(dead_code)]
     pub has_selection: bool,
     pub show_date_in_clock: bool,
+    pub charset: &'a Charset,
 }
 
-impl WidgetContext {
+impl<'a> WidgetContext<'a> {
     pub fn new(
         cols: u16,
         rows: u16,
@@ -64,6 +65,7 @@ impl WidgetContext {
         has_clipboard_content: bool,
         has_selection: bool,
         show_date_in_clock: bool,
+        charset: &'a Charset,
     ) -> Self {
         Self {
             cols,
@@ -72,6 +74,7 @@ impl WidgetContext {
             has_clipboard_content,
             has_selection,
             show_date_in_clock,
+            charset,
         }
     }
 }
@@ -82,7 +85,7 @@ pub trait Widget {
     fn width(&self) -> u16;
 
     /// Render the widget at the given x position (y is always 0 for topbar)
-    fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, focus: FocusState);
+    fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, ctx: &WidgetContext);
 
     /// Check if the widget should be visible given current context
     fn is_visible(&self, ctx: &WidgetContext) -> bool;

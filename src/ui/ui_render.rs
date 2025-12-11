@@ -177,6 +177,7 @@ pub fn render_background(buffer: &mut VideoBuffer, charset: &Charset, theme: &Th
 /// Render the top bar using the widget system
 ///
 /// This function updates the TopBar with current state and renders it.
+#[allow(clippy::too_many_arguments)]
 pub fn render_top_bar_widgets(
     buffer: &mut VideoBuffer,
     top_bar: &mut TopBar,
@@ -185,6 +186,7 @@ pub fn render_top_bar_widgets(
     has_selection: bool,
     show_date_in_clock: bool,
     theme: &Theme,
+    charset: &Charset,
 ) {
     let (cols, rows) = buffer.dimensions();
 
@@ -196,6 +198,7 @@ pub fn render_top_bar_widgets(
         has_clipboard_content,
         has_selection,
         show_date_in_clock,
+        charset,
     );
 
     // Update widget state and layout
