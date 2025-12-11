@@ -9,6 +9,7 @@ use crate::input::mouse_handlers::{
 use crate::lockscreen::PinSetupState;
 use crate::rendering::RenderBackend;
 use crate::ui::config_action_handler::{apply_config_result, process_config_action};
+use crate::ui::config_window::ConfigWindow;
 use crate::ui::prompt::{Prompt, PromptAction, PromptButton, PromptType};
 use crate::ui::slight_input::SlightInput;
 use crate::utils::{ClipboardManager, CommandHistory, CommandIndexer};
@@ -622,6 +623,12 @@ pub fn run(
                             &mouse_event,
                         ) {
                             CommandCenterMenuResult::Handled => handled = true,
+                            CommandCenterMenuResult::ShowSettings => {
+                                // Open the config window (same as pressing 's' on desktop)
+                                app_state.active_config_window =
+                                    Some(ConfigWindow::new(cols, rows));
+                                handled = true;
+                            }
                             CommandCenterMenuResult::ShowExitPrompt => {
                                 // Build exit confirmation message
                                 let window_count = window_manager.window_count();
