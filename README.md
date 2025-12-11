@@ -57,6 +57,7 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
 - **Retro DOS Aesthetic**: Classic blue-and-white color scheme with box-drawing characters, ~60fps rendering
 - **Multiple Terminal Windows**: Create, drag, resize, minimize, and maximize windows with mouse or keyboard
 - **Window Management**: Automatic tiling, snap to corners, focus management with ALT+TAB
+- **Control Center**: Centralized panel with WiFi status, time/date, clipboard, and settings access
 - **Session Persistence**: Auto-save/restore of window layouts and terminal content between sessions
 - **Command Launcher**: Quick command palette with `Ctrl+Space`
 - **Clipboard Support**: System clipboard integration with drag-to-select, Ctrl+Shift+C/V, right-click menu

@@ -4,12 +4,16 @@
 //! Only available when the "battery" feature is enabled.
 
 use super::{Widget, WidgetAlignment, WidgetClickResult, WidgetContext};
-use crate::rendering::{Cell, Theme, VideoBuffer};
-use crate::window::manager::FocusState;
-use crossterm::style::Color;
+use crate::rendering::{Theme, VideoBuffer};
 
 #[cfg(feature = "battery")]
+use crate::rendering::Cell;
+#[cfg(feature = "battery")]
 use crate::ui::ui_render::battery_support::{BatteryInfo, get_battery_color, get_battery_info};
+#[cfg(feature = "battery")]
+use crate::window::manager::FocusState;
+#[cfg(feature = "battery")]
+use crossterm::style::Color;
 
 /// Widget displaying battery status with icon and percentage
 pub struct BatteryWidget {

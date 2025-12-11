@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.20.0] - 2025-12-11
+
+### Added
+
+- **Control Center**: New centralized control panel accessible from the top bar
+  - WiFi widget for network status display
+  - Centered Time/Date widget
+  - Clipboard widget for quick access
+  - Help section with documentation
+  - About dialog with version information
+- **Close button for internal windows**: Internal windows now have a close button
+- **ASCII support for widgets**: Widgets now properly render in ASCII mode
+
+### Changed
+
+- **Top bar redesign**: Modernized top bar layout and appearance
+- **Settings integration**: Settings now accessible from the menu system
+- **Exit prompts organization**: Improved exit prompt flow and organization
+- **Widget optimizations**: Performance improvements for widget rendering
+
+### Security
+
+- **CVE-2025-5791**: Replaced vulnerable `pam` crate with `pam-client` for secure PAM authentication
+- **CodeQL fix**: Added workflow permissions to fix security alert
+
 ## [0.19.5] - 2025-12-10
 
 ### Changed
@@ -492,6 +517,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[0.20.0]: https://github.com/alejandroqh/term39/releases/tag/v0.20.0
 [0.19.5]: https://github.com/alejandroqh/term39/releases/tag/v0.19.5
 [0.19.1]: https://github.com/alejandroqh/term39/releases/tag/v0.19.1
 [0.19.0]: https://github.com/alejandroqh/term39/releases/tag/v0.19.0

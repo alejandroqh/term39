@@ -50,12 +50,18 @@ pub struct Charset {
     pub network_connected: char,
     pub network_disconnected: char,
 
-    // Battery widget icons
+    // Battery widget icons (only used with battery feature)
+    #[cfg_attr(not(feature = "battery"), allow(dead_code))]
     pub battery_full: char,
+    #[cfg_attr(not(feature = "battery"), allow(dead_code))]
     pub battery_high: char,
+    #[cfg_attr(not(feature = "battery"), allow(dead_code))]
     pub battery_medium: char,
+    #[cfg_attr(not(feature = "battery"), allow(dead_code))]
     pub battery_low: char,
+    #[cfg_attr(not(feature = "battery"), allow(dead_code))]
     pub battery_critical: char,
+    #[cfg_attr(not(feature = "battery"), allow(dead_code))]
     pub battery_charging: char,
 }
 
