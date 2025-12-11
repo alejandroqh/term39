@@ -629,6 +629,14 @@ pub fn run(
                                     Some(ConfigWindow::new(cols, rows));
                                 handled = true;
                             }
+                            CommandCenterMenuResult::ShowAbout => {
+                                // Open the about window (same as pressing 'l' on desktop)
+                                crate::input::keyboard_handlers::show_about_window(
+                                    app_state,
+                                    backend.as_ref(),
+                                );
+                                handled = true;
+                            }
                             CommandCenterMenuResult::ShowExitPrompt => {
                                 // Build exit confirmation message
                                 let window_count = window_manager.window_count();

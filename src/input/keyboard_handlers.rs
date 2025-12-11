@@ -555,7 +555,7 @@ fn show_help_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
     ));
 }
 
-fn show_about_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
+pub fn show_about_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
     let (cols, rows) = backend.dimensions();
     let license_message = format!(
         "TERM39 - Terminal UI Windows Manager\n\

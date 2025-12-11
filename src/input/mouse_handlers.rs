@@ -511,7 +511,8 @@ pub fn handle_context_menu_mouse(
                         | MenuAction::CopySelection
                         | MenuAction::PasteClipboard
                         | MenuAction::ClearClipboard
-                        | MenuAction::Settings => {}
+                        | MenuAction::Settings
+                        | MenuAction::About => {}
                     }
                 }
             }
@@ -580,7 +581,8 @@ pub fn handle_taskbar_menu_mouse(
                         | MenuAction::CopySelection
                         | MenuAction::PasteClipboard
                         | MenuAction::ClearClipboard
-                        | MenuAction::Settings => {}
+                        | MenuAction::Settings
+                        | MenuAction::About => {}
                     }
                 }
             }
@@ -628,6 +630,8 @@ pub enum CommandCenterMenuResult {
     Handled,
     /// Settings was requested - show config window
     ShowSettings,
+    /// About was requested - show about window
+    ShowAbout,
     /// Exit was requested - show confirmation prompt
     ShowExitPrompt,
 }
@@ -665,6 +669,10 @@ pub fn handle_command_center_menu_mouse(
                     MenuAction::Settings => {
                         // Return ShowSettings to trigger config window
                         result = CommandCenterMenuResult::ShowSettings;
+                    }
+                    MenuAction::About => {
+                        // Return ShowAbout to trigger about window
+                        result = CommandCenterMenuResult::ShowAbout;
                     }
                     MenuAction::CopySelection => {
                         if let FocusState::Window(window_id) = window_manager.get_focus() {

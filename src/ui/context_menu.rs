@@ -18,6 +18,7 @@ pub enum MenuAction {
     PasteClipboard,
     ClearClipboard,
     Settings,
+    About,
     Exit,
 }
 
@@ -103,9 +104,9 @@ impl ContextMenu {
 
     /// Create a Command Center dropdown menu
     pub fn new_command_center_menu(x: u16, y: u16, menu_width: u16) -> Self {
-        // Clipboard operations + Settings + Exit
+        // Clipboard operations + Settings + About + Exit
         // Copy, Paste, Clear Clipboard are always visible but enabled/disabled based on context
-        // Icons: ⧉ (U+29C9) Copy, ⧠ (U+29E0) Paste, ⌫ (U+232B) Clear, ⚙ (U+2699) Settings, ⏻ (U+23FB) Power/Exit
+        // Icons: ⧉ (U+29C9) Copy, ⧠ (U+29E0) Paste, ⌫ (U+232B) Clear, ⚙ (U+2699) Settings, ⓘ (U+24D8) About, ⏻ (U+23FB) Power/Exit
         let items = vec![
             MenuItem::new("Copy", Some('\u{29C9}'), MenuAction::CopySelection),
             MenuItem::new("Paste", Some('\u{29E0}'), MenuAction::PasteClipboard),
@@ -116,6 +117,7 @@ impl ContextMenu {
             ),
             MenuItem::separator(),
             MenuItem::new("Settings...", Some('\u{2699}'), MenuAction::Settings),
+            MenuItem::new("About...", Some('\u{24D8}'), MenuAction::About),
             MenuItem::separator(),
             MenuItem::new("Exit", Some('\u{23FB}'), MenuAction::Exit),
         ];
