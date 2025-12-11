@@ -76,6 +76,18 @@ cargo check
 - Add comments only where the logic isn't self-evident
 - Maintain the MS-DOS aesthetic for UI-related changes
 
+## Understanding the Architecture
+
+To better understand the codebase architecture, you can explore and chat with an AI-powered documentation assistant:
+
+**[CodeWiki for term39](https://codewiki.google/github.com/alejandroqh/term39)**
+
+This tool can help you:
+- Navigate the codebase structure
+- Understand how different components interact
+- Get explanations of specific modules and functions
+- Ask questions about the architecture
+
 ## Architecture Notes
 
 When contributing, please be mindful of:

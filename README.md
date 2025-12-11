@@ -528,6 +528,12 @@ BSD support without PAM (OpenBSD, or when PAM is unavailable). BSD support is ex
 cargo build --release --no-default-features --features bsd-minimal
 ```
 
+## Related Projects
+
+### TermOS
+
+[TermOS](https://github.com/alejandroqh/termOS) is a lightweight Linux distribution designed to run term39 as the primary desktop environment. It provides a complete DOS-like computing experience directly from boot, with term39 serving as the window manager and shell interface.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file.
