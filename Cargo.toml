@@ -30,8 +30,8 @@ minimal = []                                                            # Bare m
 full = ["clipboard", "framebuffer-backend", "battery", "lockscreen"]    # Everything
 
 # BSD-specific profiles (framebuffer is Linux-only)
-bsd = ["clipboard", "battery", "lockscreen"]                            # FreeBSD/NetBSD with PAM
-bsd-minimal = ["clipboard", "battery"]                                  # BSD without lockscreen (OpenBSD)
+bsd = ["clipboard", "battery", "lockscreen"]                            # FreeBSD with PAM
+bsd-minimal = ["clipboard"]                                             # OpenBSD/NetBSD (no PAM lockscreen, no battery)
 
 [profile.release]
 strip = true
