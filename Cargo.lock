@@ -1416,6 +1416,7 @@ dependencies = [
  "sha2",
  "starship-battery",
  "toml 0.9.8",
+ "tui-banner",
  "unicode-width",
  "vte",
  "windows-sys 0.61.2",
@@ -1554,6 +1555,12 @@ name = "toml_writer"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df8b2b54733674ad286d16267dcfc7a71ed5c776e4ac7aa3c3e2561f7c637bf2"
+
+[[package]]
+name = "tui-banner"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e120de26a3bbc87065c0d795f4d5d18a68540c6d735c72adf5f4f79dd0ee888c"
 
 [[package]]
 name = "typenum"
