@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2025-12-22
+
+### Added
+
+- **First stable release**: Term39 reaches version 1.0.0 milestone
+
+### Changed
+
+- **Function key improvements**: Enhanced F-key handling and responsiveness
+- **Logo update**: Improved application logo
+- **Performance optimizations**: Better dirty region tracking for terminal rendering
+
+### Fixed
+
+- **NetBSD battery indicator**: Fixed battery status detection on NetBSD systems
+
 ## [0.20.0] - 2025-12-11
 
 ### Added
@@ -517,6 +533,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[1.0.0]: https://github.com/alejandroqh/term39/releases/tag/v1.0.0
 [0.20.0]: https://github.com/alejandroqh/term39/releases/tag/v0.20.0
 [0.19.5]: https://github.com/alejandroqh/term39/releases/tag/v0.19.5
 [0.19.1]: https://github.com/alejandroqh/term39/releases/tag/v0.19.1
