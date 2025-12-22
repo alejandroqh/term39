@@ -21,6 +21,26 @@ fn is_macos() -> bool {
     cfg!(target_os = "macos")
 }
 
+/// Returns the escape sequence for a function key (F1-F12)
+/// F1-F4 use SS3 format (ESC O), F5+ use CSI format (ESC [ n ~)
+fn get_function_key_sequence(n: u8) -> Option<&'static str> {
+    match n {
+        1 => Some("\x1bOP"),    // F1
+        2 => Some("\x1bOQ"),    // F2
+        3 => Some("\x1bOR"),    // F3
+        4 => Some("\x1bOS"),    // F4
+        5 => Some("\x1b[15~"),  // F5
+        6 => Some("\x1b[17~"),  // F6
+        7 => Some("\x1b[18~"),  // F7
+        8 => Some("\x1b[19~"),  // F8
+        9 => Some("\x1b[20~"),  // F9
+        10 => Some("\x1b[21~"), // F10
+        11 => Some("\x1b[23~"), // F11
+        12 => Some("\x1b[24~"), // F12
+        _ => None,
+    }
+}
+
 /// Handles desktop keyboard shortcuts (when not in a dialog)
 /// Returns true if event was handled
 #[allow(clippy::too_many_arguments)]
@@ -34,6 +54,19 @@ pub fn handle_desktop_keyboard(
     app_config: &AppConfig,
     cli_args: &Cli,
 ) -> bool {
+    // Handle Shift+F1-F12 to send function key sequences to terminal
+    // This allows users to send F-keys to terminal apps while F-keys are used for app shortcuts
+    if let KeyCode::F(n) = key_event.code {
+        if key_event.modifiers.contains(KeyModifiers::SHIFT) {
+            if let FocusState::Window(_) = current_focus {
+                if let Some(seq) = get_function_key_sequence(n) {
+                    let _ = window_manager.send_to_focused(seq);
+                    return true;
+                }
+            }
+        }
+    }
+
     // Handle F1 to show help (universal help key)
     if key_event.code == KeyCode::F(1)
         && matches!(current_focus, FocusState::Desktop | FocusState::Topbar)
@@ -209,8 +242,8 @@ pub fn handle_desktop_keyboard(
         return true; // Signal to open Slight input (handled in main)
     }
 
-    // Handle F6 to copy selection (universal alternative)
-    if key_event.code == KeyCode::F(6) {
+    // Handle F5 to copy selection (mc-style: F5=Copy)
+    if key_event.code == KeyCode::F(5) {
         if let FocusState::Window(window_id) = current_focus {
             if let Some(text) = window_manager.get_selected_text(window_id) {
                 if clipboard_manager.copy(text).is_ok() {
@@ -221,14 +254,29 @@ pub fn handle_desktop_keyboard(
         return true;
     }
 
-    // Handle F7 to paste (universal alternative)
-    if key_event.code == KeyCode::F(7) {
+    // Handle F6 to paste (mc-style: F6=Move, we use for paste)
+    if key_event.code == KeyCode::F(6) {
         if let FocusState::Window(window_id) = current_focus {
             if let Ok(text) = clipboard_manager.paste() {
                 let _ = window_manager.paste_to_window(window_id, &text);
                 window_manager.clear_selection(window_id);
             }
         }
+        return true;
+    }
+
+    // Handle F7 to create new terminal (mc-style: F7=Mkdir, we create terminal)
+    if key_event.code == KeyCode::F(7) {
+        // When auto-tiling is enabled and this is the first window, create maximized terminal
+        let is_first_window = window_manager.window_count() == 0;
+        let maximized = app_state.auto_tiling_enabled && is_first_window;
+        create_terminal_window(
+            app_state,
+            window_manager,
+            backend,
+            maximized,
+            app_config.tiling_gaps,
+        );
         return true;
     }
 
@@ -523,11 +571,13 @@ pub fn show_help_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
         {{Y}}F2{{W}} or {{Y}}ALT+TAB{{W}} - Switch between windows\n\
         {{Y}}F3{{W}}              - Save session manually\n\
         {{Y}}F4{{W}} or {{Y}}CTRL+L{{W}}  - Clear terminal\n\
+        {{Y}}F7{{W}}              - Create new terminal window\n\
+        {{Y}}Shift+F1-F12{{W}}    - Send F-key to terminal\n\
         \n\
         {{C}}COPY & PASTE{{W}}\n\
         \n\
-        {{Y}}{}{{W}} or {{Y}}F6{{W}} - Copy selected text\n\
-        {{Y}}{}{{W}} or {{Y}}F7{{W}} - Paste from clipboard\n\
+        {{Y}}{}{{W}} or {{Y}}F5{{W}} - Copy selected text\n\
+        {{Y}}{}{{W}} or {{Y}}F6{{W}} - Paste from clipboard\n\
         \n\
         {{C}}POPUP DIALOG CONTROLS{{W}}\n\
         \n\
