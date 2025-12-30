@@ -435,6 +435,20 @@ pub fn handle_desktop_keyboard(
 pub fn forward_to_terminal(key_event: KeyEvent, window_manager: &mut WindowManager) {
     match key_event.code {
         KeyCode::Char(c) => {
+            // Windows: Handle AltGr combinations (reported as CTRL+ALT)
+            // AltGr is used for special characters on international keyboards
+            // (e.g., @ on German keyboards, € on many European keyboards)
+            #[cfg(target_os = "windows")]
+            {
+                let is_altgr = key_event.modifiers.contains(KeyModifiers::CONTROL)
+                    && key_event.modifiers.contains(KeyModifiers::ALT);
+                if is_altgr {
+                    // AltGr combination - send the character directly
+                    let _ = window_manager.send_char_to_focused(c);
+                    return;
+                }
+            }
+
             // Check if CTRL is pressed (but not handled by specific shortcuts above)
             if key_event.modifiers.contains(KeyModifiers::CONTROL) {
                 // Convert to control character (Ctrl+A = 0x01, Ctrl+B = 0x02, etc.)

@@ -337,6 +337,7 @@ dependencies = [
  "bitflags 2.10.0",
  "crossterm_winapi",
  "document-features",
+ "filedescriptor",
  "mio",
  "parking_lot",
  "rustix",

@@ -22,6 +22,29 @@ use crossterm::{
 use std::io;
 use std::time::Duration;
 
+/// Windows: Dedicated input thread to prevent event loss
+/// Reads events continuously and sends via channel
+#[cfg(target_os = "windows")]
+use std::sync::mpsc::{self, Receiver, TryRecvError};
+
+#[cfg(target_os = "windows")]
+fn spawn_input_thread() -> Receiver<Event> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        loop {
+            // Block until event is available
+            if event::poll(Duration::from_millis(100)).unwrap_or(false) {
+                if let Ok(evt) = event::read() {
+                    if tx.send(evt).is_err() {
+                        break; // Channel closed, exit thread
+                    }
+                }
+            }
+        }
+    });
+    rx
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn run(
     backend: &mut Box<dyn RenderBackend>,
@@ -58,6 +81,10 @@ pub fn run(
     #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
     #[allow(unused_variables)] // Only used on Linux with framebuffer
     let fb_config = crate::framebuffer::fb_config::FramebufferConfig::load();
+
+    // Windows: spawn dedicated input thread to prevent event loss
+    #[cfg(target_os = "windows")]
+    let input_rx = spawn_input_thread();
 
     // Main loop
     loop {
@@ -171,69 +198,84 @@ pub fn run(
         }
 
         // Process all available events before next frame (batch processing for responsiveness)
-        // This prevents input lag on Windows where events can queue up between frames
         const MAX_EVENTS_PER_FRAME: usize = 50;
         let mut events_processed = 0;
         let mut should_break_main_loop = false;
 
         while events_processed < MAX_EVENTS_PER_FRAME {
-            // Check for available events (non-blocking after first iteration)
-            // Windows console I/O is slower, so use shorter timeout for faster input response
+            // Windows: read from dedicated input thread via channel
+            #[cfg(target_os = "windows")]
+            let current_event = {
+                if events_processed == 0 {
+                    // First iteration: wait briefly for an event
+                    match input_rx.recv_timeout(Duration::from_millis(16)) {
+                        Ok(evt) => evt,
+                        Err(_) => break, // No event within timeout
+                    }
+                } else {
+                    // Subsequent: non-blocking check for more events
+                    match input_rx.try_recv() {
+                        Ok(evt) => evt,
+                        Err(TryRecvError::Empty) => break,
+                        Err(TryRecvError::Disconnected) => break,
+                    }
+                }
+            };
+            #[cfg(target_os = "windows")]
+            let is_injected = false;
+            #[cfg(target_os = "windows")]
+            {
+                events_processed += 1;
+            }
+
+            // Non-Windows: use standard poll/read
+            #[cfg(not(target_os = "windows"))]
             let poll_timeout = if events_processed == 0 {
-                #[cfg(target_os = "windows")]
-                {
-                    Duration::from_millis(8) // Windows: faster polling for responsive input
-                }
-                #[cfg(not(target_os = "windows"))]
-                {
-                    Duration::from_millis(16) // Other platforms: standard 60fps timing
-                }
+                Duration::from_millis(16) // ~60fps frame timing
             } else {
-                Duration::from_millis(0) // Subsequent: non-blocking
+                Duration::from_millis(0) // Non-blocking for subsequent events
             };
 
-            #[cfg(target_os = "linux")]
+            #[cfg(all(not(target_os = "windows"), target_os = "linux"))]
             let has_event = injected_event.is_some() || event::poll(poll_timeout)?;
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(all(not(target_os = "windows"), not(target_os = "linux")))]
             let has_event = event::poll(poll_timeout)?;
 
+            #[cfg(not(target_os = "windows"))]
             if !has_event {
                 break; // No more events available
             }
 
             events_processed += 1;
+
             // Track whether this event is injected (raw/FB) to avoid double-scaling
-            #[cfg(target_os = "linux")]
+            #[cfg(all(not(target_os = "windows"), target_os = "linux"))]
             let is_injected = injected_event.is_some();
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(all(not(target_os = "windows"), not(target_os = "linux")))]
             let is_injected = false;
 
-            #[cfg(target_os = "linux")]
+            #[cfg(all(not(target_os = "windows"), target_os = "linux"))]
             let current_event = if let Some(evt) = injected_event.take() {
                 evt
             } else {
                 event::read()?
             };
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(all(not(target_os = "windows"), not(target_os = "linux")))]
             let current_event = event::read()?;
 
             match current_event {
                 Event::Key(key_event) => {
-                    // Windows sends KeyEventKind::Press, Release, AND Repeat
-                    // - Press: initial key down
-                    // - Repeat: key held down (auto-repeat)
-                    // - Release: key up (should be ignored)
-                    //
-                    // For character keys: only process Press events to avoid duplicates
-                    // when typing fast (Windows can generate spurious Repeat events)
-                    // For navigation keys (arrows, etc.): process both Press and Repeat
-                    // so holding the key continues to work
+                    // Always skip Release events on all platforms
                     if key_event.kind == KeyEventKind::Release {
                         continue;
                     }
 
-                    // Skip Repeat events for character keys to prevent duplicates
-                    // Allow Repeat for navigation/control keys (arrows, Page Up/Down, etc.)
+                    // Windows: Don't filter any key events except Release
+                    // ConPTY/crossterm behavior is inconsistent - better to pass all events
+                    // and let duplicates happen than to drop legitimate keystrokes
+
+                    // Non-Windows: filter Repeat events for character keys
+                    #[cfg(not(target_os = "windows"))]
                     if key_event.kind == KeyEventKind::Repeat {
                         let is_navigation_key = matches!(
                             key_event.code,

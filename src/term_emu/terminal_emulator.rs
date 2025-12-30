@@ -253,10 +253,14 @@ impl TerminalEmulator {
     }
 
     /// Write input to the PTY (send to shell)
-    /// Note: This does NOT flush immediately - call flush_input() after batch processing
-    /// to avoid per-keystroke I/O overhead (especially important on Windows)
+    /// On Windows: flushes immediately to avoid ConPTY buffering issues
+    /// On other platforms: buffered for efficiency, call flush_input() after batch
     pub fn write_input(&mut self, data: &[u8]) -> std::io::Result<()> {
-        self.writer.write_all(data)
+        self.writer.write_all(data)?;
+        // Windows ConPTY can lose buffered data - flush immediately
+        #[cfg(target_os = "windows")]
+        self.writer.flush()?;
+        Ok(())
     }
 
     /// Flush any buffered PTY input
