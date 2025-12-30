@@ -1,4 +1,5 @@
 use super::base::Window;
+use crate::app::app_state::AutoScrollDirection;
 use crate::rendering::{Cell, Charset, CharsetMode, Theme, VideoBuffer};
 use crate::term_emu::{
     Color as TermColor, NamedColor, Position, Selection, SelectionType, ShellConfig, TerminalCell,
@@ -9,6 +10,19 @@ use crossterm::event::{KeyCode, KeyEvent};
 use crossterm::style::Color;
 use std::sync::MutexGuard;
 use std::time::Instant;
+
+/// Mouse position relative to the terminal content area
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MouseContentPosition {
+    /// Mouse is inside the content area
+    Inside,
+    /// Mouse is above the content area (should scroll up)
+    Above,
+    /// Mouse is below the content area (should scroll down)
+    Below,
+    /// Mouse is outside horizontally (left or right)
+    Outside,
+}
 
 /// Close confirmation dialog for a terminal window
 pub(crate) struct CloseConfirmation {
@@ -322,8 +336,11 @@ impl TerminalWindow {
                 };
 
                 // Apply selection highlighting if this cell is selected
+                // Selection uses absolute buffer coordinates, so convert viewport row to absolute
                 if let Some(selection) = &self.selection {
-                    let pos = Position::new(col, row);
+                    let absolute_row =
+                        Self::viewport_to_absolute_row(row, scrollback_len, self.scroll_offset);
+                    let pos = Position::new(col, absolute_row);
                     if selection.contains(pos) {
                         // Invert colors for DOS-style selection
                         cell = cell.inverted();
@@ -701,18 +718,121 @@ impl TerminalWindow {
         Some(Position::new(col, row))
     }
 
-    /// Start a new selection
-    pub fn start_selection(&mut self, screen_x: u16, screen_y: u16, selection_type: SelectionType) {
-        if let Some(pos) = self.screen_to_grid_pos(screen_x, screen_y) {
-            self.selection = Some(Selection::new(pos, selection_type));
+    /// Convert a viewport row to absolute buffer row
+    /// Absolute row = scrollback_len - scroll_offset + viewport_row
+    fn viewport_to_absolute_row(
+        viewport_row: u16,
+        scrollback_len: usize,
+        scroll_offset: usize,
+    ) -> u16 {
+        let absolute = scrollback_len as i32 - scroll_offset as i32 + viewport_row as i32;
+        absolute.max(0) as u16
+    }
+
+    /// Get a cell from the buffer using absolute row coordinates
+    /// Returns the character at the given absolute position
+    fn get_cell_at_absolute(
+        grid: &MutexGuard<'_, TerminalGrid>,
+        col: u16,
+        absolute_row: u16,
+        scrollback_len: usize,
+    ) -> Option<char> {
+        let abs_row = absolute_row as usize;
+        if abs_row < scrollback_len {
+            // Position is in scrollback buffer
+            grid.get_scrollback_line(abs_row)
+                .and_then(|line| line.get(col as usize))
+                .map(|cell| cell.c)
+        } else {
+            // Position is in visible grid
+            let visible_row = abs_row - scrollback_len;
+            grid.get_cell(col as usize, visible_row).map(|cell| cell.c)
         }
     }
 
-    /// Update selection end position
+    /// Check if a screen position is above, below, or inside the content area
+    pub fn get_mouse_content_position(&self, screen_x: u16, screen_y: u16) -> MouseContentPosition {
+        let content_x = self.window.x + 2; // After 2-char left border
+        let content_y = self.window.y + 1; // After title bar
+        let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
+        let content_height = self.window.height.saturating_sub(2); // -1 title, -1 bottom
+
+        // Check if within horizontal bounds (within window width)
+        let in_horizontal = screen_x >= content_x && screen_x < content_x + content_width;
+
+        if !in_horizontal {
+            return MouseContentPosition::Outside;
+        }
+
+        if screen_y < content_y {
+            MouseContentPosition::Above
+        } else if screen_y >= content_y + content_height {
+            MouseContentPosition::Below
+        } else {
+            MouseContentPosition::Inside
+        }
+    }
+
+    /// Update selection at edge during auto-scroll (uses absolute coordinates)
+    pub fn update_selection_at_edge(&mut self, direction: AutoScrollDirection) {
+        if let Some(selection) = &mut self.selection {
+            let content_height = self.window.height.saturating_sub(2);
+            let content_width = self.window.width.saturating_sub(4);
+
+            // Get scrollback length for absolute coordinate calculation
+            let grid = self.emulator.grid();
+            let scrollback_len = {
+                let grid = grid.lock().unwrap();
+                grid.scrollback_len()
+            };
+
+            let (viewport_row, col) = match direction {
+                AutoScrollDirection::Up => (0, 0), // Top-left for scrolling up
+                AutoScrollDirection::Down => (
+                    content_height.saturating_sub(1),
+                    content_width.saturating_sub(1),
+                ), // Bottom-right for scrolling down
+            };
+
+            // Convert viewport row to absolute row
+            let absolute_row =
+                Self::viewport_to_absolute_row(viewport_row, scrollback_len, self.scroll_offset);
+            selection.update_end(Position::new(col, absolute_row));
+        }
+    }
+
+    /// Start a new selection (uses absolute coordinates for scroll-aware selection)
+    pub fn start_selection(&mut self, screen_x: u16, screen_y: u16, selection_type: SelectionType) {
+        if let Some(pos) = self.screen_to_grid_pos(screen_x, screen_y) {
+            // Convert viewport row to absolute row
+            let grid = self.emulator.grid();
+            let scrollback_len = {
+                let grid = grid.lock().unwrap();
+                grid.scrollback_len()
+            };
+            let absolute_row =
+                Self::viewport_to_absolute_row(pos.row, scrollback_len, self.scroll_offset);
+            let absolute_pos = Position::new(pos.col, absolute_row);
+            self.selection = Some(Selection::new(absolute_pos, selection_type));
+        }
+    }
+
+    /// Update selection end position (uses absolute coordinates for scroll-aware selection)
     pub fn update_selection(&mut self, screen_x: u16, screen_y: u16) {
         if let Some(pos) = self.screen_to_grid_pos(screen_x, screen_y) {
+            // Convert viewport row to absolute row - get scrollback_len and scroll_offset before borrowing selection
+            let grid = self.emulator.grid();
+            let scrollback_len = {
+                let grid = grid.lock().unwrap();
+                grid.scrollback_len()
+            };
+            let scroll_offset = self.scroll_offset;
+
             if let Some(selection) = &mut self.selection {
-                selection.update_end(pos);
+                let absolute_row =
+                    Self::viewport_to_absolute_row(pos.row, scrollback_len, scroll_offset);
+                let absolute_pos = Position::new(pos.col, absolute_row);
+                selection.update_end(absolute_pos);
             }
         }
     }
@@ -735,15 +855,16 @@ impl TerminalWindow {
         self.selection = None;
     }
 
-    /// Expand selection to word boundaries
+    /// Expand selection to word boundaries (handles absolute coordinates)
     pub fn expand_selection_to_word(&mut self) {
         if let Some(selection) = &mut self.selection {
             let grid = self.emulator.grid();
             let grid = grid.lock().unwrap();
+            let scrollback_len = grid.scrollback_len();
 
             selection.expand_to_word(|pos| {
-                grid.get_cell(pos.col as usize, pos.row as usize)
-                    .map(|cell| cell.c)
+                // Selection uses absolute coordinates, so use absolute-aware cell access
+                Self::get_cell_at_absolute(&grid, pos.col, pos.row, scrollback_len)
             });
         }
     }
@@ -756,16 +877,28 @@ impl TerminalWindow {
         }
     }
 
-    /// Select all content in the terminal
+    /// Select all content in the terminal (uses absolute coordinates)
     pub fn select_all(&mut self) {
         let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
-        let content_height = self.window.height.saturating_sub(3); // -1 title, -1 top border, -1 bottom border
+        let content_height = self.window.height.saturating_sub(2); // -1 title, -1 bottom border
 
-        let start = Position::new(0, 0);
-        let end = Position::new(
-            content_width.saturating_sub(1),
+        // Get scrollback length for absolute coordinate calculation
+        let grid = self.emulator.grid();
+        let scrollback_len = {
+            let grid = grid.lock().unwrap();
+            grid.scrollback_len()
+        };
+
+        // Convert viewport positions to absolute positions
+        let start_row = Self::viewport_to_absolute_row(0, scrollback_len, self.scroll_offset);
+        let end_row = Self::viewport_to_absolute_row(
             content_height.saturating_sub(1),
+            scrollback_len,
+            self.scroll_offset,
         );
+
+        let start = Position::new(0, start_row);
+        let end = Position::new(content_width.saturating_sub(1), end_row);
 
         let mut selection = Selection::new(start, SelectionType::Character);
         selection.update_end(end);
@@ -773,7 +906,7 @@ impl TerminalWindow {
         self.selection = Some(selection);
     }
 
-    /// Get selected text
+    /// Get selected text (handles absolute coordinates)
     pub fn get_selected_text(&self) -> Option<String> {
         let selection = self.selection.as_ref()?;
         if selection.is_empty() {
@@ -782,6 +915,7 @@ impl TerminalWindow {
 
         let grid = self.emulator.grid();
         let grid = grid.lock().unwrap();
+        let scrollback_len = grid.scrollback_len();
 
         let (start, end) = selection.normalized_bounds();
 
@@ -797,8 +931,9 @@ impl TerminalWindow {
 
                 for row in min_row..=max_row {
                     for col in min_col..=max_col {
-                        if let Some(cell) = grid.get_cell(col as usize, row as usize) {
-                            result.push(cell.c);
+                        if let Some(c) = Self::get_cell_at_absolute(&grid, col, row, scrollback_len)
+                        {
+                            result.push(c);
                         }
                     }
                     if row < max_row {
@@ -811,8 +946,10 @@ impl TerminalWindow {
                 if start.row == end.row {
                     // Single line
                     for col in start.col..=end.col {
-                        if let Some(cell) = grid.get_cell(col as usize, start.row as usize) {
-                            result.push(cell.c);
+                        if let Some(c) =
+                            Self::get_cell_at_absolute(&grid, col, start.row, scrollback_len)
+                        {
+                            result.push(c);
                         }
                     }
                 } else {
@@ -820,8 +957,10 @@ impl TerminalWindow {
                     // First line (from start.col to end of line)
                     let content_width = self.window.width.saturating_sub(4); // -2 left, -2 right
                     for col in start.col..content_width {
-                        if let Some(cell) = grid.get_cell(col as usize, start.row as usize) {
-                            result.push(cell.c);
+                        if let Some(c) =
+                            Self::get_cell_at_absolute(&grid, col, start.row, scrollback_len)
+                        {
+                            result.push(c);
                         }
                     }
                     result.push('\n');
@@ -829,8 +968,10 @@ impl TerminalWindow {
                     // Middle lines (full lines)
                     for row in (start.row + 1)..end.row {
                         for col in 0..content_width {
-                            if let Some(cell) = grid.get_cell(col as usize, row as usize) {
-                                result.push(cell.c);
+                            if let Some(c) =
+                                Self::get_cell_at_absolute(&grid, col, row, scrollback_len)
+                            {
+                                result.push(c);
                             }
                         }
                         result.push('\n');
@@ -838,8 +979,10 @@ impl TerminalWindow {
 
                     // Last line (from start to end.col)
                     for col in 0..=end.col {
-                        if let Some(cell) = grid.get_cell(col as usize, end.row as usize) {
-                            result.push(cell.c);
+                        if let Some(c) =
+                            Self::get_cell_at_absolute(&grid, col, end.row, scrollback_len)
+                        {
+                            result.push(c);
                         }
                     }
                 }
@@ -855,9 +998,9 @@ impl TerminalWindow {
         }
     }
 
-    /// Paste text to terminal
+    /// Paste text to terminal (with bracketed paste mode support)
     pub fn paste_text(&mut self, text: &str) -> std::io::Result<()> {
-        self.emulator.send_str(text)
+        self.emulator.send_paste(text)
     }
 
     /// Check if there's an active selection

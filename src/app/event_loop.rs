@@ -20,7 +20,7 @@ use crossterm::{
     terminal::{self, ClearType},
 };
 use std::io;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 /// Windows: Dedicated input thread to prevent event loss
 /// Reads events continuously and sends via channel
@@ -802,6 +802,27 @@ pub fn run(
                 _ => {}
             }
         } // End of while events loop
+
+        // Process auto-scroll during selection (frame-based timing)
+        if app_state.selection_active {
+            if let Some(direction) = app_state.auto_scroll_direction {
+                let now = Instant::now();
+                let should_scroll = match app_state.last_auto_scroll_time {
+                    Some(last_time) => {
+                        // Scroll every 50ms (~20 scrolls/sec at 3 lines = 60 lines/sec)
+                        now.duration_since(last_time).as_millis() >= 50
+                    }
+                    None => true, // First scroll happens immediately
+                };
+
+                if should_scroll {
+                    if let FocusState::Window(window_id) = window_manager.get_focus() {
+                        window_manager.auto_scroll_with_selection(window_id, direction);
+                        app_state.last_auto_scroll_time = Some(now);
+                    }
+                }
+            }
+        }
 
         // Flush all buffered terminal input once after processing the event batch
         // This avoids per-keystroke I/O overhead (especially important on Windows)

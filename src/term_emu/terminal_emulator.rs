@@ -302,6 +302,29 @@ impl TerminalEmulator {
         self.write_input(s.as_bytes())
     }
 
+    /// Send pasted text to the terminal, respecting bracketed paste mode
+    /// When bracketed paste mode is enabled (?2004), wraps the text with
+    /// ESC[200~ (start) and ESC[201~ (end) sequences
+    pub fn send_paste(&mut self, text: &str) -> std::io::Result<()> {
+        let bracketed_paste_mode = {
+            let grid = self.grid.lock().expect("terminal grid mutex poisoned");
+            grid.bracketed_paste_mode
+        };
+
+        if bracketed_paste_mode {
+            // Bracketed paste: wrap with ESC[200~ and ESC[201~
+            self.write_input(b"\x1b[200~")?;
+            self.write_input(text.as_bytes())?;
+            self.write_input(b"\x1b[201~")?;
+        } else {
+            // Normal paste: send text directly
+            self.write_input(text.as_bytes())?;
+        }
+
+        // Flush to ensure paste is sent immediately
+        self.writer.flush()
+    }
+
     /// Extract terminal content (scrollback + visible lines) for session persistence
     /// Returns at most MAX_LINES_PER_TERMINAL lines (most recent lines are kept)
     pub fn get_terminal_content(&self) -> (Vec<SerializableTerminalLine>, SerializableCursor) {

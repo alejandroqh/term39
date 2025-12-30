@@ -14,6 +14,13 @@ use crate::ui::ui_render::CalendarState;
 use crate::ui::widgets::TopBar;
 use std::time::Instant;
 
+/// Direction for auto-scrolling during text selection
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AutoScrollDirection {
+    Up,
+    Down,
+}
+
 /// Centralizes all mutable application state
 pub struct AppState {
     // Dialog/Popup State
@@ -58,6 +65,10 @@ pub struct AppState {
     pub last_click_time: Option<Instant>,
     pub last_click_pos: Option<(u16, u16)>,
     pub click_count: u32,
+
+    // Auto-scroll state during selection
+    pub auto_scroll_direction: Option<AutoScrollDirection>,
+    pub last_auto_scroll_time: Option<Instant>,
 
     // Exit flag
     pub should_exit: bool,
@@ -171,6 +182,10 @@ impl AppState {
             last_click_time: None,
             last_click_pos: None,
             click_count: 0,
+
+            // Auto-scroll state during selection
+            auto_scroll_direction: None,
+            last_auto_scroll_time: None,
 
             // Exit flag
             should_exit: false,

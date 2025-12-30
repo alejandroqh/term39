@@ -1,7 +1,7 @@
 //! Mouse event handlers extracted from main.rs
 //! Handles button hover states, modal dialogs, top bar buttons, menus, and text selection.
 
-use crate::app::app_state::AppState;
+use crate::app::app_state::{AppState, AutoScrollDirection};
 use crate::app::config_manager::AppConfig;
 use crate::lockscreen::PinSetupState;
 use crate::rendering::{Charset, Theme};
@@ -15,6 +15,7 @@ use crate::ui::prompt::PromptAction;
 use crate::ui::widgets::{WidgetClickResult, WidgetContext};
 use crate::utils::ClipboardManager;
 use crate::window::manager::{FocusState, WindowManager};
+use crate::window::terminal_window::MouseContentPosition;
 #[cfg(all(target_os = "linux", feature = "framebuffer-backend"))]
 use crossterm::event::Event;
 use crossterm::event::{KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
@@ -1004,7 +1005,36 @@ pub fn handle_selection_mouse(
             // Don't update selection while dragging/resizing a window
             if app_state.selection_active && !window_manager.is_dragging_or_resizing() {
                 if let FocusState::Window(window_id) = window_manager.get_focus() {
-                    window_manager.update_selection(window_id, mouse_event.column, mouse_event.row);
+                    // Check mouse position relative to content area for auto-scroll
+                    if let Some(position) = window_manager.get_mouse_content_position(
+                        window_id,
+                        mouse_event.column,
+                        mouse_event.row,
+                    ) {
+                        match position {
+                            MouseContentPosition::Above => {
+                                // Set auto-scroll up
+                                app_state.auto_scroll_direction = Some(AutoScrollDirection::Up);
+                            }
+                            MouseContentPosition::Below => {
+                                // Set auto-scroll down
+                                app_state.auto_scroll_direction = Some(AutoScrollDirection::Down);
+                            }
+                            MouseContentPosition::Inside => {
+                                // Clear auto-scroll, update selection normally
+                                app_state.auto_scroll_direction = None;
+                                window_manager.update_selection(
+                                    window_id,
+                                    mouse_event.column,
+                                    mouse_event.row,
+                                );
+                            }
+                            MouseContentPosition::Outside => {
+                                // Outside horizontally - clear auto-scroll
+                                app_state.auto_scroll_direction = None;
+                            }
+                        }
+                    }
                     return true;
                 }
             }
@@ -1015,6 +1045,8 @@ pub fn handle_selection_mouse(
                     window_manager.complete_selection(window_id);
                 }
                 app_state.selection_active = false;
+                app_state.auto_scroll_direction = None;
+                app_state.last_auto_scroll_time = None;
                 return true;
             }
         }

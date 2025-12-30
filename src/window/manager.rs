@@ -1,5 +1,6 @@
 use super::base::ResizeEdge;
-use super::terminal_window::TerminalWindow;
+use super::terminal_window::{MouseContentPosition, TerminalWindow};
+use crate::app::app_state::AutoScrollDirection;
 use crate::app::session::{self, SessionState, WindowSnapshot};
 use crate::rendering::{Charset, Theme, VideoBuffer};
 use crate::term_emu::ShellConfig;
@@ -1747,6 +1748,35 @@ impl WindowManager {
     pub fn select_all(&mut self, window_id: u32) {
         if let Some(window) = self.get_window_by_id_mut(window_id) {
             window.select_all();
+        }
+    }
+
+    /// Get the mouse position relative to a window's content area
+    pub fn get_mouse_content_position(
+        &self,
+        window_id: u32,
+        x: u16,
+        y: u16,
+    ) -> Option<MouseContentPosition> {
+        self.get_window_by_id(window_id)
+            .map(|w| w.get_mouse_content_position(x, y))
+    }
+
+    /// Scroll the window and update selection for auto-scroll during selection
+    pub fn auto_scroll_with_selection(
+        &mut self,
+        window_id: u32,
+        direction: AutoScrollDirection,
+    ) -> bool {
+        if let Some(window) = self.get_window_by_id_mut(window_id) {
+            match direction {
+                AutoScrollDirection::Up => window.scroll_up(3),
+                AutoScrollDirection::Down => window.scroll_down(3),
+            }
+            window.update_selection_at_edge(direction);
+            true
+        } else {
+            false
         }
     }
 
