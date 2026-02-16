@@ -307,6 +307,18 @@ pub struct Cli {
     )]
     pub no_exit: bool,
 
+    /// Set the keybinding profile
+    ///
+    /// Available profiles:
+    ///   - term39:    Default term39 keybindings (F-keys, single letters from desktop)
+    ///   - hyprland:  Hyprland-style Alt-modifier keybindings (Alt+H/J/K/L, Alt+Q, etc.)
+    #[arg(
+        long,
+        value_name = "PROFILE",
+        help = "Set the keybinding profile (term39, hyprland)"
+    )]
+    pub keybindings: Option<String>,
+
     /// Path to shell executable for terminal windows
     ///
     /// Specify a custom shell to use instead of the system default.

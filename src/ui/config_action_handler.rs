@@ -5,6 +5,7 @@
 
 use crate::app::app_state::AppState;
 use crate::app::config_manager::AppConfig;
+use crate::input::keybinding_profile::KeybindingProfile;
 use crate::lockscreen::auth::is_os_auth_available;
 use crate::rendering::{Charset, Theme};
 use crate::ui::button::Button;
@@ -18,6 +19,10 @@ pub struct ConfigActionResult {
     pub new_theme: Option<Theme>,
     /// New background character if changed
     pub new_background: Option<char>,
+    /// New keybinding profile if changed
+    pub new_keybinding_profile: Option<KeybindingProfile>,
+    /// Suggested theme change from profile switch
+    pub suggested_theme_change: Option<String>,
 }
 
 /// Process a ConfigAction and apply changes to app_state and app_config.
@@ -110,6 +115,22 @@ pub fn process_config_action(
             let _ = app_config.save();
             result.new_theme = Some(Theme::from_name(&app_config.theme));
         }
+        ConfigAction::CycleKeybindingProfile => {
+            app_config.cycle_keybinding_profile();
+            let new_profile = KeybindingProfile::from_name(&app_config.keybinding_profile);
+            if let Some(ref suggested) = new_profile.suggested_theme {
+                result.suggested_theme_change = Some(suggested.clone());
+            }
+            result.new_keybinding_profile = Some(new_profile);
+        }
+        ConfigAction::CycleKeybindingProfileBackward => {
+            app_config.cycle_keybinding_profile_backward();
+            let new_profile = KeybindingProfile::from_name(&app_config.keybinding_profile);
+            if let Some(ref suggested) = new_profile.suggested_theme {
+                result.suggested_theme_change = Some(suggested.clone());
+            }
+            result.new_keybinding_profile = Some(new_profile);
+        }
         ConfigAction::CycleBackgroundChar => {
             app_config.cycle_background_char();
             result.new_background = Some(app_config.get_background_char());
@@ -184,15 +205,27 @@ pub fn process_config_action(
     result
 }
 
-/// Apply the result of a config action to the charset and theme.
+/// Apply the result of a config action to the charset, theme, and keybinding profile.
 ///
 /// This is a helper to apply changes that require mutable access to
-/// charset and theme which are owned by the caller.
-pub fn apply_config_result(result: &ConfigActionResult, charset: &mut Charset, theme: &mut Theme) {
+/// charset, theme, and keybinding profile which are owned by the caller.
+pub fn apply_config_result(
+    result: &ConfigActionResult,
+    charset: &mut Charset,
+    theme: &mut Theme,
+    keybinding_profile: &mut KeybindingProfile,
+) {
     if let Some(ref new_theme) = result.new_theme {
         *theme = new_theme.clone();
     }
     if let Some(new_bg) = result.new_background {
         charset.set_background(new_bg);
+    }
+    if let Some(ref new_profile) = result.new_keybinding_profile {
+        *keybinding_profile = new_profile.clone();
+    }
+    // Apply suggested theme change from profile switch
+    if let Some(ref suggested_theme) = result.suggested_theme_change {
+        *theme = Theme::from_name(suggested_theme);
     }
 }

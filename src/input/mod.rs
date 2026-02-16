@@ -5,6 +5,7 @@
     target_os = "openbsd"
 ))]
 pub mod gpm_control;
+pub mod keybinding_profile;
 pub mod keyboard_handlers;
 pub mod keyboard_mode;
 pub mod mouse;

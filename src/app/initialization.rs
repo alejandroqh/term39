@@ -189,6 +189,18 @@ pub fn initialize_charset(cli_args: &Cli, app_config: &AppConfig) -> Charset {
     charset
 }
 
+/// Loads keybinding profile from CLI or config
+pub fn initialize_keybinding_profile(
+    cli_args: &Cli,
+    app_config: &AppConfig,
+) -> crate::input::keybinding_profile::KeybindingProfile {
+    let profile_name = cli_args
+        .keybindings
+        .as_ref()
+        .unwrap_or(&app_config.keybinding_profile);
+    crate::input::keybinding_profile::KeybindingProfile::from_name(profile_name)
+}
+
 /// Loads theme from CLI or config
 pub fn initialize_theme(cli_args: &Cli, app_config: &AppConfig) -> Theme {
     // Use theme from CLI args if provided, otherwise use config theme

@@ -6,6 +6,7 @@
 use super::manager::{FocusState, WindowManager};
 use crate::app::app_state::AppState;
 use crate::app::config_manager::AppConfig;
+use crate::input::keybinding_profile::{KeybindingProfile, matches_any};
 use crate::input::keyboard_mode::{KeyboardMode, ResizeDirection, SnapPosition, WindowSubMode};
 use crate::rendering::RenderBackend;
 use crate::ui::info_window::InfoWindow;
@@ -32,12 +33,14 @@ fn is_focused_window_locked(window_manager: &WindowManager, auto_tiling_enabled:
 
 /// Handle keyboard input when in Window Mode
 /// Returns true if event was consumed
+#[allow(clippy::too_many_arguments)]
 pub fn handle_window_mode_keyboard(
     app_state: &mut AppState,
     app_config: &mut AppConfig,
     key_event: KeyEvent,
     window_manager: &mut WindowManager,
     backend: &dyn RenderBackend,
+    profile: &KeybindingProfile,
 ) -> bool {
     // Only handle if in Window Mode
     let sub_mode = match app_state.keyboard_mode {
@@ -58,6 +61,7 @@ pub fn handle_window_mode_keyboard(
             cols,
             rows,
             top_y,
+            profile,
         ),
         WindowSubMode::Move => {
             handle_move_mode(app_state, key_event, window_manager, cols, rows, top_y)
@@ -79,10 +83,13 @@ fn handle_navigation_mode(
     cols: u16,
     rows: u16,
     top_y: u16,
+    profile: &KeybindingProfile,
 ) -> bool {
-    let has_shift = key_event.modifiers.contains(KeyModifiers::SHIFT);
+    let code = key_event.code;
+    let modifiers = key_event.modifiers;
+    let has_shift = modifiers.contains(KeyModifiers::SHIFT);
 
-    match key_event.code {
+    match code {
         // Exit Window Mode (F8 or Esc)
         KeyCode::F(8) | KeyCode::Esc => {
             app_state.keyboard_mode.exit_to_normal();
@@ -120,48 +127,48 @@ fn handle_navigation_mode(
             true
         }
 
-        // Spatial navigation - focus window in direction
-        KeyCode::Char('h') | KeyCode::Left if !has_shift => {
+        // Spatial navigation - focus window in direction (profile-based)
+        _ if !has_shift && matches_any(&profile.wm_focus_left, code, modifiers) => {
             window_manager.focus_window_in_direction(DIR_LEFT);
             true
         }
-        KeyCode::Char('j') | KeyCode::Down if !has_shift => {
+        _ if !has_shift && matches_any(&profile.wm_focus_down, code, modifiers) => {
             window_manager.focus_window_in_direction(DIR_DOWN);
             true
         }
-        KeyCode::Char('k') | KeyCode::Up if !has_shift => {
+        _ if !has_shift && matches_any(&profile.wm_focus_up, code, modifiers) => {
             window_manager.focus_window_in_direction(DIR_UP);
             true
         }
-        KeyCode::Char('l') | KeyCode::Right if !has_shift => {
+        _ if !has_shift && matches_any(&profile.wm_focus_right, code, modifiers) => {
             window_manager.focus_window_in_direction(DIR_RIGHT);
             true
         }
 
-        // Snap to full halves (Shift + h/j/k/l)
+        // Snap to full halves (profile-based)
         // Don't snap locked windows (auto-tiled first 4)
-        KeyCode::Char('H') | KeyCode::Left if has_shift => {
+        _ if matches_any(&profile.wm_snap_left, code, modifiers) => {
             if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
                 let (x, y, w, h) = SnapPosition::FullLeft.calculate_rect(cols, rows, top_y);
                 window_manager.snap_focused_window(x, y, w, h);
             }
             true
         }
-        KeyCode::Char('J') | KeyCode::Down if has_shift => {
+        _ if matches_any(&profile.wm_snap_down, code, modifiers) => {
             if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
                 let (x, y, w, h) = SnapPosition::FullBottom.calculate_rect(cols, rows, top_y);
                 window_manager.snap_focused_window(x, y, w, h);
             }
             true
         }
-        KeyCode::Char('K') | KeyCode::Up if has_shift => {
+        _ if matches_any(&profile.wm_snap_up, code, modifiers) => {
             if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
                 let (x, y, w, h) = SnapPosition::FullTop.calculate_rect(cols, rows, top_y);
                 window_manager.snap_focused_window(x, y, w, h);
             }
             true
         }
-        KeyCode::Char('L') | KeyCode::Right if has_shift => {
+        _ if matches_any(&profile.wm_snap_right, code, modifiers) => {
             if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
                 let (x, y, w, h) = SnapPosition::FullRight.calculate_rect(cols, rows, top_y);
                 window_manager.snap_focused_window(x, y, w, h);
@@ -179,15 +186,15 @@ fn handle_navigation_mode(
             true
         }
 
-        // Enter Move sub-mode
-        KeyCode::Char('m') => {
+        // Enter Move sub-mode (profile-based)
+        _ if matches_any(&profile.wm_enter_move, code, modifiers) => {
             app_state.keyboard_mode.enter_sub_mode(WindowSubMode::Move);
             app_state.move_state.reset();
             true
         }
 
-        // Enter Resize sub-mode
-        KeyCode::Char('r') => {
+        // Enter Resize sub-mode (profile-based)
+        _ if matches_any(&profile.wm_enter_resize, code, modifiers) => {
             app_state
                 .keyboard_mode
                 .enter_sub_mode(WindowSubMode::Resize(ResizeDirection::Default));
@@ -195,40 +202,30 @@ fn handle_navigation_mode(
             true
         }
 
-        // Close focused window (with dirty check) - 'x' always closes window
-        KeyCode::Char('x') => {
+        // Close focused window (profile-based)
+        _ if matches_any(&profile.wm_close, code, modifiers) => {
+            // 'q' on desktop/topbar: let the main handler show exit prompt
+            if code == KeyCode::Char('q') {
+                let focus = window_manager.get_focus();
+                if matches!(focus, FocusState::Desktop | FocusState::Topbar) {
+                    return false;
+                }
+            }
             let closed = window_manager.request_close_focused_window();
-            // Auto-exit Window Mode if no windows remain
             if closed && window_manager.window_count() == 0 {
                 app_state.keyboard_mode.exit_to_normal();
             }
             true
         }
 
-        // 'q' closes window if focused, or triggers exit prompt if on desktop/topbar
-        KeyCode::Char('q') => {
-            let focus = window_manager.get_focus();
-            if matches!(focus, FocusState::Desktop | FocusState::Topbar) {
-                // Let the main handler show exit prompt
-                false
-            } else {
-                let closed = window_manager.request_close_focused_window();
-                // Auto-exit Window Mode if no windows remain
-                if closed && window_manager.window_count() == 0 {
-                    app_state.keyboard_mode.exit_to_normal();
-                }
-                true
-            }
-        }
-
-        // Toggle maximize
-        KeyCode::Char('z') | KeyCode::Char('+') | KeyCode::Char(' ') => {
+        // Toggle maximize (profile-based)
+        _ if matches_any(&profile.wm_maximize, code, modifiers) => {
             window_manager.toggle_focused_window_maximize(cols, rows, app_config.tiling_gaps);
             true
         }
 
         // Minimize
-        KeyCode::Char('-') | KeyCode::Char('_') => {
+        _ if matches_any(&profile.wm_minimize, code, modifiers) => {
             window_manager.toggle_focused_window_minimize();
             true
         }
@@ -254,6 +251,25 @@ fn handle_navigation_mode(
                 true,
                 app_config.tiling_gaps,
             );
+            true
+        }
+
+        // Toggle auto-tiling (profile-based)
+        _ if matches_any(&profile.wm_toggle_auto_tiling, code, modifiers) => {
+            // Toggle config and persist
+            app_config.toggle_auto_tiling_on_startup();
+            app_state.auto_tiling_enabled = app_config.auto_tiling_on_startup;
+            let auto_tiling_text = if app_state.auto_tiling_enabled {
+                "█ on] Auto Tiling"
+            } else {
+                "off ░] Auto Tiling"
+            };
+            let bar_y = rows - 1;
+            app_state.auto_tiling_button =
+                crate::ui::button::Button::new(1, bar_y, auto_tiling_text.to_string());
+            if app_state.auto_tiling_enabled {
+                window_manager.auto_position_windows(cols, rows, app_config.tiling_gaps);
+            }
             true
         }
 
@@ -319,28 +335,6 @@ fn handle_navigation_mode(
             if !is_focused_window_locked(window_manager, app_state.auto_tiling_enabled) {
                 let (x, y, w, h) = SnapPosition::TopRight.calculate_rect(cols, rows, top_y);
                 window_manager.snap_focused_window(x, y, w, h);
-            }
-            true
-        }
-
-        // Toggle auto-tiling
-        KeyCode::Char('a') => {
-            // Toggle config and persist
-            app_config.toggle_auto_tiling_on_startup();
-            // Update runtime state to match config
-            app_state.auto_tiling_enabled = app_config.auto_tiling_on_startup;
-            // Update button (recreate with new label at bottom bar position)
-            let auto_tiling_text = if app_state.auto_tiling_enabled {
-                "█ on] Auto Tiling"
-            } else {
-                "off ░] Auto Tiling"
-            };
-            let bar_y = rows - 1;
-            app_state.auto_tiling_button =
-                crate::ui::button::Button::new(1, bar_y, auto_tiling_text.to_string());
-            // Auto-position windows if enabling
-            if app_state.auto_tiling_enabled {
-                window_manager.auto_position_windows(cols, rows, app_config.tiling_gaps);
             }
             true
         }

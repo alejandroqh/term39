@@ -26,7 +26,10 @@ pub mod signal_handler {
     /// Call this once during application initialization.
     pub fn setup() {
         unsafe {
-            libc::signal(libc::SIGUSR1, handle_sigusr1 as libc::sighandler_t);
+            libc::signal(
+                libc::SIGUSR1,
+                handle_sigusr1 as *const () as libc::sighandler_t,
+            );
         }
     }
 

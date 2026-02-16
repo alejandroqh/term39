@@ -55,6 +55,7 @@ pub fn run(
     app_config: &mut AppConfig,
     charset: &mut crate::rendering::Charset,
     theme: &mut crate::rendering::Theme,
+    keybinding_profile: &mut crate::input::keybinding_profile::KeybindingProfile,
     mouse_input_manager: &mut crate::input::mouse::MouseInputManager,
     cli_args: &crate::app::cli::Cli,
     command_indexer: &CommandIndexer,
@@ -419,7 +420,7 @@ pub fn run(
                     ) {
                         let (_, rows) = backend.dimensions();
                         let result = process_config_action(action, app_state, app_config, rows);
-                        apply_config_result(&result, charset, theme);
+                        apply_config_result(&result, charset, theme, keybinding_profile);
                         continue;
                     }
 
@@ -437,6 +438,7 @@ pub fn run(
                         key_event,
                         window_manager,
                         backend.as_ref(),
+                        keybinding_profile,
                     ) {
                         continue;
                     }
@@ -468,6 +470,7 @@ pub fn run(
                         backend.as_ref(),
                         app_config,
                         cli_args,
+                        keybinding_profile,
                     ) {
                         // Check if exit was requested
                         if app_state.should_exit {
@@ -537,6 +540,7 @@ pub fn run(
                             rows,
                             charset,
                             theme,
+                            keybinding_profile,
                         )
                     {
                         handled = true;
@@ -698,6 +702,7 @@ pub fn run(
                                 crate::input::keyboard_handlers::show_help_window(
                                     app_state,
                                     backend.as_ref(),
+                                    keybinding_profile,
                                 );
                                 handled = true;
                             }

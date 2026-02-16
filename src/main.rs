@@ -50,9 +50,11 @@ fn main() -> io::Result<()> {
     #[allow(unused_variables)] // Only used on Linux with framebuffer
     let fb_config = framebuffer::fb_config::FramebufferConfig::load();
 
-    // Create charset and theme
+    // Create charset, theme, and keybinding profile
     let mut charset = app::initialization::initialize_charset(&cli_args, &app_config);
     let mut theme = app::initialization::initialize_theme(&cli_args, &app_config);
+    let mut keybinding_profile =
+        app::initialization::initialize_keybinding_profile(&cli_args, &app_config);
 
     // Validate shell configuration early (before terminal setup) so warnings are visible
     let shell_config = app::initialization::validate_shell_config(&cli_args);
@@ -124,6 +126,7 @@ fn main() -> io::Result<()> {
         &mut app_config,
         &mut charset,
         &mut theme,
+        &mut keybinding_profile,
         &mut mouse_input_manager,
         &cli_args,
         &command_indexer,

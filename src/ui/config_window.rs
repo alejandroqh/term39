@@ -16,6 +16,8 @@ pub enum ConfigAction {
     CycleThemeBackward,
     CycleBackgroundChar,
     CycleBackgroundCharBackward,
+    CycleKeybindingProfile,
+    CycleKeybindingProfileBackward,
     ToggleTintTerminal,
     ToggleAutoSave,
     ToggleLockscreen,
@@ -33,6 +35,7 @@ pub enum ConfigOption {
     TilingGaps,
     ShowDate,
     Theme,
+    KeybindingProfile,
     BackgroundChar,
     TintTerminal,
     AutoSave,
@@ -52,6 +55,7 @@ pub struct ConfigWindow {
     tiling_gaps_row: u16,           // Row where tiling gaps toggle is rendered
     show_date_row: u16,             // Row where show date toggle is rendered
     theme_row: u16,                 // Row where theme selector is rendered
+    keybinding_profile_row: u16,    // Row where keybinding profile selector is rendered
     background_char_row: u16,       // Row where background character selector is rendered
     tint_terminal_row: u16,         // Row where tint terminal toggle is rendered
     auto_save_row: u16,             // Row where auto-save toggle is rendered
@@ -69,7 +73,7 @@ impl ConfigWindow {
     pub fn new(buffer_width: u16, buffer_height: u16) -> Self {
         // Fixed dimensions for config window
         let width = 60;
-        let height = 30; // Increased to fit status bar widgets section
+        let height = 32; // Increased to fit keybinding profile row
 
         // Center on screen
         let x = (buffer_width.saturating_sub(width)) / 2;
@@ -80,14 +84,15 @@ impl ConfigWindow {
         let tiling_gaps_row = y + 4; // Window gaps option (independent of auto-tiling)
         let show_date_row = y + 6; // Blank at y+5, show date option at y+6
         let theme_row = y + 8; // Blank at y+7, theme option at y+8
-        let background_char_row = y + 10; // Blank at y+9, background char option at y+10
-        let tint_terminal_row = y + 12; // Blank at y+11, tint terminal option at y+12
-        let auto_save_row = y + 14; // Blank at y+13, auto-save option at y+14
-        let lockscreen_row = y + 16; // Blank at y+15, lockscreen option at y+16
-        let lockscreen_auth_row = y + 18; // Blank at y+17, auth mode option at y+18
-        let pin_setup_row = y + 20; // Blank at y+19, PIN setup at y+20
-        let status_widgets_header_row = y + 22; // Blank at y+21, section header at y+22
-        let network_widget_row = y + 24; // Blank at y+23, network widget at y+24
+        let keybinding_profile_row = y + 10; // Blank at y+9, keybinding profile at y+10
+        let background_char_row = y + 12; // Blank at y+11, background char option at y+12
+        let tint_terminal_row = y + 14; // Blank at y+13, tint terminal option at y+14
+        let auto_save_row = y + 16; // Blank at y+15, auto-save option at y+16
+        let lockscreen_row = y + 18; // Blank at y+17, lockscreen option at y+18
+        let lockscreen_auth_row = y + 20; // Blank at y+19, auth mode option at y+20
+        let pin_setup_row = y + 22; // Blank at y+21, PIN setup at y+22
+        let status_widgets_header_row = y + 24; // Blank at y+23, section header at y+24
+        let network_widget_row = y + 26; // Blank at y+25, network widget at y+26
 
         Self {
             width,
@@ -98,6 +103,7 @@ impl ConfigWindow {
             tiling_gaps_row,
             show_date_row,
             theme_row,
+            keybinding_profile_row,
             background_char_row,
             tint_terminal_row,
             auto_save_row,
@@ -142,6 +148,7 @@ impl ConfigWindow {
 
         options.push(ConfigOption::ShowDate);
         options.push(ConfigOption::Theme);
+        options.push(ConfigOption::KeybindingProfile);
         options.push(ConfigOption::BackgroundChar);
         options.push(ConfigOption::TintTerminal);
         options.push(ConfigOption::AutoSave);
@@ -209,6 +216,7 @@ impl ConfigWindow {
             Some(ConfigOption::TilingGaps) => ConfigAction::ToggleTilingGaps,
             Some(ConfigOption::ShowDate) => ConfigAction::ToggleShowDate,
             Some(ConfigOption::Theme) => ConfigAction::CycleTheme,
+            Some(ConfigOption::KeybindingProfile) => ConfigAction::CycleKeybindingProfile,
             Some(ConfigOption::BackgroundChar) => ConfigAction::CycleBackgroundChar,
             Some(ConfigOption::TintTerminal) => ConfigAction::ToggleTintTerminal,
             Some(ConfigOption::AutoSave) => ConfigAction::ToggleAutoSave,
@@ -228,6 +236,13 @@ impl ConfigWindow {
                     ConfigAction::CycleTheme
                 } else {
                     ConfigAction::CycleThemeBackward
+                }
+            }
+            Some(ConfigOption::KeybindingProfile) => {
+                if forward {
+                    ConfigAction::CycleKeybindingProfile
+                } else {
+                    ConfigAction::CycleKeybindingProfileBackward
                 }
             }
             Some(ConfigOption::BackgroundChar) => {
@@ -427,6 +442,15 @@ impl ConfigWindow {
             &config.theme,
             theme,
             self.focused_option == Some(ConfigOption::Theme),
+        );
+
+        // Render keybinding profile selector
+        self.render_keybinding_profile_selector(
+            buffer,
+            self.keybinding_profile_row,
+            &config.keybinding_profile,
+            theme,
+            self.focused_option == Some(ConfigOption::KeybindingProfile),
         );
 
         // Render background character selector
@@ -647,6 +671,46 @@ impl ConfigWindow {
 
         let selector_x = option_x + label.len() as u16 + 2;
         let selector_text = format!("< {} >", theme_display);
+
+        for (i, ch) in selector_text.chars().enumerate() {
+            buffer.set(selector_x + i as u16, row, Cell::new(ch, fg, bg));
+        }
+    }
+
+    /// Render keybinding profile selector showing current profile with arrows to cycle
+    fn render_keybinding_profile_selector(
+        &self,
+        buffer: &mut VideoBuffer,
+        row: u16,
+        current_profile: &str,
+        theme: &Theme,
+        focused: bool,
+    ) {
+        use crate::input::keybinding_profile::KeybindingProfile;
+
+        // Swap colors if focused for visual feedback
+        let (fg, bg) = if focused {
+            (theme.config_content_bg, theme.config_content_fg)
+        } else {
+            (theme.config_content_fg, theme.config_content_bg)
+        };
+
+        let option_x = self.x + 2; // 2 spaces from left border (1 for focus indicator)
+
+        // Render focus indicator
+        let indicator = if focused { '>' } else { ' ' };
+        buffer.set(self.x + 1, row, Cell::new(indicator, fg, bg));
+
+        // Render label
+        let label = "Keybindings:";
+        for (i, ch) in label.chars().enumerate() {
+            buffer.set(option_x + i as u16, row, Cell::new(ch, fg, bg));
+        }
+
+        // Render profile selector: < Term39 >
+        let display_name = KeybindingProfile::display_name(current_profile);
+        let selector_x = option_x + label.len() as u16 + 2;
+        let selector_text = format!("< {} >", display_name);
 
         for (i, ch) in selector_text.chars().enumerate() {
             buffer.set(selector_x + i as u16, row, Cell::new(ch, fg, bg));
@@ -927,6 +991,13 @@ impl ConfigWindow {
             // Click anywhere on the row cycles the theme
             if x >= self.x && x < self.x + self.width {
                 return ConfigAction::CycleTheme;
+            }
+        }
+
+        // Check if click is on keybinding profile row
+        if y == self.keybinding_profile_row {
+            if x >= self.x && x < self.x + self.width {
+                return ConfigAction::CycleKeybindingProfile;
             }
         }
 

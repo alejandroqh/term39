@@ -38,6 +38,12 @@ pub struct AppConfig {
     pub network_widget_enabled: bool,
     #[serde(default)]
     pub network_interface: String,
+    #[serde(default = "default_keybinding_profile")]
+    pub keybinding_profile: String,
+}
+
+fn default_keybinding_profile() -> String {
+    "term39".to_string()
 }
 
 fn default_auto_tiling_on_startup() -> bool {
@@ -88,6 +94,7 @@ impl Default for AppConfig {
             lockscreen_salt: None,
             network_widget_enabled: false,
             network_interface: String::new(),
+            keybinding_profile: default_keybinding_profile(),
         }
     }
 }
@@ -376,6 +383,22 @@ impl AppConfig {
 
         let result = hasher.finalize();
         result.iter().map(|b| format!("{:02x}", b)).collect()
+    }
+
+    /// Cycle to the next keybinding profile and save
+    pub fn cycle_keybinding_profile(&mut self) {
+        use crate::input::keybinding_profile::KeybindingProfile;
+        self.keybinding_profile =
+            KeybindingProfile::next_name(&self.keybinding_profile).to_string();
+        let _ = self.save();
+    }
+
+    /// Cycle to the previous keybinding profile and save
+    pub fn cycle_keybinding_profile_backward(&mut self) {
+        use crate::input::keybinding_profile::KeybindingProfile;
+        self.keybinding_profile =
+            KeybindingProfile::prev_name(&self.keybinding_profile).to_string();
+        let _ = self.save();
     }
 
     /// Toggle network widget enabled state and save

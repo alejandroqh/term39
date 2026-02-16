@@ -283,6 +283,7 @@ pub fn handle_config_window_mouse(
     rows: u16,
     charset: &mut Charset,
     theme: &mut Theme,
+    keybinding_profile: &mut crate::input::keybinding_profile::KeybindingProfile,
 ) -> bool {
     if let Some(ref config_win) = app_state.active_config_window {
         if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
@@ -302,7 +303,7 @@ pub fn handle_config_window_mouse(
                 _ => {
                     // Process config action using shared handler
                     let result = process_config_action(action, app_state, app_config, rows);
-                    apply_config_result(&result, charset, theme);
+                    apply_config_result(&result, charset, theme, keybinding_profile);
                     return true;
                 }
             }

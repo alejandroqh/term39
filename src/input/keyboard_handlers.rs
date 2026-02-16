@@ -2,6 +2,7 @@ use crate::app::app_state::AppState;
 use crate::app::cli::Cli;
 use crate::app::config;
 use crate::app::config_manager::AppConfig;
+use crate::input::keybinding_profile::{KeybindingProfile, matches_any};
 use crate::rendering::RenderBackend;
 use crate::ui::config_window::ConfigWindow;
 use crate::ui::error_dialog::ErrorDialog;
@@ -51,13 +52,18 @@ pub fn handle_desktop_keyboard(
     window_manager: &mut WindowManager,
     clipboard_manager: &mut ClipboardManager,
     backend: &dyn RenderBackend,
-    app_config: &AppConfig,
+    app_config: &mut AppConfig,
     cli_args: &Cli,
+    profile: &KeybindingProfile,
 ) -> bool {
+    let code = key_event.code;
+    let modifiers = key_event.modifiers;
+    let on_desktop = matches!(current_focus, FocusState::Desktop | FocusState::Topbar);
+
     // Handle Shift+F1-F12 to send function key sequences to terminal
     // This allows users to send F-keys to terminal apps while F-keys are used for app shortcuts
-    if let KeyCode::F(n) = key_event.code {
-        if key_event.modifiers.contains(KeyModifiers::SHIFT) {
+    if let KeyCode::F(n) = code {
+        if modifiers.contains(KeyModifiers::SHIFT) {
             if let FocusState::Window(_) = current_focus {
                 if let Some(seq) = get_function_key_sequence(n) {
                     let _ = window_manager.send_to_focused(seq);
@@ -67,37 +73,124 @@ pub fn handle_desktop_keyboard(
         }
     }
 
-    // Handle F1 to show help (universal help key)
-    if key_event.code == KeyCode::F(1)
-        && matches!(current_focus, FocusState::Desktop | FocusState::Topbar)
-    {
-        show_help_window(app_state, backend);
+    // -- Direct-mode actions (Alt-modifier, work from any focus) --
+    // These are checked BEFORE terminal forwarding so they intercept input
+    if profile.has_direct_bindings() {
+        if matches_any(&profile.direct_close_window, code, modifiers) {
+            window_manager.request_close_focused_window();
+            return true;
+        }
+        if matches_any(&profile.direct_new_terminal, code, modifiers) {
+            let is_first_window = window_manager.window_count() == 0;
+            let maximized = app_state.auto_tiling_enabled && is_first_window;
+            create_terminal_window(
+                app_state,
+                window_manager,
+                backend,
+                maximized,
+                app_config.tiling_gaps,
+            );
+            return true;
+        }
+        if matches_any(&profile.direct_new_terminal_maximized, code, modifiers) {
+            create_terminal_window(
+                app_state,
+                window_manager,
+                backend,
+                true,
+                app_config.tiling_gaps,
+            );
+            return true;
+        }
+        if matches_any(&profile.direct_focus_left, code, modifiers) {
+            window_manager.focus_window_in_direction(crate::window::mode_handlers::DIR_LEFT);
+            return true;
+        }
+        if matches_any(&profile.direct_focus_down, code, modifiers) {
+            window_manager.focus_window_in_direction(crate::window::mode_handlers::DIR_DOWN);
+            return true;
+        }
+        if matches_any(&profile.direct_focus_up, code, modifiers) {
+            window_manager.focus_window_in_direction(crate::window::mode_handlers::DIR_UP);
+            return true;
+        }
+        if matches_any(&profile.direct_focus_right, code, modifiers) {
+            window_manager.focus_window_in_direction(crate::window::mode_handlers::DIR_RIGHT);
+            return true;
+        }
+        if matches_any(&profile.direct_snap_left, code, modifiers) {
+            let (cols, rows) = backend.dimensions();
+            let top_y: u16 = 1;
+            let (x, y, w, h) = crate::input::keyboard_mode::SnapPosition::FullLeft
+                .calculate_rect(cols, rows, top_y);
+            window_manager.snap_focused_window(x, y, w, h);
+            return true;
+        }
+        if matches_any(&profile.direct_snap_down, code, modifiers) {
+            let (cols, rows) = backend.dimensions();
+            let top_y: u16 = 1;
+            let (x, y, w, h) = crate::input::keyboard_mode::SnapPosition::FullBottom
+                .calculate_rect(cols, rows, top_y);
+            window_manager.snap_focused_window(x, y, w, h);
+            return true;
+        }
+        if matches_any(&profile.direct_snap_up, code, modifiers) {
+            let (cols, rows) = backend.dimensions();
+            let top_y: u16 = 1;
+            let (x, y, w, h) = crate::input::keyboard_mode::SnapPosition::FullTop
+                .calculate_rect(cols, rows, top_y);
+            window_manager.snap_focused_window(x, y, w, h);
+            return true;
+        }
+        if matches_any(&profile.direct_snap_right, code, modifiers) {
+            let (cols, rows) = backend.dimensions();
+            let top_y: u16 = 1;
+            let (x, y, w, h) = crate::input::keyboard_mode::SnapPosition::FullRight
+                .calculate_rect(cols, rows, top_y);
+            window_manager.snap_focused_window(x, y, w, h);
+            return true;
+        }
+        if matches_any(&profile.direct_maximize, code, modifiers) {
+            let (cols, rows) = backend.dimensions();
+            window_manager.toggle_focused_window_maximize(cols, rows, app_config.tiling_gaps);
+            return true;
+        }
+        if matches_any(&profile.direct_toggle_auto_tiling, code, modifiers) {
+            toggle_auto_tiling(app_state, app_config, window_manager, backend);
+            return true;
+        }
+        if matches_any(&profile.direct_settings, code, modifiers) {
+            let (cols, rows) = backend.dimensions();
+            app_state.active_config_window = Some(ConfigWindow::new(cols, rows));
+            return true;
+        }
+    }
+
+    // Handle help (F1 always from desktop; profile bindings from desktop)
+    if matches_any(&profile.help, code, modifiers) && on_desktop {
+        show_help_window(app_state, backend, profile);
         return true;
     }
 
-    // Handle F2 for window cycling (more compatible than ALT+TAB)
-    if key_event.code == KeyCode::F(2) {
+    // Handle window cycling
+    if matches_any(&profile.cycle_window, code, modifiers) {
         window_manager.cycle_to_next_window();
         return true;
     }
 
-    // Handle F8 to toggle Window Mode (vim-like keyboard control)
-    // Only toggle from Desktop/Topbar, or to exit Window Mode if already in it
-    // When terminal is focused and NOT in Window Mode: forward F8 to terminal
-    if key_event.code == KeyCode::F(8) {
+    // Handle toggle Window Mode
+    // F8 and backtick have special logic - handle them explicitly
+    if code == KeyCode::F(8) && matches_any(&profile.toggle_window_mode, code, modifiers) {
         let in_window_mode = app_state.keyboard_mode.is_window_mode();
         if in_window_mode {
-            // Already in Window Mode: F8 exits it
             app_state.keyboard_mode.exit_to_normal();
             app_state.move_state.reset();
             app_state.resize_state.reset();
             return true;
         } else if matches!(current_focus, FocusState::Window(_)) {
             // Terminal is focused and NOT in Window Mode: forward F8 to terminal
-            // Let it fall through to forward_to_terminal
             return false;
         } else {
-            // Desktop/Topbar focused: F8 enters Window Mode
             app_state.keyboard_mode.toggle();
             app_state.move_state.reset();
             app_state.resize_state.reset();
@@ -105,44 +198,35 @@ pub fn handle_desktop_keyboard(
         }
     }
 
-    // Handle backtick (`) with double-press detection
-    // Single backtick: toggle Window Mode (only from Desktop/Topbar focus, OR to EXIT from Window Mode)
-    // Double backtick (within 300ms): send literal '`' to terminal
-    // When terminal is focused and NOT in Window Mode: forward backtick directly to terminal
-    // Skip if Alt/Option is pressed (Alt+` is used for window number overlay)
-    let has_alt_modifier = key_event.modifiers.contains(KeyModifiers::ALT)
-        || key_event.modifiers.contains(KeyModifiers::SUPER);
-    if key_event.code == KeyCode::Char('`') && !has_alt_modifier {
+    // Handle backtick with double-press detection (only if backtick is in toggle_window_mode bindings)
+    let has_backtick_binding = profile
+        .toggle_window_mode
+        .iter()
+        .any(|b| b.code == KeyCode::Char('`'));
+    let has_alt_modifier =
+        modifiers.contains(KeyModifiers::ALT) || modifiers.contains(KeyModifiers::SUPER);
+    if has_backtick_binding && code == KeyCode::Char('`') && !has_alt_modifier {
         let now = Instant::now();
         let is_double_press = app_state
             .last_backtick_time
             .map(|t| now.duration_since(t) < Duration::from_millis(DOUBLE_BACKTICK_THRESHOLD_MS))
             .unwrap_or(false);
-
-        // Check if we're currently in Window Mode
         let in_window_mode = app_state.keyboard_mode.is_window_mode();
 
         if is_double_press {
-            // Double backtick: send literal '`' to focused terminal
             app_state.last_backtick_time = None;
-            // Exit window mode if we're in it
             app_state.keyboard_mode.exit_to_normal();
             app_state.move_state.reset();
             app_state.resize_state.reset();
-            // Send the backtick character to the terminal
             let _ = window_manager.send_to_focused("`");
             return true;
         } else if in_window_mode {
-            // Already in Window Mode: single backtick exits it
             app_state.last_backtick_time = Some(now);
             app_state.keyboard_mode.exit_to_normal();
             app_state.move_state.reset();
             app_state.resize_state.reset();
             return true;
         } else {
-            // Not in Window Mode: single backtick enters Window Mode
-            // Works from Desktop, Topbar, or terminal Window focus
-            // Users can double-tap backtick to send literal '`' to terminal
             app_state.last_backtick_time = Some(now);
             app_state.keyboard_mode.toggle();
             app_state.move_state.reset();
@@ -153,77 +237,58 @@ pub fn handle_desktop_keyboard(
 
     // Platform-aware modifier detection for window selection
     let is_window_select_modifier = if is_macos() {
-        key_event.modifiers.contains(KeyModifiers::ALT)
-            || key_event.modifiers.contains(KeyModifiers::SUPER)
+        modifiers.contains(KeyModifiers::ALT) || modifiers.contains(KeyModifiers::SUPER)
     } else {
-        key_event.modifiers.contains(KeyModifiers::ALT)
+        modifiers.contains(KeyModifiers::ALT)
     };
 
     // Handle F10 to toggle window number overlay
-    // Shows numbers 1-9 on windows for quick Option+1-9 selection
-    if key_event.code == KeyCode::F(10) {
+    if code == KeyCode::F(10) && !matches_any(&profile.exit, code, modifiers) {
         app_state.show_window_number_overlay = !app_state.show_window_number_overlay;
         return true;
     }
 
-    // Handle ALT+TAB for window cycling (fallback, may be intercepted by OS)
-    if key_event.code == KeyCode::Tab && key_event.modifiers.contains(KeyModifiers::ALT) {
-        window_manager.cycle_to_next_window();
-        return true;
-    }
-
     // Handle Alt+1-9 (or Option+1-9 on macOS) for direct window selection
-    // On macOS, Option+number produces special characters WITHOUT the ALT modifier flag
-    // So we check for either: Alt modifier + digit, OR the special macOS characters directly
-    // Window selection matches the number in the window title (e.g., "Terminal 3" = 3)
-    if let KeyCode::Char(c) = key_event.code {
-        // Map macOS Option+number special characters to their number equivalents
-        // Option+1='¡', Option+2='™', Option+3='£', Option+4='¢', Option+5='∞',
-        // Option+6='§', Option+7='¶', Option+8='•', Option+9='ª'
+    if let KeyCode::Char(c) = code {
         let num: Option<u32> = match c {
-            // Regular digits with Alt/Cmd modifier (Linux/Windows, or Cmd on macOS)
             '1'..='9' if is_window_select_modifier => c.to_digit(10),
-            // macOS Option+number special characters (no modifier check needed)
-            '¡' => Some(1), // Option+1 on macOS
-            '™' => Some(2), // Option+2 on macOS
-            '£' => Some(3), // Option+3 on macOS
-            '¢' => Some(4), // Option+4 on macOS
-            '∞' => Some(5), // Option+5 on macOS
-            '§' => Some(6), // Option+6 on macOS
-            '¶' => Some(7), // Option+7 on macOS
-            '•' => Some(8), // Option+8 on macOS
-            'ª' => Some(9), // Option+9 on macOS
+            '¡' => Some(1),
+            '™' => Some(2),
+            '£' => Some(3),
+            '¢' => Some(4),
+            '∞' => Some(5),
+            '§' => Some(6),
+            '¶' => Some(7),
+            '•' => Some(8),
+            'ª' => Some(9),
             _ => None,
         };
         if let Some(num) = num {
             if (1..=9).contains(&num) {
-                // Find window by its title number (e.g., Option+3 selects "Terminal 3")
                 if let Some(window_id) = window_manager.find_window_by_title_number(num) {
                     window_manager.restore_and_focus_window(window_id);
-                    // Hide overlay after selecting a window
                     app_state.show_window_number_overlay = false;
                 }
-                // Silently ignore if window with that number doesn't exist
                 return true;
             }
         }
     }
 
-    // Handle F3 to save session (more compatible than CTRL+S)
-    if key_event.code == KeyCode::F(3) {
+    // Handle save session
+    if matches_any(&profile.save_session, code, modifiers) {
         handle_save_session(app_state, window_manager, backend, cli_args, app_config);
         return true;
     }
 
     // Handle F4 to clear the terminal (alternative to CTRL+L)
-    if key_event.code == KeyCode::F(4) && matches!(current_focus, FocusState::Window(_)) {
+    if code == KeyCode::F(4) && matches!(current_focus, FocusState::Window(_)) {
         let _ = window_manager.send_to_focused("\x0c");
         return true;
     }
 
     // Handle CTRL+L to clear the terminal (like 'clear' command)
-    if key_event.code == KeyCode::Char('l')
-        && key_event.modifiers.contains(KeyModifiers::CONTROL)
+    if code == KeyCode::Char('l')
+        && modifiers.contains(KeyModifiers::CONTROL)
         && matches!(current_focus, FocusState::Window(_))
     {
         let _ = window_manager.send_to_focused("\x0c");
@@ -231,19 +296,16 @@ pub fn handle_desktop_keyboard(
     }
 
     // Handle CTRL+Space / Option+Space to open Slight input popup
-    // Note: Ctrl+Space produces NUL character ('\0') in most terminals
-    // On macOS, Option+Space produces non-breaking space (U+00A0)
-    let is_launcher_shortcut = (key_event.code == KeyCode::Char(' ')
-        && (key_event.modifiers.contains(KeyModifiers::CONTROL)
-            || key_event.modifiers.contains(KeyModifiers::ALT)))
-        || key_event.code == KeyCode::Char('\0')
-        || key_event.code == KeyCode::Char('\u{00a0}'); // Non-breaking space from Option+Space on macOS
+    let is_launcher_shortcut = (code == KeyCode::Char(' ')
+        && (modifiers.contains(KeyModifiers::CONTROL) || modifiers.contains(KeyModifiers::ALT)))
+        || code == KeyCode::Char('\0')
+        || code == KeyCode::Char('\u{00a0}');
     if is_launcher_shortcut {
         return true; // Signal to open Slight input (handled in main)
     }
 
-    // Handle F5 to copy selection (mc-style: F5=Copy)
-    if key_event.code == KeyCode::F(5) {
+    // Handle copy (F5)
+    if matches_any(&profile.copy, code, modifiers) {
         if let FocusState::Window(window_id) = current_focus {
             if let Some(text) = window_manager.get_selected_text(window_id) {
                 if clipboard_manager.copy(text).is_ok() {
@@ -254,8 +316,8 @@ pub fn handle_desktop_keyboard(
         return true;
     }
 
-    // Handle F6 to paste (mc-style: F6=Move, we use for paste)
-    if key_event.code == KeyCode::F(6) {
+    // Handle paste (F6)
+    if matches_any(&profile.paste, code, modifiers) {
         if let FocusState::Window(window_id) = current_focus {
             if let Ok(text) = clipboard_manager.paste() {
                 let _ = window_manager.paste_to_window(window_id, &text);
@@ -265,9 +327,8 @@ pub fn handle_desktop_keyboard(
         return true;
     }
 
-    // Handle F7 to create new terminal (mc-style: F7=Mkdir, we create terminal)
-    if key_event.code == KeyCode::F(7) {
-        // When auto-tiling is enabled and this is the first window, create maximized terminal
+    // Handle new terminal (F7 always; bare key from desktop)
+    if code == KeyCode::F(7) {
         let is_first_window = window_manager.window_count() == 0;
         let maximized = app_state.auto_tiling_enabled && is_first_window;
         create_terminal_window(
@@ -280,53 +341,14 @@ pub fn handle_desktop_keyboard(
         return true;
     }
 
-    // Handle F10 to exit application (classic DOS pattern)
-    // Skip if --no-exit flag is set
-    if key_event.code == KeyCode::F(10) && !cli_args.no_exit {
-        if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) {
-            // Determine message based on window count
-            let window_count = window_manager.window_count();
-            let message = if window_count > 0 {
-                format!(
-                    "You have {} open terminal{}. Are you sure you want to exit?",
-                    window_count,
-                    if window_count == 1 { "" } else { "s" }
-                )
-            } else {
-                "Are you sure you want to exit?".to_string()
-            };
-
-            // Get dimensions
-            let (cols, rows) = backend.dimensions();
-
-            // Create prompt with "Cancel" selected by default (index 0)
-            app_state.active_prompt = Some(
-                Prompt::new(
-                    PromptType::Danger,
-                    message,
-                    vec![
-                        PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false),
-                        PromptButton::new("Exit".to_string(), PromptAction::Confirm, true),
-                    ],
-                    cols,
-                    rows,
-                )
-                .with_selection_indicators(true)
-                .with_selected_button(0),
-            ); // Select "Cancel"
-        }
-        return true;
-    }
-
     // Platform-aware copy shortcut
     let is_copy_shortcut = if is_macos() {
-        key_event.code == KeyCode::Char('c') && key_event.modifiers.contains(KeyModifiers::SUPER)
+        code == KeyCode::Char('c') && modifiers.contains(KeyModifiers::SUPER)
     } else {
-        key_event.code == KeyCode::Char('C')
-            && key_event.modifiers.contains(KeyModifiers::CONTROL)
-            && key_event.modifiers.contains(KeyModifiers::SHIFT)
+        code == KeyCode::Char('C')
+            && modifiers.contains(KeyModifiers::CONTROL)
+            && modifiers.contains(KeyModifiers::SHIFT)
     };
-
     if is_copy_shortcut {
         if let FocusState::Window(window_id) = current_focus {
             if let Some(text) = window_manager.get_selected_text(window_id) {
@@ -340,13 +362,12 @@ pub fn handle_desktop_keyboard(
 
     // Platform-aware paste shortcut
     let is_paste_shortcut = if is_macos() {
-        key_event.code == KeyCode::Char('v') && key_event.modifiers.contains(KeyModifiers::SUPER)
+        code == KeyCode::Char('v') && modifiers.contains(KeyModifiers::SUPER)
     } else {
-        key_event.code == KeyCode::Char('V')
-            && key_event.modifiers.contains(KeyModifiers::CONTROL)
-            && key_event.modifiers.contains(KeyModifiers::SHIFT)
+        code == KeyCode::Char('V')
+            && modifiers.contains(KeyModifiers::CONTROL)
+            && modifiers.contains(KeyModifiers::SHIFT)
     };
-
     if is_paste_shortcut {
         if let FocusState::Window(window_id) = current_focus {
             if let Ok(text) = clipboard_manager.paste() {
@@ -357,53 +378,64 @@ pub fn handle_desktop_keyboard(
         return true;
     }
 
-    // Handle character keys based on focus
-    match key_event.code {
-        KeyCode::Esc => {
+    // Handle exit (profile-based: ESC and q for term39; ESC and F10 for hyprland)
+    if matches_any(&profile.exit, code, modifiers) && !cli_args.no_exit {
+        // ESC: from desktop shows prompt, from window sends ESC
+        if code == KeyCode::Esc {
             handle_esc_key(app_state, current_focus, window_manager, backend, cli_args);
             return true;
         }
-        // Shift+Q to lock screen (before checking for lowercase 'q' exit)
-        KeyCode::Char('Q')
-            if key_event.modifiers.contains(KeyModifiers::SHIFT)
-                && matches!(current_focus, FocusState::Desktop | FocusState::Topbar) =>
-        {
-            // Check if lockscreen is enabled in config
-            if app_config.lockscreen_enabled && app_state.lockscreen.is_available() {
-                app_state.lockscreen.lock();
-            } else {
-                // Show toast: "To lock the screen, configure in Settings"
-                app_state.active_toast = Some(crate::ui::toast::Toast::new(
-                    "To lock the screen, configure in Settings",
-                ));
-            }
-            return true;
-        }
-        KeyCode::Char('q') => {
+        // 'q' key
+        if code == KeyCode::Char('q') && modifiers == KeyModifiers::NONE {
             handle_q_key(app_state, current_focus, window_manager, backend, cli_args);
             return true;
         }
-        KeyCode::Char('h') | KeyCode::Char('?')
-            if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) =>
-        {
-            show_help_window(app_state, backend);
+        // F10 key
+        if code == KeyCode::F(10) && on_desktop {
+            show_exit_prompt(app_state, window_manager, backend);
             return true;
         }
-        KeyCode::Char('l') if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) => {
+    }
+    // Handle ESC even if it's not in exit bindings (still needed to send to terminal)
+    if code == KeyCode::Esc && !matches_any(&profile.exit, code, modifiers) {
+        if matches!(current_focus, FocusState::Window(_)) {
+            let _ = window_manager.send_to_focused("\x1b");
+        }
+        return true;
+    }
+
+    // Handle lock screen
+    if matches_any(&profile.lock_screen, code, modifiers) && on_desktop {
+        if app_config.lockscreen_enabled && app_state.lockscreen.is_available() {
+            app_state.lockscreen.lock();
+        } else {
+            app_state.active_toast = Some(crate::ui::toast::Toast::new(
+                "To lock the screen, configure in Settings",
+            ));
+        }
+        return true;
+    }
+
+    // Handle character keys that only work from Desktop/Topbar (bare keys without modifiers)
+    if on_desktop {
+        if matches_any(&profile.help, code, modifiers) {
+            show_help_window(app_state, backend, profile);
+            return true;
+        }
+        if matches_any(&profile.about, code, modifiers) && code != KeyCode::F(1) {
             show_about_window(app_state, backend);
             return true;
         }
-        KeyCode::Char('c') if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) => {
+        if matches_any(&profile.calendar, code, modifiers) {
             app_state.active_calendar = Some(CalendarState::new());
             return true;
         }
-        KeyCode::Char('s') if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) => {
+        if matches_any(&profile.settings, code, modifiers) {
             let (cols, rows) = backend.dimensions();
             app_state.active_config_window = Some(ConfigWindow::new(cols, rows));
             return true;
         }
-        KeyCode::Char('t') if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) => {
-            // When auto-tiling is enabled and this is the first window, create maximized terminal
+        if matches_any(&profile.new_terminal, code, modifiers) {
             let is_first_window = window_manager.window_count() == 0;
             let maximized = app_state.auto_tiling_enabled && is_first_window;
             create_terminal_window(
@@ -415,7 +447,7 @@ pub fn handle_desktop_keyboard(
             );
             return true;
         }
-        KeyCode::Char('T') if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) => {
+        if matches_any(&profile.new_terminal_maximized, code, modifiers) {
             create_terminal_window(
                 app_state,
                 window_manager,
@@ -425,7 +457,6 @@ pub fn handle_desktop_keyboard(
             );
             return true;
         }
-        _ => {}
     }
 
     false
@@ -550,7 +581,11 @@ pub fn forward_to_terminal(key_event: KeyEvent, window_manager: &mut WindowManag
 
 // Helper functions
 
-pub fn show_help_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
+pub fn show_help_window(
+    app_state: &mut AppState,
+    backend: &dyn RenderBackend,
+    profile: &KeybindingProfile,
+) {
     let (cols, rows) = backend.dimensions();
 
     // Platform-specific modifier key text
@@ -560,50 +595,100 @@ pub fn show_help_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
         ("CTRL+SHIFT+C", "CTRL+SHIFT+V")
     };
 
-    let help_message = format!(
-        "{{C}}KEYBOARD SHORTCUTS{{W}}\n\
-        \n\
-        {{Y}}'t'{{W}}       - Create new terminal window\n\
-        {{Y}}'T'{{W}}       - Create new maximized terminal window\n\
-        {{Y}}'q'/ESC/F10{{W}} - Exit application (from desktop)\n\
-        {{Y}}F1{{W}} or {{Y}}'?'{{W}} - Show this help screen\n\
-        {{Y}}'l'{{W}}       - Show license and about information\n\
-        {{Y}}'s'{{W}}       - Show settings/configuration window\n\
-        {{Y}}'c'{{W}}       - Show calendar ({{Y}}\u{2190}\u{2192}{{W}} months, {{Y}}\u{2191}\u{2193}{{W}} years, {{Y}}t{{W}} today)\n\
-        {{Y}}CTRL+Space{{W}} - Command launcher (Slight)\n\
-        {{Y}}F12{{W}}      - Lock screen (global, works in terminal)\n\
-        {{Y}}Shift+Q{{W}}  - Lock screen (from desktop/topbar)\n\
-        \n\
-        {{C}}WINDOW & SESSION{{W}}\n\
-        \n\
-        {{Y}}F2{{W}} or {{Y}}ALT+TAB{{W}} - Switch between windows\n\
-        {{Y}}F3{{W}}              - Save session manually\n\
-        {{Y}}F4{{W}} or {{Y}}CTRL+L{{W}}  - Clear terminal\n\
-        {{Y}}F7{{W}}              - Create new terminal window\n\
-        {{Y}}Shift+F1-F12{{W}}    - Send F-key to terminal\n\
-        \n\
-        {{C}}COPY & PASTE{{W}}\n\
-        \n\
-        {{Y}}{}{{W}} or {{Y}}F5{{W}} - Copy selected text\n\
-        {{Y}}{}{{W}} or {{Y}}F6{{W}} - Paste from clipboard\n\
-        \n\
-        {{C}}POPUP DIALOG CONTROLS{{W}}\n\
-        \n\
-        {{Y}}TAB/Arrow keys{{W}} - Navigate between buttons\n\
-        {{Y}}ENTER{{W}}          - Activate selected button\n\
-        {{Y}}ESC{{W}}            - Close dialog\n\
-        \n\
-        {{C}}MOUSE CONTROLS{{W}}\n\
-        \n\
-        {{Y}}Click title bar{{W}}     - Drag window\n\
-        {{Y}}CTRL+Drag{{W}}          - Drag without snap\n\
-        {{Y}}Click [X]{{W}}           - Close window\n\
-        {{Y}}Drag border{{W}}         - Resize window\n\
-        {{Y}}Click window{{W}}        - Focus window\n\
-        {{Y}}Click bottom bar{{W}}    - Switch windows\n\
-        {{Y}}Click [Exit]{{W}}        - Exit application",
-        copy_key, paste_key
-    );
+    let help_message = if profile.name == "hyprland" {
+        format!(
+            "{{C}}KEYBOARD SHORTCUTS (Hyprland){{W}}\n\
+            \n\
+            {{C}}DIRECT MODE (Alt-modifier, works from any focus){{W}}\n\
+            \n\
+            {{Y}}Alt+Enter{{W}}    - Create new terminal window\n\
+            {{Y}}Alt+Shift+Enter{{W}} - Create new maximized terminal\n\
+            {{Y}}Alt+Q{{W}}        - Close focused window\n\
+            {{Y}}Alt+H/J/K/L{{W}} - Focus window left/down/up/right\n\
+            {{Y}}Alt+Shift+H/J/K/L{{W}} - Snap to half screen\n\
+            {{Y}}Alt+F{{W}}        - Toggle maximize\n\
+            {{Y}}Alt+V{{W}}        - Toggle auto-tiling\n\
+            {{Y}}Alt+S{{W}}        - Settings\n\
+            \n\
+            {{C}}DESKTOP SHORTCUTS (from desktop/topbar){{W}}\n\
+            \n\
+            {{Y}}ESC{{W}}/{{Y}}F10{{W}}    - Exit application\n\
+            {{Y}}F1{{W}} or {{Y}}'?'{{W}}  - Show this help screen\n\
+            {{Y}}'l'{{W}}          - Show about information\n\
+            {{Y}}'s'{{W}}          - Settings window\n\
+            {{Y}}'c'{{W}}          - Calendar\n\
+            {{Y}}CTRL+Space{{W}}   - Command launcher (Slight)\n\
+            {{Y}}F12{{W}}          - Lock screen (global)\n\
+            {{Y}}Shift+Q{{W}}      - Lock screen\n\
+            \n\
+            {{C}}WINDOW & SESSION{{W}}\n\
+            \n\
+            {{Y}}Alt+TAB{{W}}/{{Y}}F2{{W}} - Switch between windows\n\
+            {{Y}}F3{{W}}             - Save session\n\
+            {{Y}}F4{{W}}/{{Y}}CTRL+L{{W}}  - Clear terminal\n\
+            {{Y}}F8{{W}}             - Toggle Window Mode\n\
+            {{Y}}Shift+F1-F12{{W}}   - Send F-key to terminal\n\
+            \n\
+            {{C}}COPY & PASTE{{W}}\n\
+            \n\
+            {{Y}}{}{{W}} or {{Y}}F5{{W}} - Copy selected text\n\
+            {{Y}}{}{{W}} or {{Y}}F6{{W}} - Paste from clipboard\n\
+            \n\
+            {{C}}MOUSE CONTROLS{{W}}\n\
+            \n\
+            {{Y}}Click title bar{{W}}     - Drag window\n\
+            {{Y}}CTRL+Drag{{W}}          - Drag without snap\n\
+            {{Y}}Click [X]{{W}}           - Close window\n\
+            {{Y}}Drag border{{W}}         - Resize window\n\
+            {{Y}}Click window{{W}}        - Focus window",
+            copy_key, paste_key
+        )
+    } else {
+        format!(
+            "{{C}}KEYBOARD SHORTCUTS (Term39){{W}}\n\
+            \n\
+            {{Y}}'t'{{W}}       - Create new terminal window\n\
+            {{Y}}'T'{{W}}       - Create new maximized terminal window\n\
+            {{Y}}'q'/ESC/F10{{W}} - Exit application (from desktop)\n\
+            {{Y}}F1{{W}} or {{Y}}'?'{{W}} - Show this help screen\n\
+            {{Y}}'l'{{W}}       - Show license and about information\n\
+            {{Y}}'s'{{W}}       - Show settings/configuration window\n\
+            {{Y}}'c'{{W}}       - Show calendar ({{Y}}\u{2190}\u{2192}{{W}} months, {{Y}}\u{2191}\u{2193}{{W}} years, {{Y}}t{{W}} today)\n\
+            {{Y}}CTRL+Space{{W}} - Command launcher (Slight)\n\
+            {{Y}}F12{{W}}      - Lock screen (global, works in terminal)\n\
+            {{Y}}Shift+Q{{W}}  - Lock screen (from desktop/topbar)\n\
+            \n\
+            {{C}}WINDOW & SESSION{{W}}\n\
+            \n\
+            {{Y}}F2{{W}} or {{Y}}ALT+TAB{{W}} - Switch between windows\n\
+            {{Y}}F3{{W}}              - Save session manually\n\
+            {{Y}}F4{{W}} or {{Y}}CTRL+L{{W}}  - Clear terminal\n\
+            {{Y}}F7{{W}}              - Create new terminal window\n\
+            {{Y}}Shift+F1-F12{{W}}    - Send F-key to terminal\n\
+            \n\
+            {{C}}COPY & PASTE{{W}}\n\
+            \n\
+            {{Y}}{}{{W}} or {{Y}}F5{{W}} - Copy selected text\n\
+            {{Y}}{}{{W}} or {{Y}}F6{{W}} - Paste from clipboard\n\
+            \n\
+            {{C}}POPUP DIALOG CONTROLS{{W}}\n\
+            \n\
+            {{Y}}TAB/Arrow keys{{W}} - Navigate between buttons\n\
+            {{Y}}ENTER{{W}}          - Activate selected button\n\
+            {{Y}}ESC{{W}}            - Close dialog\n\
+            \n\
+            {{C}}MOUSE CONTROLS{{W}}\n\
+            \n\
+            {{Y}}Click title bar{{W}}     - Drag window\n\
+            {{Y}}CTRL+Drag{{W}}          - Drag without snap\n\
+            {{Y}}Click [X]{{W}}           - Close window\n\
+            {{Y}}Drag border{{W}}         - Resize window\n\
+            {{Y}}Click window{{W}}        - Focus window\n\
+            {{Y}}Click bottom bar{{W}}    - Switch windows\n\
+            {{Y}}Click [Exit]{{W}}        - Exit application",
+            copy_key, paste_key
+        )
+    };
 
     app_state.active_help_window = Some(InfoWindow::new(
         "Help".to_string(),
@@ -611,6 +696,61 @@ pub fn show_help_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
         cols,
         rows,
     ));
+}
+
+/// Helper to show exit prompt
+fn show_exit_prompt(
+    app_state: &mut AppState,
+    window_manager: &WindowManager,
+    backend: &dyn RenderBackend,
+) {
+    let window_count = window_manager.window_count();
+    let message = if window_count > 0 {
+        format!(
+            "You have {} open terminal{}. Are you sure you want to exit?",
+            window_count,
+            if window_count == 1 { "" } else { "s" }
+        )
+    } else {
+        "Are you sure you want to exit?".to_string()
+    };
+    let (cols, rows) = backend.dimensions();
+    app_state.active_prompt = Some(
+        Prompt::new(
+            PromptType::Danger,
+            message,
+            vec![
+                PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false),
+                PromptButton::new("Exit".to_string(), PromptAction::Confirm, true),
+            ],
+            cols,
+            rows,
+        )
+        .with_selection_indicators(true)
+        .with_selected_button(0),
+    );
+}
+
+/// Helper to toggle auto-tiling (shared between desktop and direct mode)
+fn toggle_auto_tiling(
+    app_state: &mut AppState,
+    app_config: &mut AppConfig,
+    window_manager: &mut WindowManager,
+    backend: &dyn RenderBackend,
+) {
+    app_config.toggle_auto_tiling_on_startup();
+    app_state.auto_tiling_enabled = app_config.auto_tiling_on_startup;
+    let auto_tiling_text = if app_state.auto_tiling_enabled {
+        "█ on] Auto Tiling"
+    } else {
+        "off ░] Auto Tiling"
+    };
+    let (cols, rows) = backend.dimensions();
+    app_state.auto_tiling_button =
+        crate::ui::button::Button::new(1, rows - 1, auto_tiling_text.to_string());
+    if app_state.auto_tiling_enabled {
+        window_manager.auto_position_windows(cols, rows, app_config.tiling_gaps);
+    }
 }
 
 pub fn show_about_window(app_state: &mut AppState, backend: &dyn RenderBackend) {
