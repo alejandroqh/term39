@@ -36,7 +36,7 @@ pub struct AppState {
     pub context_menu: ContextMenu,
     pub taskbar_menu: ContextMenu,
     pub taskbar_menu_window_id: Option<u32>,
-    pub command_center_menu: ContextMenu,
+    pub system_menu: ContextMenu,
 
     // Top Bar Buttons (legacy - will be replaced by TopBar)
     #[allow(dead_code)]
@@ -133,8 +133,8 @@ impl AppState {
         // Taskbar context menu (initially at 0, 0, not visible)
         let taskbar_menu = ContextMenu::new_taskbar_menu(0, 0);
 
-        // Command Center menu (width matches the button: "[ Command Center ]" = 18 chars)
-        let command_center_menu = ContextMenu::new_command_center_menu(0, 1, 18, charset);
+        // System menu (width matches the button: "[ System ]" = 10 chars)
+        let system_menu = ContextMenu::new_system_menu(0, 1, 10, charset);
 
         Self {
             // Dialog/Popup State
@@ -150,7 +150,7 @@ impl AppState {
             context_menu,
             taskbar_menu,
             taskbar_menu_window_id: None,
-            command_center_menu,
+            system_menu,
 
             // Top Bar Buttons (legacy)
             new_terminal_button,

@@ -1,7 +1,7 @@
 //! TopBar container that manages widget layout and rendering
 
 use super::{
-    BatteryWidget, CommandCenterWidget, DateTimeWidget, NetworkWidget, NewTermWidget, Widget,
+    BatteryWidget, DateTimeWidget, NetworkWidget, NewTermWidget, SystemMenuWidget, Widget,
     WidgetAlignment, WidgetClickResult, WidgetContext,
 };
 use crate::rendering::{Cell, Theme, VideoBuffer};
@@ -23,10 +23,10 @@ pub struct TopBar {
     // Center-aligned widgets
     datetime: DateTimeWidget,
 
-    // Right-aligned widgets (from left to right: battery, network, command_center)
+    // Right-aligned widgets (from left to right: battery, network, system_menu)
     battery: BatteryWidget,
     network: NetworkWidget,
-    command_center: CommandCenterWidget,
+    system_menu: SystemMenuWidget,
 
     // Cached positions (updated only when layout changes)
     positions: Vec<WidgetPosition>,
@@ -43,7 +43,7 @@ impl TopBar {
             datetime: DateTimeWidget::new(show_date_in_clock),
             battery: BatteryWidget::new(),
             network: NetworkWidget::new(),
-            command_center: CommandCenterWidget::new(),
+            system_menu: SystemMenuWidget::new(),
             positions: Vec::new(),
             last_cols: 0,
             layout_dirty: true, // Force initial layout
@@ -63,7 +63,7 @@ impl TopBar {
         self.datetime.update(ctx);
         self.battery.update(ctx);
         self.network.update(ctx);
-        self.command_center.update(ctx);
+        self.system_menu.update(ctx);
 
         // Only recalculate layout if terminal size changed
         if ctx.cols != self.last_cols {
@@ -92,22 +92,22 @@ impl TopBar {
             });
         }
 
-        // Right section: Command Center (rightmost), then Network, then Battery
-        // Position from right edge: Command Center first (rightmost)
+        // Right section: System menu (rightmost), then Network, then Battery
+        // Position from right edge: System menu first (rightmost)
         let mut right_x = ctx.cols;
 
-        // Command Center (always visible, rightmost with 1 char padding from edge)
-        if self.command_center.is_visible(ctx) {
-            let cc_width = self.command_center.width();
-            right_x = right_x.saturating_sub(cc_width + 1); // +1 for right edge padding
+        // System menu (always visible, rightmost with 1 char padding from edge)
+        if self.system_menu.is_visible(ctx) {
+            let sm_width = self.system_menu.width();
+            right_x = right_x.saturating_sub(sm_width + 1); // +1 for right edge padding
             self.positions.push(WidgetPosition {
                 alignment: WidgetAlignment::Right,
-                index: 1, // index 1 for command center
+                index: 1, // index 1 for system menu
                 x: right_x,
             });
         }
 
-        // Network (left of command center)
+        // Network (left of system menu)
         if self.network.is_visible(ctx) {
             let network_width = self.network.width();
             right_x = right_x.saturating_sub(network_width);
@@ -173,9 +173,7 @@ impl TopBar {
                 (WidgetAlignment::Left, 0) => self.new_term.render(buffer, pos.x, theme, ctx),
                 (WidgetAlignment::Center, 0) => self.datetime.render(buffer, pos.x, theme, ctx),
                 (WidgetAlignment::Right, 0) => self.battery.render(buffer, pos.x, theme, ctx),
-                (WidgetAlignment::Right, 1) => {
-                    self.command_center.render(buffer, pos.x, theme, ctx)
-                }
+                (WidgetAlignment::Right, 1) => self.system_menu.render(buffer, pos.x, theme, ctx),
                 (WidgetAlignment::Right, 2) => self.network.render(buffer, pos.x, theme, ctx),
                 _ => {}
             }
@@ -202,7 +200,7 @@ impl TopBar {
                     self.battery.update_hover(mouse_x, mouse_y, pos.x);
                 }
                 (WidgetAlignment::Right, 1) => {
-                    self.command_center.update_hover(mouse_x, mouse_y, pos.x);
+                    self.system_menu.update_hover(mouse_x, mouse_y, pos.x);
                 }
                 (WidgetAlignment::Right, 2) => {
                     self.network.update_hover(mouse_x, mouse_y, pos.x);
@@ -225,7 +223,7 @@ impl TopBar {
                 (WidgetAlignment::Center, 0) => self.datetime.handle_click(mouse_x, mouse_y, pos.x),
                 (WidgetAlignment::Right, 0) => self.battery.handle_click(mouse_x, mouse_y, pos.x),
                 (WidgetAlignment::Right, 1) => {
-                    self.command_center.handle_click(mouse_x, mouse_y, pos.x)
+                    self.system_menu.handle_click(mouse_x, mouse_y, pos.x)
                 }
                 (WidgetAlignment::Right, 2) => self.network.handle_click(mouse_x, mouse_y, pos.x),
                 _ => WidgetClickResult::NotHandled,
@@ -245,7 +243,7 @@ impl TopBar {
         self.datetime.reset_state();
         self.battery.reset_state();
         self.network.reset_state();
-        self.command_center.reset_state();
+        self.system_menu.reset_state();
     }
 
     /// Check if the battery widget is hovered (for compatibility)
@@ -253,13 +251,13 @@ impl TopBar {
         self.battery.is_hovered()
     }
 
-    /// Close command center menu
-    pub fn close_command_center(&mut self) {
-        self.command_center.close_menu();
+    /// Close system menu
+    pub fn close_system_menu(&mut self) {
+        self.system_menu.close_menu();
     }
 
-    /// Get the X position of the command center widget for menu positioning
-    pub fn get_command_center_x(&self) -> u16 {
+    /// Get the X position of the system menu widget for menu positioning
+    pub fn get_system_menu_x(&self) -> u16 {
         for pos in &self.positions {
             if pos.alignment == WidgetAlignment::Right && pos.index == 1 {
                 return pos.x;

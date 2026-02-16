@@ -1,9 +1,9 @@
 use crate::app::{AppConfig, AppState};
 use crate::input::mouse_handlers::{
-    CommandCenterMenuResult, ModalMouseResult, TopBarClickResult, handle_about_window_mouse,
-    handle_auto_tiling_click, handle_calendar_mouse, handle_command_center_menu_mouse,
-    handle_config_window_mouse, handle_context_menu_mouse, handle_error_dialog_mouse,
-    handle_help_window_mouse, handle_pin_setup_mouse, handle_prompt_mouse, handle_selection_mouse,
+    ModalMouseResult, SystemMenuResult, TopBarClickResult, handle_about_window_mouse,
+    handle_auto_tiling_click, handle_calendar_mouse, handle_config_window_mouse,
+    handle_context_menu_mouse, handle_error_dialog_mouse, handle_help_window_mouse,
+    handle_pin_setup_mouse, handle_prompt_mouse, handle_selection_mouse, handle_system_menu_mouse,
     handle_taskbar_menu_mouse, handle_topbar_click, handle_winmode_help_window_mouse,
     show_context_menu, show_taskbar_menu, update_bar_button_hover_states,
 };
@@ -678,22 +678,22 @@ pub fn run(
                         handled = true;
                     }
 
-                    // Handle command center menu interactions
+                    // Handle system menu interactions
                     if !handled {
-                        match handle_command_center_menu_mouse(
+                        match handle_system_menu_mouse(
                             app_state,
                             window_manager,
                             clipboard_manager,
                             &mouse_event,
                         ) {
-                            CommandCenterMenuResult::Handled => handled = true,
-                            CommandCenterMenuResult::ShowSettings => {
+                            SystemMenuResult::Handled => handled = true,
+                            SystemMenuResult::ShowSettings => {
                                 // Open the config window (same as pressing 's' on desktop)
                                 app_state.active_config_window =
                                     Some(ConfigWindow::new(cols, rows));
                                 handled = true;
                             }
-                            CommandCenterMenuResult::ShowHelp => {
+                            SystemMenuResult::ShowHelp => {
                                 // Open the help window (same as pressing '?' on desktop)
                                 crate::input::keyboard_handlers::show_help_window(
                                     app_state,
@@ -701,7 +701,7 @@ pub fn run(
                                 );
                                 handled = true;
                             }
-                            CommandCenterMenuResult::ShowAbout => {
+                            SystemMenuResult::ShowAbout => {
                                 // Open the about window (same as pressing 'l' on desktop)
                                 crate::input::keyboard_handlers::show_about_window(
                                     app_state,
@@ -709,7 +709,7 @@ pub fn run(
                                 );
                                 handled = true;
                             }
-                            CommandCenterMenuResult::ShowExitPrompt => {
+                            SystemMenuResult::ShowExitPrompt => {
                                 // Build exit confirmation message
                                 let window_count = window_manager.window_count();
                                 let message = if window_count > 0 {
@@ -746,7 +746,7 @@ pub fn run(
                                 );
                                 handled = true;
                             }
-                            CommandCenterMenuResult::NotHandled => {}
+                            SystemMenuResult::NotHandled => {}
                         }
                     }
 

@@ -13,7 +13,7 @@ pub enum MenuAction {
     Restore,
     Maximize,
     CloseWindow,
-    // Command Center menu actions
+    // System menu actions
     CopySelection,
     PasteClipboard,
     ClearClipboard,
@@ -62,7 +62,7 @@ pub struct ContextMenu {
     pub items: Vec<MenuItem>,
     pub selected_index: usize,
     pub visible: bool,
-    /// Optional minimum width for the menu (used by Command Center)
+    /// Optional minimum width for the menu (used by System menu)
     min_width: Option<u16>,
 }
 
@@ -103,8 +103,8 @@ impl ContextMenu {
         }
     }
 
-    /// Create a Command Center dropdown menu
-    pub fn new_command_center_menu(x: u16, y: u16, menu_width: u16, charset: &Charset) -> Self {
+    /// Create a System dropdown menu
+    pub fn new_system_menu(x: u16, y: u16, menu_width: u16, charset: &Charset) -> Self {
         // Clipboard operations + Settings + About + Exit
         // Copy, Paste, Clear Clipboard are always visible but enabled/disabled based on context
         // Icons use charset for Unicode/ASCII compatibility

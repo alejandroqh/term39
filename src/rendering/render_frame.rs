@@ -169,11 +169,9 @@ pub fn render_frame(
         app_state.taskbar_menu.render(video_buffer, charset, theme);
     }
 
-    // Render Command Center dropdown menu (if visible)
-    if app_state.command_center_menu.visible {
-        app_state
-            .command_center_menu
-            .render(video_buffer, charset, theme);
+    // Render System dropdown menu (if visible)
+    if app_state.system_menu.visible {
+        app_state.system_menu.render(video_buffer, charset, theme);
     }
 
     // Render lockscreen (highest priority - on top of everything)

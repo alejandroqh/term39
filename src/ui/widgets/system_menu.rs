@@ -1,4 +1,4 @@
-//! Command Center widget for the top bar
+//! System menu widget for the top bar
 //!
 //! A dropdown menu button on the right side of the topbar that provides
 //! access to various system actions like Exit.
@@ -8,16 +8,16 @@ use crate::rendering::{Cell, Theme, VideoBuffer};
 use crate::ui::button::ButtonState;
 use crate::window::manager::FocusState;
 
-/// Widget for the Command Center dropdown menu
-pub struct CommandCenterWidget {
+/// Widget for the System dropdown menu
+pub struct SystemMenuWidget {
     label: &'static str,
     state: ButtonState,
     /// Whether the dropdown menu is currently open
     menu_open: bool,
 }
 
-impl CommandCenterWidget {
-    const LABEL: &'static str = "Command Center";
+impl SystemMenuWidget {
+    const LABEL: &'static str = "System";
 
     pub fn new() -> Self {
         Self {
@@ -38,15 +38,15 @@ impl CommandCenterWidget {
     }
 }
 
-impl Default for CommandCenterWidget {
+impl Default for SystemMenuWidget {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Widget for CommandCenterWidget {
+impl Widget for SystemMenuWidget {
     fn width(&self) -> u16 {
-        // "[ Command Center ]" = label + 4 for "[ " and " ]"
+        // "[ System ]" = label + 4 for "[ " and " ]"
         (self.label.len() as u16) + 4
     }
 
@@ -112,7 +112,7 @@ impl Widget for CommandCenterWidget {
         if self.contains(mouse_x, mouse_y, widget_x) {
             self.state = ButtonState::Pressed;
             self.toggle_menu();
-            WidgetClickResult::ToggleCommandCenter
+            WidgetClickResult::ToggleSystemMenu
         } else {
             WidgetClickResult::NotHandled
         }

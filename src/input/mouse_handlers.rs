@@ -492,31 +492,29 @@ pub fn handle_topbar_click(
             TopBarClickResult::Handled
         }
 
-        WidgetClickResult::ToggleCommandCenter => {
-            // Toggle the Command Center dropdown menu
-            if app_state.command_center_menu.visible {
-                app_state.command_center_menu.hide();
-                app_state.top_bar.close_command_center();
+        WidgetClickResult::ToggleSystemMenu => {
+            // Toggle the System dropdown menu
+            if app_state.system_menu.visible {
+                app_state.system_menu.hide();
+                app_state.top_bar.close_system_menu();
             } else {
                 // Update enabled states based on current context
                 let has_selection = window_manager.focused_window_has_selection();
                 let has_clipboard_content = clipboard_manager.has_content();
 
                 app_state
-                    .command_center_menu
+                    .system_menu
                     .set_item_enabled(MenuAction::CopySelection, has_selection);
                 app_state
-                    .command_center_menu
+                    .system_menu
                     .set_item_enabled(MenuAction::PasteClipboard, has_clipboard_content);
                 app_state
-                    .command_center_menu
+                    .system_menu
                     .set_item_enabled(MenuAction::ClearClipboard, has_clipboard_content);
 
-                let button_x = app_state.top_bar.get_command_center_x();
+                let button_x = app_state.top_bar.get_system_menu_x();
                 // Use show_bounded to auto-adjust position if menu would overflow
-                app_state
-                    .command_center_menu
-                    .show_bounded(button_x, 1, cols);
+                app_state.system_menu.show_bounded(button_x, 1, cols);
             }
             TopBarClickResult::Handled
         }
@@ -728,8 +726,8 @@ pub fn show_context_menu(
     false
 }
 
-/// Result of handling a command center menu mouse event.
-pub enum CommandCenterMenuResult {
+/// Result of handling a system menu mouse event.
+pub enum SystemMenuResult {
     /// Event was not handled
     NotHandled,
     /// Event was handled
@@ -744,47 +742,47 @@ pub enum CommandCenterMenuResult {
     ShowExitPrompt,
 }
 
-/// Handles Command Center menu mouse interactions.
-/// Returns CommandCenterMenuResult indicating what action was taken.
-pub fn handle_command_center_menu_mouse(
+/// Handles System menu mouse interactions.
+/// Returns SystemMenuResult indicating what action was taken.
+pub fn handle_system_menu_mouse(
     app_state: &mut AppState,
     window_manager: &mut WindowManager,
     clipboard_manager: &mut ClipboardManager,
     mouse_event: &MouseEvent,
-) -> CommandCenterMenuResult {
-    if !app_state.command_center_menu.visible {
-        return CommandCenterMenuResult::NotHandled;
+) -> SystemMenuResult {
+    if !app_state.system_menu.visible {
+        return SystemMenuResult::NotHandled;
     }
 
     if mouse_event.kind == MouseEventKind::Down(MouseButton::Left) {
         if app_state
-            .command_center_menu
+            .system_menu
             .contains_point(mouse_event.column, mouse_event.row)
         {
             // Update selection to clicked item before getting action
             app_state
-                .command_center_menu
+                .system_menu
                 .update_selection_from_mouse(mouse_event.column, mouse_event.row);
 
-            let mut result = CommandCenterMenuResult::Handled;
+            let mut result = SystemMenuResult::Handled;
 
-            if let Some(action) = app_state.command_center_menu.get_selected_action() {
+            if let Some(action) = app_state.system_menu.get_selected_action() {
                 match action {
                     MenuAction::Exit => {
                         // Return ShowExitPrompt to trigger confirmation dialog
-                        result = CommandCenterMenuResult::ShowExitPrompt;
+                        result = SystemMenuResult::ShowExitPrompt;
                     }
                     MenuAction::Settings => {
                         // Return ShowSettings to trigger config window
-                        result = CommandCenterMenuResult::ShowSettings;
+                        result = SystemMenuResult::ShowSettings;
                     }
                     MenuAction::Help => {
                         // Return ShowHelp to trigger help window
-                        result = CommandCenterMenuResult::ShowHelp;
+                        result = SystemMenuResult::ShowHelp;
                     }
                     MenuAction::About => {
                         // Return ShowAbout to trigger about window
-                        result = CommandCenterMenuResult::ShowAbout;
+                        result = SystemMenuResult::ShowAbout;
                     }
                     MenuAction::CopySelection => {
                         if let FocusState::Window(window_id) = window_manager.get_focus() {
@@ -807,22 +805,22 @@ pub fn handle_command_center_menu_mouse(
                     _ => {}
                 }
             }
-            app_state.command_center_menu.hide();
-            app_state.top_bar.close_command_center();
+            app_state.system_menu.hide();
+            app_state.top_bar.close_system_menu();
             return result;
         } else {
             // Clicked outside menu - hide it
-            app_state.command_center_menu.hide();
-            app_state.top_bar.close_command_center();
+            app_state.system_menu.hide();
+            app_state.top_bar.close_system_menu();
         }
     } else if mouse_event.kind == MouseEventKind::Moved {
         // Update menu selection on hover
         app_state
-            .command_center_menu
+            .system_menu
             .update_selection_from_mouse(mouse_event.column, mouse_event.row);
     }
 
-    CommandCenterMenuResult::NotHandled
+    SystemMenuResult::NotHandled
 }
 
 /// Shows the taskbar menu for a window button right-click.

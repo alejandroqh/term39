@@ -7,18 +7,18 @@ use crate::rendering::{Charset, Theme, VideoBuffer};
 use crate::window::manager::FocusState;
 
 pub mod battery;
-pub mod command_center;
 pub mod datetime;
 pub mod network;
 pub mod new_term;
+pub mod system_menu;
 pub mod topbar;
 
 // Re-export main types
 pub use battery::BatteryWidget;
-pub use command_center::CommandCenterWidget;
 pub use datetime::DateTimeWidget;
 pub use network::NetworkWidget;
 pub use new_term::NewTermWidget;
+pub use system_menu::SystemMenuWidget;
 pub use topbar::TopBar;
 
 /// Result from widget click handling
@@ -30,8 +30,8 @@ pub enum WidgetClickResult {
     OpenCalendar,
     /// Widget requests creating new terminal
     CreateTerminal,
-    /// Widget requests toggling Command Center menu
-    ToggleCommandCenter,
+    /// Widget requests toggling System menu
+    ToggleSystemMenu,
 }
 
 /// Alignment of widget within its container
