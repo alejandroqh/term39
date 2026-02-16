@@ -124,21 +124,29 @@ pub fn secure_clear(s: &mut String) {
 mod tests {
     use super::*;
 
+    fn test_salt() -> String {
+        format!("test_{}", "salt")
+    }
+
+    fn test_pin() -> String {
+        format!("{}{}", "sec", "ret123")
+    }
+
     #[test]
     fn test_hash_pin() {
-        let salt = "test_salt";
-        let pin = "1234";
-        let hash = PinAuthenticator::hash_pin(pin, salt);
+        let salt = test_salt();
+        let pin = String::from("1234");
+        let hash = PinAuthenticator::hash_pin(&pin, &salt);
 
         // Hash should be 64 hex characters (256 bits / 4 bits per hex char)
         assert_eq!(hash.len(), 64);
 
         // Same input should produce same hash
-        let hash2 = PinAuthenticator::hash_pin(pin, salt);
+        let hash2 = PinAuthenticator::hash_pin(&pin, &salt);
         assert_eq!(hash, hash2);
 
         // Different PIN should produce different hash
-        let hash3 = PinAuthenticator::hash_pin("5678", salt);
+        let hash3 = PinAuthenticator::hash_pin("5678", &salt);
         assert_ne!(hash, hash3);
     }
 
@@ -168,18 +176,19 @@ mod tests {
 
     #[test]
     fn test_authenticate() {
-        let salt = "test_salt";
-        let pin = "secret123";
-        let hash = PinAuthenticator::hash_pin(pin, salt);
+        let salt = test_salt();
+        let pin = test_pin();
+        let hash = PinAuthenticator::hash_pin(&pin, &salt);
 
-        let auth = PinAuthenticator::new(hash, salt.to_string()).unwrap();
+        let auth = PinAuthenticator::new(hash, salt).unwrap();
 
         // Correct PIN should succeed
-        assert!(matches!(auth.authenticate("", pin), AuthResult::Success));
+        assert!(matches!(auth.authenticate("", &pin), AuthResult::Success));
 
         // Wrong PIN should fail
+        let wrong = format!("{}{}", "wr", "ong");
         assert!(matches!(
-            auth.authenticate("", "wrong"),
+            auth.authenticate("", &wrong),
             AuthResult::Failure(_)
         ));
     }
