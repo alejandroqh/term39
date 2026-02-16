@@ -49,17 +49,17 @@ pub struct ConfigWindow {
     pub x: u16,
     pub y: u16,
     auto_arrange_row: u16,          // Row where auto arrange toggle is rendered
-    tiling_gaps_row: u16, // Row where tiling gaps toggle is rendered (only when auto-tiling on)
-    show_date_row: u16,   // Row where show date toggle is rendered
-    theme_row: u16,       // Row where theme selector is rendered
-    background_char_row: u16, // Row where background character selector is rendered
-    tint_terminal_row: u16, // Row where tint terminal toggle is rendered
-    auto_save_row: u16,   // Row where auto-save toggle is rendered
-    lockscreen_row: u16,  // Row where lockscreen toggle is rendered
-    lockscreen_auth_row: u16, // Row where lockscreen auth mode is rendered
-    pin_setup_row: u16,   // Row where PIN setup button is rendered
+    tiling_gaps_row: u16,           // Row where tiling gaps toggle is rendered
+    show_date_row: u16,             // Row where show date toggle is rendered
+    theme_row: u16,                 // Row where theme selector is rendered
+    background_char_row: u16,       // Row where background character selector is rendered
+    tint_terminal_row: u16,         // Row where tint terminal toggle is rendered
+    auto_save_row: u16,             // Row where auto-save toggle is rendered
+    lockscreen_row: u16,            // Row where lockscreen toggle is rendered
+    lockscreen_auth_row: u16,       // Row where lockscreen auth mode is rendered
+    pin_setup_row: u16,             // Row where PIN setup button is rendered
     status_widgets_header_row: u16, // Row where "Status Bar Widgets" section header is rendered
-    network_widget_row: u16, // Row where network widget toggle + interface is rendered
+    network_widget_row: u16,        // Row where network widget toggle + interface is rendered
     pub focused_option: Option<ConfigOption>, // Currently focused option for keyboard navigation
     pub network_interface_input: Option<SimpleInput>, // Active input for network interface editing
 }
@@ -77,7 +77,7 @@ impl ConfigWindow {
 
         // Calculate row positions for options
         let auto_arrange_row = y + 3; // Title at y+1, blank at y+2, first option at y+3
-        let tiling_gaps_row = y + 4; // Sub-option for gaps (indented, only when auto-tiling on)
+        let tiling_gaps_row = y + 4; // Window gaps option (independent of auto-tiling)
         let show_date_row = y + 6; // Blank at y+5, show date option at y+6
         let theme_row = y + 8; // Blank at y+7, theme option at y+8
         let background_char_row = y + 10; // Blank at y+9, background char option at y+10
@@ -138,11 +138,7 @@ impl ConfigWindow {
 
     /// Returns the list of currently visible/navigable options based on config state
     pub fn visible_options(&self, config: &AppConfig) -> Vec<ConfigOption> {
-        let mut options = vec![ConfigOption::AutoTiling];
-
-        if config.auto_tiling_on_startup {
-            options.push(ConfigOption::TilingGaps);
-        }
+        let mut options = vec![ConfigOption::AutoTiling, ConfigOption::TilingGaps];
 
         options.push(ConfigOption::ShowDate);
         options.push(ConfigOption::Theme);
@@ -404,18 +400,15 @@ impl ConfigWindow {
             self.focused_option == Some(ConfigOption::AutoTiling),
         );
 
-        // Render tiling gaps option (only when auto-tiling is enabled)
-        if config.auto_tiling_on_startup {
-            self.render_sub_option(
-                buffer,
-                self.tiling_gaps_row,
-                "Window gaps:",
-                config.tiling_gaps,
-                charset,
-                theme,
-                self.focused_option == Some(ConfigOption::TilingGaps),
-            );
-        }
+        self.render_option(
+            buffer,
+            self.tiling_gaps_row,
+            "Window gaps:",
+            config.tiling_gaps,
+            charset,
+            theme,
+            self.focused_option == Some(ConfigOption::TilingGaps),
+        );
 
         self.render_option(
             buffer,
@@ -600,68 +593,6 @@ impl ConfigWindow {
                 } else {
                     fg
                 }; // Shade character in theme color
-                buffer.set(toggle_x + i as u16, row, Cell::new(ch, color, bg));
-            }
-        }
-    }
-
-    /// Render a sub-option (indented, for nested settings)
-    #[allow(clippy::too_many_arguments)]
-    fn render_sub_option(
-        &self,
-        buffer: &mut VideoBuffer,
-        row: u16,
-        label: &str,
-        enabled: bool,
-        charset: &Charset,
-        theme: &Theme,
-        focused: bool,
-    ) {
-        // Swap colors if focused for visual feedback
-        let (fg, bg) = if focused {
-            (theme.config_content_bg, theme.config_content_fg)
-        } else {
-            (theme.config_content_fg, theme.config_content_bg)
-        };
-
-        let option_x = self.x + 6; // 6 spaces from left border (indented)
-
-        // Render focus indicator
-        let indicator = if focused { '>' } else { ' ' };
-        buffer.set(self.x + 1, row, Cell::new(indicator, fg, bg));
-
-        // Render "└─" prefix for sub-option
-        buffer.set(self.x + 4, row, Cell::new('└', fg, bg));
-        buffer.set(self.x + 5, row, Cell::new('─', fg, bg));
-
-        // Render label
-        for (i, ch) in label.chars().enumerate() {
-            buffer.set(option_x + i as u16, row, Cell::new(ch, fg, bg));
-        }
-
-        // Render toggle indicator
-        let toggle_x = option_x + label.len() as u16 + 1;
-
-        if enabled {
-            // [█ on]
-            let toggle_on = format!("[{} on]", charset.block());
-            for (i, ch) in toggle_on.chars().enumerate() {
-                let color = if i == 1 {
-                    theme.config_toggle_on_color
-                } else {
-                    fg
-                };
-                buffer.set(toggle_x + i as u16, row, Cell::new(ch, color, bg));
-            }
-        } else {
-            // [off ░]
-            let toggle_off = format!("[off {}]", charset.shade());
-            for (i, ch) in toggle_off.chars().enumerate() {
-                let color = if i == 4 {
-                    theme.config_toggle_off_color
-                } else {
-                    fg
-                };
                 buffer.set(toggle_x + i as u16, row, Cell::new(ch, color, bg));
             }
         }
@@ -976,8 +907,8 @@ impl ConfigWindow {
             }
         }
 
-        // Check if click is on tiling gaps row (only when auto-tiling is enabled)
-        if config.auto_tiling_on_startup && y == self.tiling_gaps_row {
+        // Check if click is on tiling gaps row
+        if y == self.tiling_gaps_row {
             if x >= self.x && x < self.x + self.width {
                 return ConfigAction::ToggleTilingGaps;
             }
