@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-02-16
+
+### Added
+
+- **Keybinding Profiles**: Configurable keyboard shortcut profiles via `--keybindings` CLI option and Settings panel
+  - `term39` (default): Classic term39 keybindings (F-keys, single letters from desktop)
+  - `hyprland`: Hyprland-style Alt-modifier keybindings (Alt+H/J/K/L, Alt+Q, etc.)
+  - Profiles can be cycled in Settings and are persisted in config
+
+### Changed
+
+- **Command Center renamed to System**: Top bar menu renamed from "Command Center" to "System" for a cleaner look
+- **Window gap settings**: Tiling gaps are now an independent setting, no longer tied to auto-tiling toggle
+
+### Security
+
+- Updated dependencies to fix security alerts
+
 ## [1.1.0] - 2025-12-30
 
 ### Added
@@ -550,6 +568,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[1.2.0]: https://github.com/alejandroqh/term39/releases/tag/v1.2.0
 [1.1.0]: https://github.com/alejandroqh/term39/releases/tag/v1.1.0
 [1.0.0]: https://github.com/alejandroqh/term39/releases/tag/v1.0.0
 [0.20.0]: https://github.com/alejandroqh/term39/releases/tag/v0.20.0

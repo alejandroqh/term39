@@ -106,7 +106,6 @@ pub struct KeybindingProfile {
     // -- Flags --
     #[allow(dead_code)]
     pub uses_window_mode: bool,
-    pub suggested_theme: Option<String>,
 }
 
 impl KeybindingProfile {
@@ -176,7 +175,6 @@ impl KeybindingProfile {
             direct_settings: vec![],
 
             uses_window_mode: true,
-            suggested_theme: Some("classic".to_string()),
         }
     }
 
@@ -275,7 +273,6 @@ impl KeybindingProfile {
             direct_settings,
 
             uses_window_mode: false,
-            suggested_theme: Some("dark".to_string()),
         }
     }
 

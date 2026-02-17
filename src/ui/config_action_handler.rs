@@ -21,8 +21,6 @@ pub struct ConfigActionResult {
     pub new_background: Option<char>,
     /// New keybinding profile if changed
     pub new_keybinding_profile: Option<KeybindingProfile>,
-    /// Suggested theme change from profile switch
-    pub suggested_theme_change: Option<String>,
 }
 
 /// Process a ConfigAction and apply changes to app_state and app_config.
@@ -118,17 +116,11 @@ pub fn process_config_action(
         ConfigAction::CycleKeybindingProfile => {
             app_config.cycle_keybinding_profile();
             let new_profile = KeybindingProfile::from_name(&app_config.keybinding_profile);
-            if let Some(ref suggested) = new_profile.suggested_theme {
-                result.suggested_theme_change = Some(suggested.clone());
-            }
             result.new_keybinding_profile = Some(new_profile);
         }
         ConfigAction::CycleKeybindingProfileBackward => {
             app_config.cycle_keybinding_profile_backward();
             let new_profile = KeybindingProfile::from_name(&app_config.keybinding_profile);
-            if let Some(ref suggested) = new_profile.suggested_theme {
-                result.suggested_theme_change = Some(suggested.clone());
-            }
             result.new_keybinding_profile = Some(new_profile);
         }
         ConfigAction::CycleBackgroundChar => {
@@ -223,9 +215,5 @@ pub fn apply_config_result(
     }
     if let Some(ref new_profile) = result.new_keybinding_profile {
         *keybinding_profile = new_profile.clone();
-    }
-    // Apply suggested theme change from profile switch
-    if let Some(ref suggested_theme) = result.suggested_theme_change {
-        *theme = Theme::from_name(suggested_theme);
     }
 }

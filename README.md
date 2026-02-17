@@ -57,7 +57,7 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
 - **Retro DOS Aesthetic**: Classic blue-and-white color scheme with box-drawing characters, ~60fps rendering
 - **Multiple Terminal Windows**: Create, drag, resize, minimize, and maximize windows with mouse or keyboard
 - **Window Management**: Automatic tiling, snap to corners, focus management with ALT+TAB
-- **Control Center**: Centralized panel with WiFi status, time/date, clipboard, and settings access
+- **System Menu**: Centralized panel with WiFi status, time/date, clipboard, and settings access
 - **Session Persistence**: Auto-save/restore of window layouts and terminal content between sessions
 - **Command Launcher**: Quick command palette with `Ctrl+Space`
 - **Clipboard Support**: System clipboard integration with drag-to-select, Ctrl+Shift+C/V, right-click menu
@@ -344,6 +344,7 @@ Press **`` ` ``** (backtick) or **F8** to enter Window Mode for full keyboard co
 | `--no-restore`    | Don't restore previous session on startup                                          |
 | `--no-save`       | Don't save session (disables auto-save and manual save)                            |
 | `--no-exit`       | Disable exit functionality (for use as a window manager)                           |
+| `--keybindings <PROFILE>` | Set keybinding profile (`term39`, `hyprland`)                              |
 | `--shell <SHELL>` | Specify custom shell for terminal windows (e.g., `--shell /bin/zsh`)               |
 | `--lock`          | Lock a running term39 instance and exit (Unix only, see [Lockscreen](#lockscreen)) |
 
@@ -458,6 +459,7 @@ Configuration files are stored in `~/.config/term39/`:
 
 | File           | Description                                      |
 | -------------- | ------------------------------------------------ |
+| `config.toml`  | User preferences (theme, keybindings, gaps, etc) |
 | `session.toml` | Saved session (window layouts, terminal content) |
 | `fb.toml`      | Framebuffer settings (Linux only)                |
 
