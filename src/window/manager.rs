@@ -1157,6 +1157,10 @@ impl WindowManager {
     }
 
     fn handle_mouse_up(&mut self, buffer: &mut VideoBuffer, _gaps: bool) {
+        // Track which window changed geometry for persist notification
+        #[cfg(unix)]
+        let mut geometry_changed_id: Option<u32> = None;
+
         // Apply snap positioning if a snap zone is active
         if let (Some(snap_zone), Some(drag)) = (self.current_snap_zone, self.dragging) {
             let (buffer_width, buffer_height) = buffer.dimensions();
@@ -1172,6 +1176,16 @@ impl WindowManager {
 
                 // Resize the terminal to match new window size
                 let _ = terminal_window.resize(snap_width, snap_height);
+                #[cfg(unix)]
+                {
+                    geometry_changed_id = Some(drag.window_id);
+                }
+            }
+        } else if self.dragging.is_some() {
+            // Normal drag (no snap) — position changed
+            #[cfg(unix)]
+            if let Some(drag) = self.dragging {
+                geometry_changed_id = Some(drag.window_id);
             }
         }
 
@@ -1182,6 +1196,19 @@ impl WindowManager {
                 // Resize the terminal PTY to match final window size
                 let _ = terminal_window
                     .resize(terminal_window.window.width, terminal_window.window.height);
+            }
+            #[cfg(unix)]
+            {
+                geometry_changed_id = Some(window_id);
+            }
+        }
+
+        // Notify daemon of updated window geometry (persist mode)
+        #[cfg(unix)]
+        if let Some(wid) = geometry_changed_id {
+            if let Some(tw) = self.get_window_by_id(wid) {
+                let (x, y, w, h) = (tw.window.x, tw.window.y, tw.window.width, tw.window.height);
+                self.send_persist_geometry(wid, x, y, w, h);
             }
         }
 
@@ -1812,6 +1839,14 @@ impl WindowManager {
     fn send_persist_resize(&mut self, window_id: u32, cols: u16, rows: u16) {
         if let Some(ref mut client) = self.persist_client {
             let _ = client.send_resize_pty(window_id, cols, rows);
+        }
+    }
+
+    /// Notify daemon of window geometry change (position and/or size)
+    #[cfg(unix)]
+    fn send_persist_geometry(&mut self, window_id: u32, x: u16, y: u16, width: u16, height: u16) {
+        if let Some(ref mut client) = self.persist_client {
+            let _ = client.send_update_geometry(window_id, x, y, width, height);
         }
     }
 

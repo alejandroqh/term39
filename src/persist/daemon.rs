@@ -341,12 +341,48 @@ fn handle_new_connection(
     match msg {
         ClientMsg::Attach { .. } | ClientMsg::ForceAttach { .. } => {
             if current_client.is_some() && !force {
-                daemon_log("client attach denied: another client attached");
-                let deny = DaemonMsg::AttachDenied {
-                    reason: "Another client is already attached".to_string(),
+                // Before denying, probe whether the existing client is still alive.
+                // When a client process exits/crashes without sending Detach,
+                // the kernel closes its socket end — peek() detects this instantly.
+                let is_stale = if let Some(ref existing) = *current_client {
+                    use std::os::unix::io::AsRawFd;
+                    let fd = existing.as_raw_fd();
+                    let mut probe = [0u8; 1];
+                    let ret = unsafe {
+                        libc::recv(
+                            fd,
+                            probe.as_mut_ptr() as *mut libc::c_void,
+                            1,
+                            libc::MSG_PEEK | libc::MSG_DONTWAIT,
+                        )
+                    };
+                    if ret == 0 {
+                        true // EOF — peer closed
+                    } else if ret < 0 {
+                        let err = io::Error::last_os_error();
+                        err.kind() == io::ErrorKind::ConnectionReset
+                            || err.kind() == io::ErrorKind::BrokenPipe
+                    } else {
+                        false // WouldBlock or has data = alive
+                    }
+                } else {
+                    false
                 };
-                let _ = write_message(&mut blocking_stream, &deny);
-                return;
+
+                if is_stale {
+                    daemon_log(
+                        "existing client is stale (socket closed), replacing with new client",
+                    );
+                    *current_client = None;
+                    client_read_buf.clear();
+                } else {
+                    daemon_log("client attach denied: another client attached");
+                    let deny = DaemonMsg::AttachDenied {
+                        reason: "Another client is already attached".to_string(),
+                    };
+                    let _ = write_message(&mut blocking_stream, &deny);
+                    return;
+                }
             }
 
             // Force-attach: drop existing client
@@ -476,6 +512,21 @@ fn handle_client_msg(
                     pixel_width: 0,
                     pixel_height: 0,
                 });
+            }
+            ClientAction::Continue
+        }
+        ClientMsg::UpdateWindowGeometry {
+            window_id,
+            x,
+            y,
+            width,
+            height,
+        } => {
+            if let Some(window) = windows.iter_mut().find(|w| w.window_id == window_id) {
+                window.x = x;
+                window.y = y;
+                window.width = width;
+                window.height = height;
             }
             ClientAction::Continue
         }

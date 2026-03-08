@@ -20,6 +20,7 @@ pub enum ConfigAction {
     CycleKeybindingProfileBackward,
     ToggleTintTerminal,
     ToggleAutoSave,
+    TogglePersistMode,
     ToggleLockscreen,
     CycleLockscreenAuthMode,
     SetupPin,
@@ -39,6 +40,7 @@ pub enum ConfigOption {
     BackgroundChar,
     TintTerminal,
     AutoSave,
+    PersistMode,
     Lockscreen,
     AuthMode,
     PinSetup,
@@ -59,6 +61,7 @@ pub struct ConfigWindow {
     background_char_row: u16,       // Row where background character selector is rendered
     tint_terminal_row: u16,         // Row where tint terminal toggle is rendered
     auto_save_row: u16,             // Row where auto-save toggle is rendered
+    persist_mode_row: u16,          // Row where persist mode toggle is rendered
     lockscreen_row: u16,            // Row where lockscreen toggle is rendered
     lockscreen_auth_row: u16,       // Row where lockscreen auth mode is rendered
     pin_setup_row: u16,             // Row where PIN setup button is rendered
@@ -73,7 +76,7 @@ impl ConfigWindow {
     pub fn new(buffer_width: u16, buffer_height: u16) -> Self {
         // Fixed dimensions for config window
         let width = 60;
-        let height = 32; // Increased to fit keybinding profile row
+        let height = 34; // Increased to fit persist mode row
 
         // Center on screen
         let x = (buffer_width.saturating_sub(width)) / 2;
@@ -88,11 +91,12 @@ impl ConfigWindow {
         let background_char_row = y + 12; // Blank at y+11, background char option at y+12
         let tint_terminal_row = y + 14; // Blank at y+13, tint terminal option at y+14
         let auto_save_row = y + 16; // Blank at y+15, auto-save option at y+16
-        let lockscreen_row = y + 18; // Blank at y+17, lockscreen option at y+18
-        let lockscreen_auth_row = y + 20; // Blank at y+19, auth mode option at y+20
-        let pin_setup_row = y + 22; // Blank at y+21, PIN setup at y+22
-        let status_widgets_header_row = y + 24; // Blank at y+23, section header at y+24
-        let network_widget_row = y + 26; // Blank at y+25, network widget at y+26
+        let persist_mode_row = y + 18; // Blank at y+17, persist mode at y+18
+        let lockscreen_row = y + 20; // Blank at y+19, lockscreen option at y+20
+        let lockscreen_auth_row = y + 22; // Blank at y+21, auth mode option at y+22
+        let pin_setup_row = y + 24; // Blank at y+23, PIN setup at y+24
+        let status_widgets_header_row = y + 26; // Blank at y+25, section header at y+26
+        let network_widget_row = y + 28; // Blank at y+27, network widget at y+28
 
         Self {
             width,
@@ -107,6 +111,7 @@ impl ConfigWindow {
             background_char_row,
             tint_terminal_row,
             auto_save_row,
+            persist_mode_row,
             lockscreen_row,
             lockscreen_auth_row,
             pin_setup_row,
@@ -152,6 +157,7 @@ impl ConfigWindow {
         options.push(ConfigOption::BackgroundChar);
         options.push(ConfigOption::TintTerminal);
         options.push(ConfigOption::AutoSave);
+        options.push(ConfigOption::PersistMode);
         options.push(ConfigOption::Lockscreen);
 
         if config.lockscreen_enabled && is_os_auth_compiled() {
@@ -220,6 +226,7 @@ impl ConfigWindow {
             Some(ConfigOption::BackgroundChar) => ConfigAction::CycleBackgroundChar,
             Some(ConfigOption::TintTerminal) => ConfigAction::ToggleTintTerminal,
             Some(ConfigOption::AutoSave) => ConfigAction::ToggleAutoSave,
+            Some(ConfigOption::PersistMode) => ConfigAction::TogglePersistMode,
             Some(ConfigOption::Lockscreen) => ConfigAction::ToggleLockscreen,
             Some(ConfigOption::AuthMode) => ConfigAction::CycleLockscreenAuthMode,
             Some(ConfigOption::PinSetup) => ConfigAction::SetupPin,
@@ -482,6 +489,17 @@ impl ConfigWindow {
             charset,
             theme,
             self.focused_option == Some(ConfigOption::AutoSave),
+        );
+
+        // Render persist mode toggle
+        self.render_option(
+            buffer,
+            self.persist_mode_row,
+            "Persist mode (daemon):",
+            config.persist_enabled,
+            charset,
+            theme,
+            self.focused_option == Some(ConfigOption::PersistMode),
         );
 
         // Render lockscreen toggle
@@ -1022,6 +1040,13 @@ impl ConfigWindow {
             // Click anywhere on the row toggles the option
             if x >= self.x && x < self.x + self.width {
                 return ConfigAction::ToggleAutoSave;
+            }
+        }
+
+        // Check if click is on persist mode row
+        if y == self.persist_mode_row {
+            if x >= self.x && x < self.x + self.width {
+                return ConfigAction::TogglePersistMode;
             }
         }
 

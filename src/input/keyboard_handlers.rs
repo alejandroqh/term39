@@ -382,17 +382,31 @@ pub fn handle_desktop_keyboard(
     if matches_any(&profile.exit, code, modifiers) && !cli_args.no_exit {
         // ESC: from desktop shows prompt, from window sends ESC
         if code == KeyCode::Esc {
-            handle_esc_key(app_state, current_focus, window_manager, backend, cli_args);
+            handle_esc_key(
+                app_state,
+                current_focus,
+                window_manager,
+                backend,
+                cli_args,
+                app_config,
+            );
             return true;
         }
         // 'q' key
         if code == KeyCode::Char('q') && modifiers == KeyModifiers::NONE {
-            handle_q_key(app_state, current_focus, window_manager, backend, cli_args);
+            handle_q_key(
+                app_state,
+                current_focus,
+                window_manager,
+                backend,
+                cli_args,
+                app_config,
+            );
             return true;
         }
         // F10 key
         if code == KeyCode::F(10) && on_desktop {
-            show_exit_prompt(app_state, window_manager, backend);
+            show_exit_prompt(app_state, window_manager, backend, app_config);
             return true;
         }
     }
@@ -703,6 +717,7 @@ fn show_exit_prompt(
     app_state: &mut AppState,
     window_manager: &WindowManager,
     backend: &dyn RenderBackend,
+    app_config: &AppConfig,
 ) {
     let window_count = window_manager.window_count();
     let message = if window_count > 0 {
@@ -719,15 +734,17 @@ fn show_exit_prompt(
         PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false),
         PromptButton::new("Exit".to_string(), PromptAction::Confirm, true),
     ];
-    // Add "Exit & Kill Daemon" option when persist mode is active
+    // Add "Exit & Kill Daemon" option when persist mode is active and enabled
     #[cfg(unix)]
-    if window_manager.has_persist_client() {
+    if app_config.persist_enabled && window_manager.has_persist_client() {
         buttons.push(PromptButton::new(
             "Exit & Kill Daemon".to_string(),
             PromptAction::Custom(1),
             true,
         ));
     }
+    #[cfg(not(unix))]
+    let _ = app_config;
     app_state.active_prompt = Some(
         Prompt::new(PromptType::Danger, message, buttons, cols, rows)
             .with_selection_indicators(true)
@@ -802,6 +819,7 @@ fn handle_esc_key(
     window_manager: &mut WindowManager,
     backend: &dyn RenderBackend,
     cli_args: &Cli,
+    app_config: &AppConfig,
 ) {
     if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) {
         // Skip exit prompt if --no-exit flag is set
@@ -809,39 +827,7 @@ fn handle_esc_key(
             return;
         }
 
-        // Determine message based on window count
-        let window_count = window_manager.window_count();
-        let message = if window_count > 0 {
-            format!(
-                "You have {} open terminal{}. Are you sure you want to exit?",
-                window_count,
-                if window_count == 1 { "" } else { "s" }
-            )
-        } else {
-            "Are you sure you want to exit?".to_string()
-        };
-
-        // Get dimensions
-        let (cols, rows) = backend.dimensions();
-
-        // Create prompt with "Cancel" selected by default (index 0)
-        let mut buttons = vec![
-            PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false),
-            PromptButton::new("Exit".to_string(), PromptAction::Confirm, true),
-        ];
-        #[cfg(unix)]
-        if window_manager.has_persist_client() {
-            buttons.push(PromptButton::new(
-                "Exit & Kill Daemon".to_string(),
-                PromptAction::Custom(1),
-                true,
-            ));
-        }
-        app_state.active_prompt = Some(
-            Prompt::new(PromptType::Danger, message, buttons, cols, rows)
-                .with_selection_indicators(true)
-                .with_selected_button(0),
-        ); // Select "Cancel"
+        show_exit_prompt(app_state, window_manager, backend, app_config);
     } else {
         // Send ESC to terminal
         let _ = window_manager.send_to_focused("\x1b");
@@ -854,6 +840,7 @@ fn handle_q_key(
     window_manager: &mut WindowManager,
     backend: &dyn RenderBackend,
     cli_args: &Cli,
+    app_config: &AppConfig,
 ) {
     if matches!(current_focus, FocusState::Desktop | FocusState::Topbar) {
         // Skip exit prompt if --no-exit flag is set
@@ -881,14 +868,17 @@ fn handle_q_key(
             PromptButton::new("Cancel".to_string(), PromptAction::Cancel, false),
             PromptButton::new("Exit".to_string(), PromptAction::Confirm, true),
         ];
+        // Add "Exit & Kill Daemon" option when persist mode is active and enabled
         #[cfg(unix)]
-        if window_manager.has_persist_client() {
+        if app_config.persist_enabled && window_manager.has_persist_client() {
             buttons.push(PromptButton::new(
                 "Exit & Kill Daemon".to_string(),
                 PromptAction::Custom(1),
                 true,
             ));
         }
+        #[cfg(not(unix))]
+        let _ = app_config;
         app_state.active_prompt = Some(
             Prompt::new(PromptType::Danger, message, buttons, cols, rows)
                 .with_selection_indicators(true)

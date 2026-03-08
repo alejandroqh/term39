@@ -77,7 +77,7 @@ fn main() -> io::Result<()> {
     let (term_cols, term_rows) = crossterm::terminal::size().unwrap_or((80, 25));
     #[cfg(unix)]
     let persist_state = {
-        let no_persist = cli_args.no_persist;
+        let no_persist = cli_args.no_persist || !app_config.persist_enabled;
         let force_attach = cli_args.force_attach;
         if no_persist {
             // Standalone mode (no daemon)

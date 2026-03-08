@@ -739,9 +739,10 @@ pub fn run(
                                         true,
                                     ),
                                 ];
-                                // Add "Exit & Kill Daemon" option when persist mode is active
+                                // Add "Exit & Kill Daemon" option when persist mode is active and enabled
                                 #[cfg(unix)]
-                                if window_manager.has_persist_client() {
+                                if app_config.persist_enabled && window_manager.has_persist_client()
+                                {
                                     buttons.push(PromptButton::new(
                                         "Exit & Kill Daemon".to_string(),
                                         PromptAction::Custom(1),

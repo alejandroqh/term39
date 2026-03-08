@@ -27,6 +27,14 @@ pub enum ClientMsg {
         cols: u16,
         rows: u16,
     },
+    /// Update a window's geometry (position and size) after move/resize
+    UpdateWindowGeometry {
+        window_id: u32,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+    },
     /// Request full state snapshot
     GetState,
     /// Kill the daemon

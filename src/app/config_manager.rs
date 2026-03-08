@@ -26,6 +26,8 @@ pub struct AppConfig {
     pub tint_terminal: bool,
     #[serde(default = "default_auto_save")]
     pub auto_save: bool,
+    #[serde(default = "default_persist_enabled")]
+    pub persist_enabled: bool,
     #[serde(default = "default_lockscreen_enabled")]
     pub lockscreen_enabled: bool,
     #[serde(default)]
@@ -74,6 +76,10 @@ fn default_auto_save() -> bool {
     true // Default to true (auto-save session on exit)
 }
 
+fn default_persist_enabled() -> bool {
+    true // Default to true (background daemon keeps sessions alive)
+}
+
 fn default_lockscreen_enabled() -> bool {
     true // Default to true (maintains existing behavior)
 }
@@ -88,6 +94,7 @@ impl Default for AppConfig {
             background_char_index: default_background_char_index(),
             tint_terminal: default_tint_terminal(),
             auto_save: default_auto_save(),
+            persist_enabled: default_persist_enabled(),
             lockscreen_enabled: default_lockscreen_enabled(),
             lockscreen_auth_mode: LockscreenAuthMode::default(),
             lockscreen_pin_hash: None,
@@ -231,6 +238,12 @@ impl AppConfig {
     /// Toggle auto-save setting and save
     pub fn toggle_auto_save(&mut self) {
         self.auto_save = !self.auto_save;
+        let _ = self.save();
+    }
+
+    /// Toggle persist (background daemon) enabled state
+    pub fn toggle_persist_enabled(&mut self) {
+        self.persist_enabled = !self.persist_enabled;
         let _ = self.save();
     }
 

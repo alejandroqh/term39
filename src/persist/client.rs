@@ -134,6 +134,24 @@ impl PersistClient {
         self.send(&ClientMsg::CloseWindow { window_id })
     }
 
+    /// Notify daemon of window geometry change (move/resize)
+    pub fn send_update_geometry(
+        &mut self,
+        window_id: u32,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+    ) -> io::Result<()> {
+        self.send(&ClientMsg::UpdateWindowGeometry {
+            window_id,
+            x,
+            y,
+            width,
+            height,
+        })
+    }
+
     /// Notify daemon of PTY resize
     pub fn send_resize_pty(&mut self, window_id: u32, cols: u16, rows: u16) -> io::Result<()> {
         self.send(&ClientMsg::ResizePty {

@@ -141,6 +141,9 @@ pub fn process_config_action(
                 let _ = WindowManager::clear_session_file();
             }
         }
+        ConfigAction::TogglePersistMode => {
+            app_config.toggle_persist_enabled();
+        }
         ConfigAction::ToggleLockscreen => {
             app_config.toggle_lockscreen_enabled();
             if let Some(ref mut config_win) = app_state.active_config_window {
