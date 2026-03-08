@@ -30,3 +30,4 @@ release/
 # Generated Homebrew formula (belongs in tap repo)
 term39.rb
 wiki/
+.worktrees/
