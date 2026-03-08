@@ -10,6 +10,9 @@ use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::thread;
 use std::time::Duration;
 
+/// Maximum replay buffer size per window (64KB should reconstruct most terminal states)
+const REPLAY_BUFFER_CAPACITY: usize = 64 * 1024;
+
 /// A PTY-owning window managed by the daemon
 struct DaemonWindow {
     window_id: u32,
@@ -24,6 +27,8 @@ struct DaemonWindow {
     writer: BufWriter<Box<dyn Write + Send>>,
     child: Box<dyn Child + Send>,
     rx: Receiver<Vec<u8>>,
+    /// Ring buffer of recent PTY output for replaying on reattach
+    replay_buffer: Vec<u8>,
 }
 
 impl DaemonWindow {
@@ -37,6 +42,23 @@ impl DaemonWindow {
             y: self.y,
             width: self.width,
             height: self.height,
+        }
+    }
+
+    /// Append data to the replay buffer, keeping it under the capacity limit
+    fn record_output(&mut self, data: &[u8]) {
+        if data.len() >= REPLAY_BUFFER_CAPACITY {
+            // Data is larger than buffer - just keep the tail
+            self.replay_buffer.clear();
+            self.replay_buffer
+                .extend_from_slice(&data[data.len() - REPLAY_BUFFER_CAPACITY..]);
+        } else if self.replay_buffer.len() + data.len() > REPLAY_BUFFER_CAPACITY {
+            // Would exceed capacity - drop oldest data
+            let overflow = self.replay_buffer.len() + data.len() - REPLAY_BUFFER_CAPACITY;
+            self.replay_buffer.drain(..overflow);
+            self.replay_buffer.extend_from_slice(data);
+        } else {
+            self.replay_buffer.extend_from_slice(data);
         }
     }
 }
@@ -112,6 +134,20 @@ pub fn run_daemon(shell_config: &ShellConfig) -> ! {
                 handle_new_connection(stream, &mut client, &mut client_read_buf, &windows);
                 if client.is_some() {
                     had_client = true;
+                    // Replay buffered PTY output to reconstruct terminal state
+                    // on the new client (programs like vim/btop don't redraw
+                    // unless the content has changed)
+                    if let Some(ref mut stream) = client {
+                        for window in &windows {
+                            if !window.replay_buffer.is_empty() {
+                                let msg = DaemonMsg::PtyOutput {
+                                    window_id: window.window_id,
+                                    data: window.replay_buffer.clone(),
+                                };
+                                let _ = write_to_client(stream, &msg);
+                            }
+                        }
+                    }
                 }
             }
             Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
@@ -173,12 +209,14 @@ pub fn run_daemon(shell_config: &ShellConfig) -> ! {
             }
         }
 
-        // Drain PTY output and forward to client
+        // Drain PTY output, record in replay buffer, and forward to client
         let mut closed_windows = Vec::new();
         for window in &mut windows {
             loop {
                 match window.rx.try_recv() {
                     Ok(data) => {
+                        // Always record in replay buffer (for reattach)
+                        window.record_output(&data);
                         if let Some(ref mut stream) = client {
                             let msg = DaemonMsg::PtyOutput {
                                 window_id: window.window_id,
@@ -488,6 +526,7 @@ fn create_daemon_window(
         writer,
         child,
         rx,
+        replay_buffer: Vec::new(),
     })
 }
 

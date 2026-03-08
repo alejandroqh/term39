@@ -220,8 +220,15 @@ fn main() -> io::Result<()> {
     // Clipboard manager
     let mut clipboard_manager = ClipboardManager::new();
 
-    // Show splash screen for 1 second
-    ui::splash_screen::show_splash_screen(&mut video_buffer, &mut backend, &charset, &theme)?;
+    // Show splash screen for 1 second (skip when reattaching to existing session)
+    #[cfg(unix)]
+    let has_restored_windows = window_manager.window_count() > 0;
+    #[cfg(not(unix))]
+    let has_restored_windows = false;
+
+    if !has_restored_windows {
+        ui::splash_screen::show_splash_screen(&mut video_buffer, &mut backend, &charset, &theme)?;
+    }
 
     // Set up signal handler for external lockscreen trigger (Unix only)
     lockscreen::signal_handler::setup();
