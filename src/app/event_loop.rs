@@ -727,27 +727,32 @@ pub fn run(
                                     "Are you sure you want to exit?".to_string()
                                 };
 
+                                let mut buttons = vec![
+                                    PromptButton::new(
+                                        "Cancel".to_string(),
+                                        PromptAction::Cancel,
+                                        false,
+                                    ),
+                                    PromptButton::new(
+                                        "Exit".to_string(),
+                                        PromptAction::Confirm,
+                                        true,
+                                    ),
+                                ];
+                                // Add "Exit & Kill Daemon" option when persist mode is active
+                                #[cfg(unix)]
+                                if window_manager.has_persist_client() {
+                                    buttons.push(PromptButton::new(
+                                        "Exit & Kill Daemon".to_string(),
+                                        PromptAction::Custom(1),
+                                        true,
+                                    ));
+                                }
+
                                 app_state.active_prompt = Some(
-                                    Prompt::new(
-                                        PromptType::Danger,
-                                        message,
-                                        vec![
-                                            PromptButton::new(
-                                                "Cancel".to_string(),
-                                                PromptAction::Cancel,
-                                                false,
-                                            ),
-                                            PromptButton::new(
-                                                "Exit".to_string(),
-                                                PromptAction::Confirm,
-                                                true,
-                                            ),
-                                        ],
-                                        cols,
-                                        rows,
-                                    )
-                                    .with_selection_indicators(true)
-                                    .with_selected_button(0),
+                                    Prompt::new(PromptType::Danger, message, buttons, cols, rows)
+                                        .with_selection_indicators(true)
+                                        .with_selected_button(0),
                                 );
                                 handled = true;
                             }

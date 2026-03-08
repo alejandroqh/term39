@@ -1624,6 +1624,15 @@ impl WindowManager {
         self.persist_client = None;
     }
 
+    /// Shutdown the daemon on exit (send Shutdown message, kills daemon)
+    #[cfg(unix)]
+    pub fn shutdown_persist_daemon(&mut self) {
+        if let Some(ref mut client) = self.persist_client {
+            let _ = client.shutdown();
+        }
+        self.persist_client = None;
+    }
+
     /// Send PTY input to daemon for the focused window (persist mode)
     #[cfg(unix)]
     fn send_persist_input(&mut self, window_id: u32, data: &[u8]) {

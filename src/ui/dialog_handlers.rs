@@ -44,6 +44,11 @@ pub fn handle_prompt_keyboard(app_state: &mut AppState, key_event: KeyEvent) -> 
                             // Dismiss prompt
                             app_state.active_prompt = None;
                         }
+                        PromptAction::Custom(1) => {
+                            // Exit & Kill Daemon
+                            app_state.should_kill_daemon = true;
+                            return Some(true);
+                        }
                         _ => {}
                     }
                 }

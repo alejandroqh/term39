@@ -212,6 +212,11 @@ pub fn handle_prompt_mouse(
                         app_state.active_prompt = None;
                         return ModalMouseResult::Handled;
                     }
+                    PromptAction::Custom(1) => {
+                        // Exit & Kill Daemon
+                        app_state.should_kill_daemon = true;
+                        return ModalMouseResult::Exit;
+                    }
                     _ => {
                         return ModalMouseResult::Handled;
                     }

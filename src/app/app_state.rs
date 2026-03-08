@@ -70,8 +70,10 @@ pub struct AppState {
     pub auto_scroll_direction: Option<AutoScrollDirection>,
     pub last_auto_scroll_time: Option<Instant>,
 
-    // Exit flag
+    // Exit flags
     pub should_exit: bool,
+    /// When true, kill the persist daemon on exit (instead of just detaching)
+    pub should_kill_daemon: bool,
 
     // Keyboard Mode State (vim-like window control)
     pub keyboard_mode: KeyboardMode,
@@ -187,8 +189,9 @@ impl AppState {
             auto_scroll_direction: None,
             last_auto_scroll_time: None,
 
-            // Exit flag
+            // Exit flags
             should_exit: false,
+            should_kill_daemon: false,
 
             // Keyboard Mode State
             keyboard_mode: KeyboardMode::Normal,

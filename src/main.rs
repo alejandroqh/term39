@@ -137,7 +137,9 @@ fn main() -> io::Result<()> {
                                             client: Some(client),
                                             windows,
                                             is_temporary: false,
-                                            startup_warning: None,
+                                            startup_warning: Some(
+                                                "Persist daemon started. Session will survive disconnects.".to_string(),
+                                            ),
                                         });
                                         break;
                                     }
@@ -287,9 +289,13 @@ fn main() -> io::Result<()> {
         &_gpm_disable_connection,
     )?;
 
-    // Detach from daemon on exit (if in persist mode)
+    // Detach or kill daemon on exit (if in persist mode)
     #[cfg(unix)]
-    window_manager.detach_persist_client();
+    if app_state.should_kill_daemon {
+        window_manager.shutdown_persist_daemon();
+    } else {
+        window_manager.detach_persist_client();
+    }
 
     // Save or clear session before exiting (unless --no-save flag is set)
     if !cli_args.no_save {
