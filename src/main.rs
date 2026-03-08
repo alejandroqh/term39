@@ -5,6 +5,7 @@ mod app;
 mod framebuffer;
 mod input;
 mod lockscreen;
+mod persist;
 mod rendering;
 mod term_emu;
 mod ui;
@@ -15,6 +16,15 @@ use app::{AppConfig, AppState};
 use std::io;
 use utils::{ClipboardManager, CommandHistory, CommandIndexer};
 use window::WindowManager;
+
+/// Persist mode state passed through initialization
+#[cfg(unix)]
+#[allow(dead_code)]
+struct PersistState {
+    client: Option<persist::client::PersistClient>,
+    windows: Vec<persist::protocol::WindowInfo>,
+    is_temporary: bool,
+}
 
 fn main() -> io::Result<()> {
     // Parse command-line arguments
@@ -59,6 +69,98 @@ fn main() -> io::Result<()> {
     // Validate shell configuration early (before terminal setup) so warnings are visible
     let shell_config = app::initialization::validate_shell_config(&cli_args);
 
+    // ===== PERSIST MODE =====
+    // Fork daemon before any thread creation (setup_terminal, mouse input, PTY readers).
+    // This must happen before any threads are spawned or terminal state is modified.
+    #[cfg(unix)]
+    let persist_state = {
+        let no_persist = cli_args.no_persist;
+        if no_persist {
+            // Standalone mode (no daemon)
+            PersistState {
+                client: None,
+                windows: Vec::new(),
+                is_temporary: false,
+            }
+        } else {
+            // Persist mode: try to connect or fork daemon
+            match persist::client::PersistClient::connect(80, 25) {
+                Ok(persist::client::ConnectResult::Connected(client, windows)) => {
+                    // Attached to existing daemon
+                    PersistState {
+                        client: Some(client),
+                        windows,
+                        is_temporary: false,
+                    }
+                }
+                Ok(persist::client::ConnectResult::Denied(_reason)) => {
+                    // Another client is attached - run as temporary
+                    eprintln!("Persistent session already attached. Running in temporary mode.");
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                    PersistState {
+                        client: None,
+                        windows: Vec::new(),
+                        is_temporary: true,
+                    }
+                }
+                Ok(persist::client::ConnectResult::NoDaemon) => {
+                    // No daemon running - fork one
+                    match persist::forker::fork_daemon() {
+                        Ok(persist::forker::ForkResult::Child) => {
+                            // We are the daemon - run daemon loop (never returns)
+                            persist::daemon::run_daemon(&shell_config);
+                        }
+                        Ok(persist::forker::ForkResult::Parent(_child_pid)) => {
+                            // Give daemon time to start and create socket
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+
+                            // Connect to the newly forked daemon
+                            match persist::client::PersistClient::connect(80, 25) {
+                                Ok(persist::client::ConnectResult::Connected(client, windows)) => {
+                                    PersistState {
+                                        client: Some(client),
+                                        windows,
+                                        is_temporary: false,
+                                    }
+                                }
+                                _ => {
+                                    // Daemon didn't start properly - run standalone
+                                    eprintln!(
+                                        "Warning: Failed to connect to daemon, running standalone"
+                                    );
+                                    PersistState {
+                                        client: None,
+                                        windows: Vec::new(),
+                                        is_temporary: false,
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Warning: Fork failed ({}), running standalone", e);
+                            PersistState {
+                                client: None,
+                                windows: Vec::new(),
+                                is_temporary: false,
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Warning: Persist check failed ({}), running standalone", e);
+                    PersistState {
+                        client: None,
+                        windows: Vec::new(),
+                        is_temporary: false,
+                    }
+                }
+            }
+        }
+    };
+    // On non-Unix, persist mode is not available
+    #[cfg(not(unix))]
+    let _persist_state_unused = false;
+
     // Initialize rendering backend (framebuffer or terminal)
     let mut backend = app::initialization::initialize_backend(&cli_args)?;
 
@@ -86,6 +188,17 @@ fn main() -> io::Result<()> {
     let mut video_buffer = app::initialization::initialize_video_buffer(backend.as_ref());
     let mut window_manager =
         app::initialization::initialize_window_manager(&cli_args, &mut app_config, shell_config)?;
+
+    // Set persist client on window manager and restore any existing windows (Unix only)
+    #[cfg(unix)]
+    {
+        if let Some(client) = persist_state.client {
+            window_manager.set_persist_client(client);
+            if !persist_state.windows.is_empty() {
+                window_manager.restore_persist_windows(persist_state.windows);
+            }
+        }
+    }
 
     // Initialize application state
     let (cols, rows) = backend.dimensions();
@@ -134,6 +247,10 @@ fn main() -> io::Result<()> {
         &mut clipboard_manager,
         &_gpm_disable_connection,
     )?;
+
+    // Detach from daemon on exit (if in persist mode)
+    #[cfg(unix)]
+    window_manager.detach_persist_client();
 
     // Save or clear session before exiting (unless --no-save flag is set)
     if !cli_args.no_save {

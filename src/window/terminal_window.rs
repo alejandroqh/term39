@@ -3,12 +3,12 @@ use crate::app::app_state::AutoScrollDirection;
 use crate::rendering::{Cell, Charset, CharsetMode, Theme, VideoBuffer};
 use crate::term_emu::{
     Color as TermColor, NamedColor, Position, Selection, SelectionType, ShellConfig, TerminalCell,
-    TerminalEmulator, TerminalGrid,
+    TerminalEmulator, TerminalGrid, TerminalRenderer,
 };
 use crate::ui::prompt::{Prompt, PromptAction, PromptButton, PromptType, TextAlign};
 use crossterm::event::{KeyCode, KeyEvent};
 use crossterm::style::Color;
-use std::sync::MutexGuard;
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Instant;
 
 /// Mouse position relative to the terminal content area
@@ -54,10 +54,21 @@ impl CloseConfirmation {
     }
 }
 
+/// Emulator mode: Local (owns PTY) or Remote (daemon owns PTY)
+pub enum EmulatorMode {
+    /// Standalone mode: terminal emulator with local PTY
+    Local(TerminalEmulator),
+    /// Client mode: rendering only, PTY owned by persist daemon
+    Remote {
+        renderer: TerminalRenderer,
+        window_id: u32,
+    },
+}
+
 /// A window containing a terminal emulator
 pub struct TerminalWindow {
     pub window: Window,
-    emulator: TerminalEmulator,
+    mode: EmulatorMode,
     scroll_offset: usize,         // For scrollback navigation
     selection: Option<Selection>, // Current text selection
     // Cached foreground process name to avoid spawning ps every frame
@@ -71,6 +82,10 @@ pub struct TerminalWindow {
     /// Last rendered grid generation (for change detection optimization)
     /// When this matches the grid's generation, we can skip re-rendering content
     last_rendered_generation: u64,
+    /// Pending bytes to send to daemon (buffered from Remote mode mouse events)
+    pending_remote_bytes: Vec<u8>,
+    /// Pending resize notification for daemon (cols, rows)
+    pending_resize: Option<(u16, u16)>,
 }
 
 /// Mouse tracking state - all flags retrieved with a single mutex lock
@@ -87,7 +102,7 @@ struct MouseTrackingState {
 }
 
 impl TerminalWindow {
-    /// Create a new terminal window
+    /// Create a new terminal window with a local PTY (standalone mode)
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         id: u32,
@@ -118,7 +133,7 @@ impl TerminalWindow {
 
         Ok(Self {
             window,
-            emulator,
+            mode: EmulatorMode::Local(emulator),
             scroll_offset: 0,
             selection: None,
             cached_process_name: None,
@@ -127,7 +142,91 @@ impl TerminalWindow {
             created_at: Instant::now(),
             has_user_input: false,
             last_rendered_generation: 0,
+            pending_remote_bytes: Vec::new(),
+            pending_resize: None,
         })
+    }
+
+    /// Create a new terminal window in remote mode (persist client)
+    /// PTY is owned by the daemon; this window only renders output
+    #[allow(dead_code)]
+    pub fn new_remote(
+        id: u32,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+        title: String,
+        daemon_window_id: u32,
+    ) -> Self {
+        let content_width = width.saturating_sub(4).max(1);
+        let content_height = height.saturating_sub(2).max(1);
+
+        let window = Window::new(id, x, y, width, height, title);
+        let renderer = TerminalRenderer::new(content_width as usize, content_height as usize, 1000);
+
+        Self {
+            window,
+            mode: EmulatorMode::Remote {
+                renderer,
+                window_id: daemon_window_id,
+            },
+            scroll_offset: 0,
+            selection: None,
+            cached_process_name: None,
+            process_name_last_update: Instant::now(),
+            pending_close_confirmation: None,
+            created_at: Instant::now(),
+            has_user_input: false,
+            last_rendered_generation: 0,
+            pending_remote_bytes: Vec::new(),
+            pending_resize: None,
+        }
+    }
+
+    /// Get the grid Arc regardless of mode
+    fn grid_arc(&self) -> Arc<Mutex<TerminalGrid>> {
+        match &self.mode {
+            EmulatorMode::Local(emu) => emu.grid(),
+            EmulatorMode::Remote { renderer, .. } => renderer.grid(),
+        }
+    }
+
+    /// Check if this window is in remote (persist client) mode
+    #[allow(dead_code)]
+    pub fn is_remote(&self) -> bool {
+        matches!(self.mode, EmulatorMode::Remote { .. })
+    }
+
+    /// Get the daemon window ID (only valid in Remote mode)
+    #[allow(dead_code)]
+    pub fn remote_window_id(&self) -> Option<u32> {
+        match &self.mode {
+            EmulatorMode::Remote { window_id, .. } => Some(*window_id),
+            EmulatorMode::Local(_) => None,
+        }
+    }
+
+    /// Feed raw PTY output from daemon into the renderer (Remote mode only)
+    pub fn feed_remote_output(&mut self, data: &[u8]) {
+        if let EmulatorMode::Remote { renderer, .. } = &mut self.mode {
+            renderer.feed_output(data);
+        }
+    }
+
+    /// Drain any pending bytes buffered from Remote mode (mouse events, etc.)
+    /// Returns the bytes that need to be sent to the daemon as PtyInput
+    pub fn drain_pending_remote_bytes(&mut self) -> Option<Vec<u8>> {
+        if self.pending_remote_bytes.is_empty() {
+            None
+        } else {
+            Some(std::mem::take(&mut self.pending_remote_bytes))
+        }
+    }
+
+    /// Take pending resize notification (cols, rows) if any
+    pub fn take_pending_resize(&mut self) -> Option<(u16, u16)> {
+        self.pending_resize.take()
     }
 
     /// Parse a command string into (program, args)
@@ -169,32 +268,47 @@ impl TerminalWindow {
     }
 
     /// Process terminal output (call this regularly in the event loop)
+    /// In Remote mode, returns Ok(true) (output is fed externally via feed_remote_output)
     pub fn process_output(&mut self) -> std::io::Result<bool> {
-        self.emulator.process_output()
+        match &mut self.mode {
+            EmulatorMode::Local(emu) => emu.process_output(),
+            EmulatorMode::Remote { .. } => Ok(true), // Always alive; output fed externally
+        }
     }
 
     /// Send input to the terminal
+    /// In Remote mode, this is a no-op (WindowManager routes input via daemon)
     pub fn send_str(&mut self, s: &str) -> std::io::Result<()> {
         // Only track user input after initial shell setup (1 second grace period)
         if self.created_at.elapsed().as_secs() >= 1 {
             self.has_user_input = true;
         }
-        self.emulator.send_str(s)
+        match &mut self.mode {
+            EmulatorMode::Local(emu) => emu.send_str(s),
+            EmulatorMode::Remote { .. } => Ok(()), // Routed by WindowManager
+        }
     }
 
     /// Send a character to the terminal
+    /// In Remote mode, this is a no-op (WindowManager routes input via daemon)
     pub fn send_char(&mut self, c: char) -> std::io::Result<()> {
         // Only track user input after initial shell setup (1 second grace period)
         if self.created_at.elapsed().as_secs() >= 1 {
             self.has_user_input = true;
         }
-        self.emulator.send_char(c)
+        match &mut self.mode {
+            EmulatorMode::Local(emu) => emu.send_char(c),
+            EmulatorMode::Remote { .. } => Ok(()),
+        }
     }
 
     /// Flush any buffered terminal input
     /// Call this after processing a batch of keyboard events
     pub fn flush_input(&mut self) -> std::io::Result<()> {
-        self.emulator.flush_input()
+        match &mut self.mode {
+            EmulatorMode::Local(emu) => emu.flush_input(),
+            EmulatorMode::Remote { .. } => Ok(()),
+        }
     }
 
     /// Resize the window (also resizes the terminal)
@@ -209,8 +323,14 @@ impl TerminalWindow {
         // Invalidate render cache since window dimensions changed
         self.invalidate_render_cache();
 
-        self.emulator
-            .resize(content_width as usize, content_height as usize)
+        match &mut self.mode {
+            EmulatorMode::Local(emu) => emu.resize(content_width as usize, content_height as usize),
+            EmulatorMode::Remote { renderer, .. } => {
+                renderer.resize(content_width as usize, content_height as usize);
+                self.pending_resize = Some((content_width, content_height));
+                Ok(())
+            }
+        }
     }
 
     /// Invalidate the render cache to force re-rendering on next frame
@@ -223,7 +343,7 @@ impl TerminalWindow {
     /// Scroll up in the scrollback buffer
     #[allow(dead_code)]
     pub fn scroll_up(&mut self, lines: usize) {
-        let grid = self.emulator.grid();
+        let grid = self.grid_arc();
         let grid = grid.lock().unwrap();
         let max_offset = grid.scrollback_len();
 
@@ -265,7 +385,7 @@ impl TerminalWindow {
         );
 
         // Acquire grid lock once for both content and scrollbar rendering
-        let grid_arc = self.emulator.grid();
+        let grid_arc = self.grid_arc();
         let grid = grid_arc.lock().unwrap();
 
         // Render the terminal content
@@ -594,7 +714,7 @@ impl TerminalWindow {
     /// Get total number of lines (scrollback + visible)
     #[allow(dead_code)]
     pub fn get_total_lines(&self) -> usize {
-        let grid = self.emulator.grid();
+        let grid = self.grid_arc();
         let grid = grid.lock().unwrap();
         grid.scrollback_len() + grid.rows()
     }
@@ -608,7 +728,7 @@ impl TerminalWindow {
 
     /// Get the bounds of the scrollbar thumb (y_start, y_end)
     pub fn get_scrollbar_thumb_bounds(&self) -> (u16, u16) {
-        let grid = self.emulator.grid();
+        let grid = self.grid_arc();
         let grid = grid.lock().unwrap();
 
         let scrollback_len = grid.scrollback_len();
@@ -676,7 +796,7 @@ impl TerminalWindow {
             return;
         }
 
-        let grid = self.emulator.grid();
+        let grid = self.grid_arc();
         let grid = grid.lock().unwrap();
         let total_lines = grid.scrollback_len() + grid.rows();
         let visible_rows = grid.rows();
@@ -775,16 +895,16 @@ impl TerminalWindow {
 
     /// Update selection at edge during auto-scroll (uses absolute coordinates)
     pub fn update_selection_at_edge(&mut self, direction: AutoScrollDirection) {
+        // Get grid before borrowing selection to avoid borrow conflict
+        let grid = self.grid_arc();
+        let scrollback_len = {
+            let g = grid.lock().unwrap();
+            g.scrollback_len()
+        };
+
         if let Some(selection) = &mut self.selection {
             let content_height = self.window.height.saturating_sub(2);
             let content_width = self.window.width.saturating_sub(4);
-
-            // Get scrollback length for absolute coordinate calculation
-            let grid = self.emulator.grid();
-            let scrollback_len = {
-                let grid = grid.lock().unwrap();
-                grid.scrollback_len()
-            };
 
             let (viewport_row, col) = match direction {
                 AutoScrollDirection::Up => (0, 0), // Top-left for scrolling up
@@ -805,7 +925,7 @@ impl TerminalWindow {
     pub fn start_selection(&mut self, screen_x: u16, screen_y: u16, selection_type: SelectionType) {
         if let Some(pos) = self.screen_to_grid_pos(screen_x, screen_y) {
             // Convert viewport row to absolute row
-            let grid = self.emulator.grid();
+            let grid = self.grid_arc();
             let scrollback_len = {
                 let grid = grid.lock().unwrap();
                 grid.scrollback_len()
@@ -821,7 +941,7 @@ impl TerminalWindow {
     pub fn update_selection(&mut self, screen_x: u16, screen_y: u16) {
         if let Some(pos) = self.screen_to_grid_pos(screen_x, screen_y) {
             // Convert viewport row to absolute row - get scrollback_len and scroll_offset before borrowing selection
-            let grid = self.emulator.grid();
+            let grid = self.grid_arc();
             let scrollback_len = {
                 let grid = grid.lock().unwrap();
                 grid.scrollback_len()
@@ -857,11 +977,12 @@ impl TerminalWindow {
 
     /// Expand selection to word boundaries (handles absolute coordinates)
     pub fn expand_selection_to_word(&mut self) {
-        if let Some(selection) = &mut self.selection {
-            let grid = self.emulator.grid();
-            let grid = grid.lock().unwrap();
-            let scrollback_len = grid.scrollback_len();
+        // Get grid before borrowing selection to avoid borrow conflict
+        let grid_arc = self.grid_arc();
+        let grid = grid_arc.lock().unwrap();
+        let scrollback_len = grid.scrollback_len();
 
+        if let Some(selection) = &mut self.selection {
             selection.expand_to_word(|pos| {
                 // Selection uses absolute coordinates, so use absolute-aware cell access
                 Self::get_cell_at_absolute(&grid, pos.col, pos.row, scrollback_len)
@@ -883,7 +1004,7 @@ impl TerminalWindow {
         let content_height = self.window.height.saturating_sub(2); // -1 title, -1 bottom border
 
         // Get scrollback length for absolute coordinate calculation
-        let grid = self.emulator.grid();
+        let grid = self.grid_arc();
         let scrollback_len = {
             let grid = grid.lock().unwrap();
             grid.scrollback_len()
@@ -913,7 +1034,7 @@ impl TerminalWindow {
             return None;
         }
 
-        let grid = self.emulator.grid();
+        let grid = self.grid_arc();
         let grid = grid.lock().unwrap();
         let scrollback_len = grid.scrollback_len();
 
@@ -999,8 +1120,12 @@ impl TerminalWindow {
     }
 
     /// Paste text to terminal (with bracketed paste mode support)
+    /// In Remote mode, this is a no-op (WindowManager routes via daemon)
     pub fn paste_text(&mut self, text: &str) -> std::io::Result<()> {
-        self.emulator.send_paste(text)
+        match &mut self.mode {
+            EmulatorMode::Local(emu) => emu.send_paste(text),
+            EmulatorMode::Remote { .. } => Ok(()),
+        }
     }
 
     /// Check if there's an active selection
@@ -1030,7 +1155,21 @@ impl TerminalWindow {
         Vec<crate::app::session::SerializableTerminalLine>,
         crate::app::session::SerializableCursor,
     ) {
-        self.emulator.get_terminal_content()
+        match &self.mode {
+            EmulatorMode::Local(emu) => emu.get_terminal_content(),
+            EmulatorMode::Remote { .. } => {
+                // Remote mode: return empty content (daemon owns the data)
+                (
+                    Vec::new(),
+                    crate::app::session::SerializableCursor {
+                        x: 0,
+                        y: 0,
+                        visible: true,
+                        shape: crate::app::session::SerializableCursorShape::Block,
+                    },
+                )
+            }
+        }
     }
 
     /// Restore terminal content from session
@@ -1039,12 +1178,17 @@ impl TerminalWindow {
         lines: Vec<crate::app::session::SerializableTerminalLine>,
         cursor: &crate::app::session::SerializableCursor,
     ) {
-        self.emulator.restore_terminal_content(lines, cursor);
+        if let EmulatorMode::Local(emu) = &mut self.mode {
+            emu.restore_terminal_content(lines, cursor);
+        }
     }
 
     /// Get the name of the foreground process running in the terminal
     pub fn get_foreground_process_name(&self) -> Option<String> {
-        self.emulator.get_foreground_process_name()
+        match &self.mode {
+            EmulatorMode::Local(emu) => emu.get_foreground_process_name(),
+            EmulatorMode::Remote { .. } => None,
+        }
     }
 
     /// Get the cached foreground process name, updating cache every 500ms
@@ -1055,7 +1199,7 @@ impl TerminalWindow {
         // Update cache every 500ms (2 times per second instead of 60)
         let elapsed = self.process_name_last_update.elapsed();
         if elapsed >= Duration::from_millis(500) || self.cached_process_name.is_none() {
-            self.cached_process_name = self.emulator.get_foreground_process_name();
+            self.cached_process_name = self.get_foreground_process_name();
             self.process_name_last_update = Instant::now();
         }
 
@@ -1107,7 +1251,7 @@ impl TerminalWindow {
 
     /// Get application cursor keys mode state (DECCKM)
     pub fn get_application_cursor_keys(&self) -> bool {
-        let grid = self.emulator.grid();
+        let grid = self.grid_arc();
         let grid = grid.lock().unwrap();
         grid.application_cursor_keys
     }
@@ -1166,7 +1310,7 @@ impl TerminalWindow {
     /// Get all mouse tracking state with a single mutex lock acquisition
     /// This is more efficient than separate calls that each acquire the lock
     fn get_mouse_tracking_state(&self) -> MouseTrackingState {
-        let grid = self.emulator.grid();
+        let grid = self.grid_arc();
         let grid = grid.lock().unwrap();
         MouseTrackingState {
             tracking_enabled: grid.mouse_normal_tracking
@@ -1181,7 +1325,7 @@ impl TerminalWindow {
     /// Check if the terminal has mouse tracking enabled
     /// Returns true if the child process has requested mouse events
     pub fn has_mouse_tracking_enabled(&self) -> bool {
-        let grid = self.emulator.grid();
+        let grid = self.grid_arc();
         let grid = grid.lock().unwrap();
         grid.mouse_normal_tracking || grid.mouse_button_tracking || grid.mouse_any_event_tracking
     }
@@ -1294,7 +1438,14 @@ impl TerminalWindow {
             6
         };
 
-        self.emulator.write_input(&buf[..len])
+        match &mut self.mode {
+            EmulatorMode::Local(emu) => emu.write_input(&buf[..len]),
+            EmulatorMode::Remote { .. } => {
+                // Buffer bytes for WindowManager to forward to daemon
+                self.pending_remote_bytes.extend_from_slice(&buf[..len]);
+                Ok(())
+            }
+        }
     }
 
     /// Handle a mouse event from the parent application

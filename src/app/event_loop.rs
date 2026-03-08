@@ -829,6 +829,37 @@ pub fn run(
             }
         }
 
+        // Poll persist daemon for PTY output and events (Unix persist mode)
+        #[cfg(unix)]
+        {
+            let persist_events = window_manager.poll_persist_messages();
+            for event in persist_events {
+                match event {
+                    crate::window::manager::PersistEvent::WindowClosed(window_id) => {
+                        window_manager.close_window(window_id);
+                        if app_state.auto_tiling_enabled {
+                            let (cols, rows) = backend.dimensions();
+                            window_manager.auto_position_windows(
+                                cols,
+                                rows,
+                                app_config.tiling_gaps,
+                            );
+                        }
+                    }
+                    crate::window::manager::PersistEvent::DaemonDied => {
+                        // Daemon died - show notification
+                        app_state.active_toast =
+                            Some(crate::ui::toast::Toast::new("Daemon connection lost"));
+                    }
+                    crate::window::manager::PersistEvent::Error(msg) => {
+                        app_state.active_toast =
+                            Some(crate::ui::toast::Toast::new(format!("Daemon: {msg}")));
+                    }
+                    _ => {}
+                }
+            }
+        }
+
         // Flush all buffered terminal input once after processing the event batch
         // This avoids per-keystroke I/O overhead (especially important on Windows)
         window_manager.flush_all_terminal_input();

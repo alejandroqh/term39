@@ -17,6 +17,21 @@ pub enum FocusState {
     Topbar,
 }
 
+/// Events from the persist daemon that the event loop needs to handle
+#[cfg(unix)]
+#[derive(Debug)]
+#[allow(dead_code)]
+pub enum PersistEvent {
+    /// A window's shell exited on the daemon side
+    WindowClosed(u32),
+    /// A window was created on the daemon side
+    WindowCreated(u32),
+    /// An error occurred
+    Error(String),
+    /// The daemon connection was lost
+    DaemonDied,
+}
+
 /// Window manager handles z-order, focus, and interactions
 pub struct WindowManager {
     windows: Vec<TerminalWindow>,
@@ -48,6 +63,10 @@ pub struct WindowManager {
     v_split_ratio: f32,
     /// Last pivot click for double-click detection
     last_pivot_click: Option<Instant>,
+
+    /// Persist mode client connection (Unix only)
+    #[cfg(unix)]
+    persist_client: Option<crate::persist::client::PersistClient>,
 }
 
 /// Snap zones for window positioning
@@ -130,6 +149,8 @@ impl WindowManager {
             h_split_ratio: 0.5,
             v_split_ratio: 0.5,
             last_pivot_click: None,
+            #[cfg(unix)]
+            persist_client: None,
         }
     }
 
@@ -249,6 +270,12 @@ impl WindowManager {
         title: String,
         initial_command: Option<String>,
     ) -> Result<u32, String> {
+        // In persist mode, route through daemon so PTYs survive client exit
+        #[cfg(unix)]
+        if self.persist_client.is_some() {
+            return self.create_window_via_daemon(x, y, width, height, title, initial_command);
+        }
+
         let id = self.next_id;
         self.next_id += 1;
 
@@ -1426,6 +1453,13 @@ impl WindowManager {
     #[allow(clippy::collapsible_if)]
     pub fn send_to_focused(&mut self, s: &str) -> std::io::Result<()> {
         if let FocusState::Window(id) = self.focus {
+            // In persist mode, route input through daemon
+            #[cfg(unix)]
+            if self.persist_client.is_some() {
+                self.send_persist_input(id, s.as_bytes());
+                return Ok(());
+            }
+
             if let Some(terminal_window) = self.get_window_by_id_mut(id) {
                 return terminal_window.send_str(s);
             }
@@ -1437,6 +1471,15 @@ impl WindowManager {
     #[allow(clippy::collapsible_if)]
     pub fn send_char_to_focused(&mut self, c: char) -> std::io::Result<()> {
         if let FocusState::Window(id) = self.focus {
+            // In persist mode, route input through daemon
+            #[cfg(unix)]
+            if self.persist_client.is_some() {
+                let mut buf = [0u8; 4];
+                let s = c.encode_utf8(&mut buf);
+                self.send_persist_input(id, s.as_bytes());
+                return Ok(());
+            }
+
             if let Some(terminal_window) = self.get_window_by_id_mut(id) {
                 return terminal_window.send_char(c);
             }
@@ -1478,8 +1521,16 @@ impl WindowManager {
     ) -> bool {
         if let FocusState::Window(id) = self.focus {
             if let Some(terminal_window) = self.get_window_by_id_mut(id) {
-                return terminal_window
-                    .handle_mouse_for_terminal(screen_x, screen_y, button, action);
+                let consumed =
+                    terminal_window.handle_mouse_for_terminal(screen_x, screen_y, button, action);
+                // Forward any buffered mouse bytes to daemon (Remote mode)
+                #[cfg(unix)]
+                if consumed {
+                    if let Some(bytes) = terminal_window.drain_pending_remote_bytes() {
+                        self.send_persist_input(id, &bytes);
+                    }
+                }
+                return consumed;
             }
         }
         false
@@ -1489,8 +1540,258 @@ impl WindowManager {
     /// Call this once after processing a batch of keyboard events
     /// to avoid per-keystroke I/O overhead (especially important on Windows)
     pub fn flush_all_terminal_input(&mut self) {
+        // Collect pending resize notifications from remote windows
+        #[cfg(unix)]
+        let mut resize_notifications: Vec<(u32, u16, u16)> = Vec::new();
+
         for terminal_window in &mut self.windows {
             let _ = terminal_window.flush_input();
+
+            // Check for pending resize on remote windows
+            #[cfg(unix)]
+            if terminal_window.is_remote() {
+                if let Some((cols, rows)) = terminal_window.take_pending_resize() {
+                    if let Some(wid) = terminal_window.remote_window_id() {
+                        resize_notifications.push((wid, cols, rows));
+                    }
+                }
+            }
+        }
+
+        // Send resize notifications to daemon
+        #[cfg(unix)]
+        for (wid, cols, rows) in resize_notifications {
+            self.send_persist_resize(wid, cols, rows);
+        }
+    }
+
+    // =========================================================================
+    // Persist Mode (Client-Daemon) Support
+    // =========================================================================
+
+    /// Set the persist client for daemon communication
+    #[cfg(unix)]
+    pub fn set_persist_client(&mut self, client: crate::persist::client::PersistClient) {
+        self.persist_client = Some(client);
+    }
+
+    /// Restore windows from daemon's window list (called on reattach)
+    /// Creates local Remote windows for each window the daemon knows about
+    #[cfg(unix)]
+    pub fn restore_persist_windows(&mut self, windows: Vec<crate::persist::protocol::WindowInfo>) {
+        for info in windows {
+            let mut terminal_window = TerminalWindow::new_remote(
+                info.window_id,
+                info.x,
+                info.y,
+                info.width,
+                info.height,
+                info.title,
+                info.window_id,
+            );
+
+            terminal_window.set_focused(false);
+            let idx = self.windows.len();
+            self.windows.push(terminal_window);
+            self.window_index_cache.insert(info.window_id, idx);
+
+            // Keep next_id above daemon's IDs
+            if info.window_id >= self.next_id {
+                self.next_id = info.window_id + 1;
+            }
+        }
+
+        // Focus the last (top) window if any
+        if let Some(last) = self.windows.last_mut() {
+            last.set_focused(true);
+            self.focus = FocusState::Window(last.id());
+        }
+    }
+
+    /// Check if we're in persist client mode
+    #[cfg(unix)]
+    #[allow(dead_code)]
+    pub fn has_persist_client(&self) -> bool {
+        self.persist_client.is_some()
+    }
+
+    /// Detach from daemon on exit (send Detach message)
+    #[cfg(unix)]
+    pub fn detach_persist_client(&mut self) {
+        if let Some(ref mut client) = self.persist_client {
+            let _ = client.detach();
+        }
+        self.persist_client = None;
+    }
+
+    /// Send PTY input to daemon for the focused window (persist mode)
+    #[cfg(unix)]
+    fn send_persist_input(&mut self, window_id: u32, data: &[u8]) {
+        if let Some(ref mut client) = self.persist_client {
+            let _ = client.send_pty_input(window_id, data);
+        }
+    }
+
+    /// Poll daemon for messages and process them (call from event loop)
+    #[cfg(unix)]
+    pub fn poll_persist_messages(&mut self) -> Vec<PersistEvent> {
+        let mut events = Vec::new();
+
+        if self.persist_client.is_none() {
+            return events;
+        }
+
+        // Collect all messages first to avoid borrow conflicts
+        let mut messages = Vec::new();
+        let mut connection_lost = false;
+
+        if let Some(ref mut client) = self.persist_client {
+            loop {
+                match client.try_recv() {
+                    Ok(Some(msg)) => messages.push(msg),
+                    Ok(None) => break,
+                    Err(e) => {
+                        if e.kind() == io::ErrorKind::ConnectionReset
+                            || e.kind() == io::ErrorKind::BrokenPipe
+                        {
+                            connection_lost = true;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Now process collected messages (no borrow on persist_client)
+        for msg in messages {
+            match msg {
+                crate::persist::protocol::DaemonMsg::PtyOutput { window_id, data } => {
+                    if let Some(w) = self.get_window_by_id_mut(window_id) {
+                        w.feed_remote_output(&data);
+                    }
+                }
+                crate::persist::protocol::DaemonMsg::WindowClosed { window_id } => {
+                    events.push(PersistEvent::WindowClosed(window_id));
+                }
+                crate::persist::protocol::DaemonMsg::WindowCreated { window_id } => {
+                    events.push(PersistEvent::WindowCreated(window_id));
+                }
+                crate::persist::protocol::DaemonMsg::Error { message } => {
+                    events.push(PersistEvent::Error(message));
+                }
+                _ => {}
+            }
+        }
+
+        if connection_lost {
+            events.push(PersistEvent::DaemonDied);
+            self.persist_client = None;
+        }
+
+        events
+    }
+
+    /// Create a window via the daemon (persist mode)
+    /// Sends CreateWindow to daemon, waits for WindowCreated response,
+    /// then creates a local Remote window with the daemon's window_id.
+    #[cfg(unix)]
+    fn create_window_via_daemon(
+        &mut self,
+        x: u16,
+        y: u16,
+        width: u16,
+        height: u16,
+        title: String,
+        initial_command: Option<String>,
+    ) -> Result<u32, String> {
+        let client = match self.persist_client.as_mut() {
+            Some(c) => c,
+            None => return Err("No persist client".to_string()),
+        };
+
+        // Send request to daemon
+        client
+            .request_create_window(x, y, width, height, title.clone(), initial_command)
+            .map_err(|e| format!("Failed to send create request: {}", e))?;
+
+        // Wait for WindowCreated response (daemon processes synchronously)
+        // Buffer any PtyOutput messages that arrive in the meantime
+        let mut buffered_pty: Vec<(u32, Vec<u8>)> = Vec::new();
+        let daemon_window_id;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+
+        loop {
+            if std::time::Instant::now() > deadline {
+                return Err("Timeout waiting for daemon to create window".to_string());
+            }
+
+            match client.try_recv() {
+                Ok(Some(crate::persist::protocol::DaemonMsg::WindowCreated { window_id })) => {
+                    daemon_window_id = window_id;
+                    break;
+                }
+                Ok(Some(crate::persist::protocol::DaemonMsg::PtyOutput { window_id, data })) => {
+                    buffered_pty.push((window_id, data));
+                }
+                Ok(Some(crate::persist::protocol::DaemonMsg::Error { message })) => {
+                    return Err(message);
+                }
+                Ok(Some(_)) => {} // Ignore other messages
+                Ok(None) => {
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+                Err(e) => {
+                    return Err(format!("Daemon error: {}", e));
+                }
+            }
+        }
+
+        // Apply buffered PtyOutput to existing windows
+        for (wid, data) in buffered_pty {
+            if let Some(w) = self.get_window_by_id_mut(wid) {
+                w.feed_remote_output(&data);
+            }
+        }
+
+        // Use daemon's window_id as local id so IDs stay in sync
+        let mut terminal_window = TerminalWindow::new_remote(
+            daemon_window_id,
+            x,
+            y,
+            width,
+            height,
+            title,
+            daemon_window_id,
+        );
+
+        // Unfocus all windows
+        for w in &mut self.windows {
+            w.set_focused(false);
+        }
+
+        terminal_window.set_focused(true);
+        let idx = self.windows.len();
+        self.windows.push(terminal_window);
+        self.window_index_cache.insert(daemon_window_id, idx);
+        self.focus = FocusState::Window(daemon_window_id);
+
+        // Track position for cascading
+        self.last_window_x = Some(x);
+        self.last_window_y = Some(y);
+
+        // Update next_id to avoid conflicts
+        if daemon_window_id >= self.next_id {
+            self.next_id = daemon_window_id + 1;
+        }
+
+        Ok(daemon_window_id)
+    }
+
+    /// Notify daemon of PTY resize (persist mode)
+    #[cfg(unix)]
+    fn send_persist_resize(&mut self, window_id: u32, cols: u16, rows: u16) {
+        if let Some(ref mut client) = self.persist_client {
+            let _ = client.send_resize_pty(window_id, cols, rows);
         }
     }
 
@@ -1512,6 +1813,18 @@ impl WindowManager {
     /// which represents the window the user most recently interacted with.
     pub fn close_window(&mut self, id: u32) -> bool {
         if let Some(pos) = self.get_window_index(id) {
+            // Notify daemon if this is a remote window being closed by the client
+            #[cfg(unix)]
+            if self.persist_client.is_some() {
+                if let Some(w) = self.windows.get(pos) {
+                    if w.is_remote() {
+                        if let Some(ref mut client) = self.persist_client {
+                            let _ = client.request_close_window(id);
+                        }
+                    }
+                }
+            }
+
             self.windows.remove(pos);
             self.window_index_cache.remove(&id);
             // Rebuild cache since indices after pos have shifted

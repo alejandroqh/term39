@@ -352,6 +352,18 @@ pub struct Cli {
     #[cfg(unix)]
     #[arg(long, help = "Lock a running term39 instance and exit")]
     pub lock: bool,
+
+    /// Start a temporary session without background daemon (Unix only)
+    ///
+    /// By default, term39 runs in persist mode: a background daemon manages
+    /// terminal sessions that survive disconnects (e.g., SSH drops). You can
+    /// close term39 and reattach to the same session later.
+    ///
+    /// Use this flag to disable persistence and run a standalone session.
+    /// All terminal windows will be destroyed when term39 exits.
+    #[cfg(unix)]
+    #[arg(long, help = "Start a temporary session (no background daemon)")]
+    pub no_persist: bool,
 }
 
 impl Cli {
