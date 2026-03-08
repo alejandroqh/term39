@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-03-08
+
+### Added
+
+- **Session Persistence (Persist Mode)**: Background daemon keeps terminal sessions alive across client disconnects (Unix only)
+  - Client-daemon architecture: same binary forks a headless daemon that owns PTYs and shell processes
+  - Sessions survive terminal close, SSH disconnect, or crash reattach to resume exactly where you left off
+  - IPC via length-prefixed JSON over Unix domain socket
+  - Replay buffer (64KB per window) reconstructs terminal state on reattach
+  - ON by default on Unix; `--no-persist` to disable
+  - `--force-attach` flag to kick an existing client
+  - Stale client detection via Ping/Pong heartbeat (5s timeout)
+  - flock-based lock file to prevent duplicate daemons
+  - Daemon auto-shutdown after 30s with no client or when all windows close
+
+### Fixed
+
+- **Window geometry not restored on daemon reattach**: Session file restore was creating duplicate local windows that conflicted with daemon remote windows; now skipped when reattaching to an existing daemon
+- **Window positions lost after maximize/minimize**: Maximize button, double-click maximize, keyboard maximize, auto-tiling, snap positions, keyboard move/resize, and window clamping on terminal resize now all sync geometry to the daemon
+- **Persist mode race conditions**: Safe signal handler with AtomicBool, retry connect with exponential backoff after fork, actual terminal size on connect, guard set_nonblocking failures
+- **Persist warnings visibility**: Show persist warnings as toasts instead of invisible eprintln
+
 ## [1.2.0] - 2026-02-16
 
 ### Added
@@ -568,6 +590,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive help dialog and confirmation dialogs
 - Dependencies: crossterm 0.29, chrono 0.4, portable-pty 0.8, vte 0.13
 
+[1.5.0]: https://github.com/alejandroqh/term39/releases/tag/v1.5.0
 [1.2.0]: https://github.com/alejandroqh/term39/releases/tag/v1.2.0
 [1.1.0]: https://github.com/alejandroqh/term39/releases/tag/v1.1.0
 [1.0.0]: https://github.com/alejandroqh/term39/releases/tag/v1.0.0

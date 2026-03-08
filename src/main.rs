@@ -207,8 +207,19 @@ fn main() -> io::Result<()> {
 
     // Initialize video buffer and window manager
     let mut video_buffer = app::initialization::initialize_video_buffer(backend.as_ref());
-    let mut window_manager =
-        app::initialization::initialize_window_manager(&cli_args, &mut app_config, shell_config)?;
+
+    // When reattaching to a daemon with existing windows, skip session file restore
+    // to avoid creating duplicate LOCAL windows that conflict with daemon REMOTE windows.
+    #[cfg(unix)]
+    let has_persist_windows = persist_state.client.is_some() && !persist_state.windows.is_empty();
+    #[cfg(not(unix))]
+    let has_persist_windows = false;
+
+    let mut window_manager = if has_persist_windows {
+        WindowManager::with_shell_config(shell_config)
+    } else {
+        app::initialization::initialize_window_manager(&cli_args, &mut app_config, shell_config)?
+    };
 
     // Set persist client on window manager and restore any existing windows (Unix only)
     #[cfg(unix)]

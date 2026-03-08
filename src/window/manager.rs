@@ -342,6 +342,8 @@ impl WindowManager {
                     let _ = window.resize(window.window.width, window.window.height);
                 }
             }
+            #[cfg(unix)]
+            self.send_persist_geometry_all();
             return;
         }
 
@@ -373,6 +375,10 @@ impl WindowManager {
                 let _ = win.resize(width, height);
             }
         }
+
+        // Notify daemon of all geometry changes
+        #[cfg(unix)]
+        self.send_persist_geometry_all();
     }
 
     /// Calculate positions for all windows based on the snap pattern
@@ -579,6 +585,10 @@ impl WindowManager {
             // Resize the terminal PTY to match new window dimensions
             let _ = win.resize(win.window.width, win.window.height);
         }
+
+        // Notify daemon of all geometry changes
+        #[cfg(unix)]
+        self.send_persist_geometry_all();
     }
 
     /// Bring window to front and focus it
@@ -894,6 +904,8 @@ impl WindowManager {
                         // Resize the terminal to match new window size
                         let _ = win.resize(win.window.width, win.window.height);
                     }
+                    #[cfg(unix)]
+                    self.send_persist_geometry_for_window(window_id);
                     return false;
                 }
 
@@ -989,6 +1001,8 @@ impl WindowManager {
                             // Resize the terminal to match new window size
                             let _ = win.resize(win.window.width, win.window.height);
                         }
+                        #[cfg(unix)]
+                        self.send_persist_geometry_for_window(window_id);
                         // Clear last click so we don't trigger triple-click
                         self.last_click = None;
                     } else {
@@ -1850,6 +1864,40 @@ impl WindowManager {
         }
     }
 
+    /// Notify daemon of geometry change for a window by ID (reads current geometry)
+    #[cfg(unix)]
+    fn send_persist_geometry_for_window(&mut self, window_id: u32) {
+        if self.persist_client.is_some() {
+            if let Some(tw) = self.get_window_by_id(window_id) {
+                let (x, y, w, h) = (tw.window.x, tw.window.y, tw.window.width, tw.window.height);
+                self.send_persist_geometry(window_id, x, y, w, h);
+            }
+        }
+    }
+
+    /// Notify daemon of geometry change for all windows
+    #[cfg(unix)]
+    fn send_persist_geometry_all(&mut self) {
+        if self.persist_client.is_some() {
+            let updates: Vec<(u32, u16, u16, u16, u16)> = self
+                .windows
+                .iter()
+                .map(|w| {
+                    (
+                        w.id(),
+                        w.window.x,
+                        w.window.y,
+                        w.window.width,
+                        w.window.height,
+                    )
+                })
+                .collect();
+            for (id, x, y, w, h) in updates {
+                self.send_persist_geometry(id, x, y, w, h);
+            }
+        }
+    }
+
     /// Get application cursor keys mode (DECCKM) state for the focused window
     pub fn get_focused_application_cursor_keys(&self) -> bool {
         if let FocusState::Window(id) = self.focus {
@@ -1937,6 +1985,8 @@ impl WindowManager {
                 let _ = win.resize(win.window.width, win.window.height);
             }
         }
+        #[cfg(unix)]
+        self.send_persist_geometry_for_window(id);
     }
 
     /// Cycle to the next window (for ALT+TAB)
@@ -2247,7 +2297,7 @@ impl WindowManager {
         buffer_height: u16,
         top_y: u16,
     ) {
-        if let Some(win) = self.get_focused_window_mut() {
+        let wid = if let Some(win) = self.get_focused_window_mut() {
             // Don't move maximized windows
             if win.window.is_maximized {
                 return;
@@ -2263,13 +2313,20 @@ impl WindowManager {
 
             win.window.x = new_x.min(max_x);
             win.window.y = new_y.max(top_y).min(max_y);
+            Some(win.id())
+        } else {
+            None
+        };
+        #[cfg(unix)]
+        if let Some(wid) = wid {
+            self.send_persist_geometry_for_window(wid);
         }
     }
 
     /// Resize the focused window by a relative amount
     /// Returns true if resize was successful
     pub fn resize_focused_window_by(&mut self, dw: i16, dh: i16) -> bool {
-        if let Some(win) = self.get_focused_window_mut() {
+        let result = if let Some(win) = self.get_focused_window_mut() {
             // Don't resize maximized windows
             if win.window.is_maximized {
                 return false;
@@ -2282,16 +2339,21 @@ impl WindowManager {
             win.window.width = new_width;
             win.window.height = new_height;
             let _ = win.resize(new_width, new_height);
-            true
+            Some(win.id())
         } else {
-            false
+            None
+        };
+        #[cfg(unix)]
+        if let Some(wid) = result {
+            self.send_persist_geometry_for_window(wid);
         }
+        result.is_some()
     }
 
     /// Resize from the left edge: positive step grows width and moves window left
     /// Negative step shrinks width and moves window right
     pub fn resize_focused_window_from_left(&mut self, step: i16) -> bool {
-        if let Some(win) = self.get_focused_window_mut() {
+        let result = if let Some(win) = self.get_focused_window_mut() {
             // Don't resize maximized windows
             if win.window.is_maximized {
                 return false;
@@ -2307,16 +2369,21 @@ impl WindowManager {
             win.window.x = new_x;
             win.window.width = new_width;
             let _ = win.resize(new_width, win.window.height);
-            true
+            Some(win.id())
         } else {
-            false
+            None
+        };
+        #[cfg(unix)]
+        if let Some(wid) = result {
+            self.send_persist_geometry_for_window(wid);
         }
+        result.is_some()
     }
 
     /// Resize from the top edge: positive step grows height and moves window up
     /// Negative step shrinks height and moves window down
     pub fn resize_focused_window_from_top(&mut self, step: i16) -> bool {
-        if let Some(win) = self.get_focused_window_mut() {
+        let result = if let Some(win) = self.get_focused_window_mut() {
             // Don't resize maximized windows
             if win.window.is_maximized {
                 return false;
@@ -2333,16 +2400,22 @@ impl WindowManager {
             win.window.y = new_y;
             win.window.height = new_height;
             let _ = win.resize(win.window.width, new_height);
-            true
+            Some(win.id())
         } else {
-            false
+            None
+        };
+        #[cfg(unix)]
+        if let Some(wid) = result {
+            self.send_persist_geometry_for_window(wid);
         }
+        result.is_some()
     }
 
     /// Snap the focused window to specific position and size
     /// Used for keyboard snap positions (numpad layout, half-screen, etc.)
     pub fn snap_focused_window(&mut self, x: u16, y: u16, width: u16, height: u16) -> bool {
         if let Some(win) = self.get_focused_window_mut() {
+            let wid = win.id();
             // If maximized, restore first
             if win.window.is_maximized {
                 win.window.is_maximized = false;
@@ -2353,6 +2426,8 @@ impl WindowManager {
             win.window.width = width;
             win.window.height = height;
             let _ = win.resize(width, height);
+            #[cfg(unix)]
+            self.send_persist_geometry_for_window(wid);
             true
         } else {
             false
@@ -2466,9 +2541,12 @@ impl WindowManager {
         gaps: bool,
     ) -> bool {
         if let Some(win) = self.get_focused_window_mut() {
+            let wid = win.id();
             win.window
                 .toggle_maximize(buffer_width, buffer_height, gaps);
             let _ = win.resize(win.window.width, win.window.height);
+            #[cfg(unix)]
+            self.send_persist_geometry_for_window(wid);
             true
         } else {
             false

@@ -58,7 +58,7 @@ A modern terminal multiplexer with classic MS-DOS aesthetic, built with Rust. Fu
 - **Multiple Terminal Windows**: Create, drag, resize, minimize, and maximize windows with mouse or keyboard
 - **Window Management**: Automatic tiling, snap to corners, focus management with ALT+TAB
 - **System Menu**: Centralized panel with WiFi status, time/date, clipboard, and settings access
-- **Session Persistence**: Auto-save/restore of window layouts and terminal content between sessions
+- **Session Persistence**: Background daemon keeps terminal sessions alive across disconnects (Unix); auto-save/restore of window layouts
 - **Command Launcher**: Quick command palette with `Ctrl+Space`
 - **Clipboard Support**: System clipboard integration with drag-to-select, Ctrl+Shift+C/V, right-click menu
 - **Lockscreen**: System-authenticated lockscreen with `Shift+Q`, supports PAM (Linux), Directory Services (macOS), and Windows Security
@@ -346,6 +346,8 @@ Press **`` ` ``** (backtick) or **F8** to enter Window Mode for full keyboard co
 | `--no-exit`       | Disable exit functionality (for use as a window manager)                           |
 | `--keybindings <PROFILE>` | Set keybinding profile (`term39`, `hyprland`)                              |
 | `--shell <SHELL>` | Specify custom shell for terminal windows (e.g., `--shell /bin/zsh`)               |
+| `--no-persist`    | Start a temporary session without background daemon (Unix only)                    |
+| `--force-attach`  | Kick any existing client and attach to the daemon (Unix only)                      |
 | `--lock`          | Lock a running term39 instance and exit (Unix only, see [Lockscreen](#lockscreen)) |
 
 ### Linux Console Options
@@ -437,6 +439,15 @@ System-authenticated lockscreen using PAM (Linux, FreeBSD, NetBSD), Directory Se
 **Features:** Opaque background, progressive lockout (5s→120s after 3+ failures), auto-fill username.
 
 **Note:** Disabled with warning if authentication system unavailable.
+
+## Persist Mode (Unix)
+
+Persist mode keeps your terminal sessions alive in a background daemon. If you close term39, get disconnected from SSH, or your terminal crashes, just run `term39` again to reattach with all windows, positions, and running processes intact.
+
+- **ON by default** on Unix (Linux, macOS, FreeBSD, NetBSD, OpenBSD)
+- **Disable** with `--no-persist` for single-shot sessions
+- **Force reattach** with `--force-attach` if another client is connected
+- Socket path: `$XDG_RUNTIME_DIR/term39/term39.sock` or `$TMPDIR/term39-$UID/term39.sock`
 
 ## Architecture
 
