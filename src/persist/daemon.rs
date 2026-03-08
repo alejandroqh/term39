@@ -6,9 +6,13 @@ use crate::term_emu::ShellConfig;
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use std::io::{self, BufWriter, Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+/// Atomic flag set by signal handler to request graceful shutdown
+static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 /// Maximum replay buffer size per window (64KB should reconstruct most terminal states)
 const REPLAY_BUFFER_CAPACITY: usize = 64 * 1024;
@@ -84,13 +88,16 @@ pub fn run_daemon(shell_config: &ShellConfig) -> ! {
         socket::cleanup_files();
     }
 
-    // Write lock file with our PID
+    // Acquire flock-based lock file (held for daemon lifetime)
     let pid = unsafe { libc::getpid() };
     daemon_log(&format!("daemon starting, pid={}", pid));
-    if let Err(e) = socket::write_lock_file(pid) {
-        daemon_log(&format!("failed to write lock file: {}", e));
-        std::process::exit(1);
-    }
+    let _lock_file = match socket::acquire_lock_file(pid) {
+        Ok(f) => f,
+        Err(e) => {
+            daemon_log(&format!("failed to acquire lock file: {}", e));
+            std::process::exit(1);
+        }
+    };
 
     // Create Unix socket listener
     let sock_path = match socket::socket_path() {
@@ -126,14 +133,24 @@ pub fn run_daemon(shell_config: &ShellConfig) -> ! {
     let mut client_read_buf: Vec<u8> = Vec::new();
     let shell_config = shell_config.clone();
     let mut had_client = false;
+    let mut last_client_activity = Instant::now();
+    let startup_time = Instant::now();
 
     loop {
+        // Check for signal-requested shutdown
+        if SHUTDOWN_REQUESTED.load(Ordering::SeqCst) {
+            daemon_log("shutdown requested by signal");
+            socket::cleanup_files();
+            std::process::exit(0);
+        }
+
         // Check for new connections
         match listener.accept() {
             Ok((stream, _addr)) => {
                 handle_new_connection(stream, &mut client, &mut client_read_buf, &windows);
                 if client.is_some() {
                     had_client = true;
+                    last_client_activity = Instant::now();
                     // Replay buffered PTY output to reconstruct terminal state
                     // on the new client (programs like vim/btop don't redraw
                     // unless the content has changed)
@@ -163,6 +180,7 @@ pub fn run_daemon(shell_config: &ShellConfig) -> ! {
             loop {
                 match try_read_message::<_, ClientMsg>(stream, &mut client_read_buf) {
                     Ok(Some(msg)) => {
+                        last_client_activity = Instant::now();
                         let action = handle_client_msg(
                             msg,
                             &mut windows,
@@ -261,6 +279,18 @@ pub fn run_daemon(shell_config: &ShellConfig) -> ! {
             windows.retain(|w| w.window_id != *wid);
         }
 
+        // Ping client to detect stale connections (e.g., SIGKILL'd client)
+        if client.is_some() && last_client_activity.elapsed() > Duration::from_secs(5) {
+            if let Some(ref mut stream) = client {
+                if write_to_client(stream, &DaemonMsg::Ping).is_err() {
+                    daemon_log("client ping failed, disconnecting stale client");
+                    client = None;
+                    client_read_buf.clear();
+                }
+            }
+            last_client_activity = Instant::now();
+        }
+
         // Auto-shutdown: exit daemon when no windows remain, no client connected,
         // and at least one client has connected before (avoid shutdown before first attach)
         if windows.is_empty() && client.is_none() && had_client {
@@ -269,8 +299,16 @@ pub fn run_daemon(shell_config: &ShellConfig) -> ! {
             std::process::exit(0);
         }
 
-        // Sleep briefly to avoid busy-waiting
-        thread::sleep(Duration::from_millis(1));
+        // Startup timeout: exit if no client connects within 30 seconds
+        if !had_client && startup_time.elapsed() > Duration::from_secs(30) {
+            daemon_log("no client connected within 30s, exiting");
+            socket::cleanup_files();
+            std::process::exit(0);
+        }
+
+        // Adaptive sleep: 1ms when client attached (responsive), 10ms idle (saves CPU)
+        let sleep_ms = if client.is_some() { 1 } else { 10 };
+        thread::sleep(Duration::from_millis(sleep_ms));
     }
 }
 
@@ -299,15 +337,23 @@ fn handle_new_connection(
         Err(_) => return,
     };
 
+    let force = matches!(msg, ClientMsg::ForceAttach { .. });
     match msg {
-        ClientMsg::Attach { .. } => {
-            if current_client.is_some() {
+        ClientMsg::Attach { .. } | ClientMsg::ForceAttach { .. } => {
+            if current_client.is_some() && !force {
                 daemon_log("client attach denied: another client attached");
                 let deny = DaemonMsg::AttachDenied {
                     reason: "Another client is already attached".to_string(),
                 };
                 let _ = write_message(&mut blocking_stream, &deny);
                 return;
+            }
+
+            // Force-attach: drop existing client
+            if current_client.is_some() && force {
+                daemon_log("force-attach: dropping existing client");
+                *current_client = None;
+                client_read_buf.clear();
             }
 
             // Accept this client
@@ -327,9 +373,9 @@ fn handle_new_connection(
             client_read_buf.clear();
         }
         _ => {
-            // First message must be Attach
+            // First message must be Attach or ForceAttach
             let err = DaemonMsg::Error {
-                message: "First message must be Attach".to_string(),
+                message: "First message must be Attach or ForceAttach".to_string(),
             };
             let _ = write_message(&mut blocking_stream, &err);
         }
@@ -350,8 +396,12 @@ fn handle_client_msg(
     client_stream: &mut UnixStream,
 ) -> ClientAction {
     match msg {
-        ClientMsg::Attach { .. } => {
+        ClientMsg::Attach { .. } | ClientMsg::ForceAttach { .. } => {
             // Already attached, ignore duplicate
+            ClientAction::Continue
+        }
+        ClientMsg::Pong => {
+            // Heartbeat response received — client is alive
             ClientAction::Continue
         }
         ClientMsg::Detach => ClientAction::Detach,
@@ -569,12 +619,12 @@ fn parse_command(cmd: &str) -> (String, Vec<String>) {
 /// Set up signal handlers for graceful daemon shutdown
 fn setup_signal_handlers() {
     unsafe {
-        // SIGHUP - terminal hangup (clean up and exit)
+        // SIGHUP - terminal hangup (request shutdown via atomic flag)
         libc::signal(
             libc::SIGHUP,
             handle_signal as *const () as libc::sighandler_t,
         );
-        // SIGTERM - termination request (clean up and exit)
+        // SIGTERM - termination request (request shutdown via atomic flag)
         libc::signal(
             libc::SIGTERM,
             handle_signal as *const () as libc::sighandler_t,
@@ -592,23 +642,14 @@ fn write_to_client<T: serde::Serialize>(stream: &mut UnixStream, msg: &T) -> io:
     stream.set_nonblocking(false)?;
     stream.set_write_timeout(Some(Duration::from_secs(2)))?;
     let result = write_message(stream, msg);
-    stream.set_write_timeout(None)?;
+    let _ = stream.set_write_timeout(None);
+    // If restoring non-blocking fails, return error so caller disconnects
+    // rather than leaving socket in blocking mode (which would stall the daemon loop)
     stream.set_nonblocking(true)?;
     result
 }
 
-extern "C" fn handle_signal(sig: libc::c_int) {
-    // Log signal before cleanup (best effort, signal handler context)
-    if let Ok(dir) = socket::persist_dir() {
-        let log_path = dir.join("daemon.log");
-        if let Ok(mut f) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_path)
-        {
-            let _ = writeln!(f, "daemon received signal {}, exiting", sig);
-        }
-    }
-    socket::cleanup_files();
-    std::process::exit(0);
+extern "C" fn handle_signal(_sig: libc::c_int) {
+    // Only set the flag — cleanup happens in the main loop where it's safe
+    SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
 }

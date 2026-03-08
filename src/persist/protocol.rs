@@ -31,6 +31,10 @@ pub enum ClientMsg {
     GetState,
     /// Kill the daemon
     Shutdown,
+    /// Heartbeat response
+    Pong,
+    /// Force-attach: kick any existing client and attach
+    ForceAttach { cols: u16, rows: u16 },
 }
 
 /// Messages sent from daemon to client
@@ -50,6 +54,8 @@ pub enum DaemonMsg {
     State { windows: Vec<WindowInfo> },
     /// Error message
     Error { message: String },
+    /// Heartbeat ping (client must respond with Pong)
+    Ping,
 }
 
 /// Information about a daemon-managed window

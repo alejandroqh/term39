@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
-use std::fs;
+use std::fs::{self, File};
 use std::io;
+use std::os::unix::io::AsRawFd;
 use std::path::PathBuf;
 
 /// Get the directory for persist mode socket and lock files
@@ -83,6 +84,42 @@ pub fn read_daemon_pid() -> Option<i32> {
 pub fn write_lock_file(pid: i32) -> io::Result<()> {
     let lock = lock_path()?;
     fs::write(lock, pid.to_string())
+}
+
+/// Acquire an exclusive flock on the lock file, write PID, and return the held File handle.
+/// The lock is released when the returned File is dropped (daemon exits).
+pub fn acquire_lock_file(pid: i32) -> io::Result<File> {
+    let lock = lock_path()?;
+    let file = File::create(&lock)?;
+    let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+    if rc != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // Write PID for informational purposes (flock is the real guard)
+    fs::write(&lock, pid.to_string())?;
+    Ok(file)
+}
+
+/// Check if a daemon holds the lock file flock.
+/// Returns true if the lock is held (daemon alive), false if we can acquire it (daemon dead).
+pub fn is_daemon_lock_held() -> bool {
+    let lock = match lock_path() {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+    let file = match File::open(&lock) {
+        Ok(f) => f,
+        Err(_) => return false,
+    };
+    let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
+    if rc == 0 {
+        // We got the lock — daemon is NOT alive. Release immediately.
+        unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_UN) };
+        false
+    } else {
+        // EWOULDBLOCK — daemon IS alive and holds the lock
+        true
+    }
 }
 
 /// Remove socket and lock files

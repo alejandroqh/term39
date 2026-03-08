@@ -24,6 +24,7 @@ struct PersistState {
     client: Option<persist::client::PersistClient>,
     windows: Vec<persist::protocol::WindowInfo>,
     is_temporary: bool,
+    startup_warning: Option<String>,
 }
 
 fn main() -> io::Result<()> {
@@ -73,34 +74,40 @@ fn main() -> io::Result<()> {
     // Fork daemon before any thread creation (setup_terminal, mouse input, PTY readers).
     // This must happen before any threads are spawned or terminal state is modified.
     #[cfg(unix)]
+    let (term_cols, term_rows) = crossterm::terminal::size().unwrap_or((80, 25));
+    #[cfg(unix)]
     let persist_state = {
         let no_persist = cli_args.no_persist;
+        let force_attach = cli_args.force_attach;
         if no_persist {
             // Standalone mode (no daemon)
             PersistState {
                 client: None,
                 windows: Vec::new(),
                 is_temporary: false,
+                startup_warning: None,
             }
         } else {
             // Persist mode: try to connect or fork daemon
-            match persist::client::PersistClient::connect(80, 25) {
+            match persist::client::PersistClient::connect(term_cols, term_rows, force_attach) {
                 Ok(persist::client::ConnectResult::Connected(client, windows)) => {
                     // Attached to existing daemon
                     PersistState {
                         client: Some(client),
                         windows,
                         is_temporary: false,
+                        startup_warning: None,
                     }
                 }
                 Ok(persist::client::ConnectResult::Denied(_reason)) => {
                     // Another client is attached - run as temporary
-                    eprintln!("Persistent session already attached. Running in temporary mode.");
-                    std::thread::sleep(std::time::Duration::from_secs(1));
                     PersistState {
                         client: None,
                         windows: Vec::new(),
                         is_temporary: true,
+                        startup_warning: Some(
+                            "Session already attached. Running in temporary mode.".to_string(),
+                        ),
                     }
                 }
                 Ok(persist::client::ConnectResult::NoDaemon) => {
@@ -111,49 +118,61 @@ fn main() -> io::Result<()> {
                             persist::daemon::run_daemon(&shell_config);
                         }
                         Ok(persist::forker::ForkResult::Parent(_child_pid)) => {
-                            // Give daemon time to start and create socket
-                            std::thread::sleep(std::time::Duration::from_millis(100));
-
-                            // Connect to the newly forked daemon
-                            match persist::client::PersistClient::connect(80, 25) {
-                                Ok(persist::client::ConnectResult::Connected(client, windows)) => {
-                                    PersistState {
-                                        client: Some(client),
-                                        windows,
-                                        is_temporary: false,
-                                    }
+                            // Retry with exponential backoff (~630ms total max)
+                            let backoff_ms = [10, 20, 40, 80, 160, 320];
+                            let mut connected_state = None;
+                            for delay in &backoff_ms {
+                                std::thread::sleep(std::time::Duration::from_millis(*delay));
+                                if !persist::socket::socket_exists() {
+                                    continue;
                                 }
-                                _ => {
-                                    // Daemon didn't start properly - run standalone
-                                    eprintln!(
-                                        "Warning: Failed to connect to daemon, running standalone"
-                                    );
-                                    PersistState {
-                                        client: None,
-                                        windows: Vec::new(),
-                                        is_temporary: false,
+                                match persist::client::PersistClient::connect(
+                                    term_cols, term_rows, false,
+                                ) {
+                                    Ok(persist::client::ConnectResult::Connected(
+                                        client,
+                                        windows,
+                                    )) => {
+                                        connected_state = Some(PersistState {
+                                            client: Some(client),
+                                            windows,
+                                            is_temporary: false,
+                                            startup_warning: None,
+                                        });
+                                        break;
                                     }
+                                    _ => continue,
                                 }
                             }
-                        }
-                        Err(e) => {
-                            eprintln!("Warning: Fork failed ({}), running standalone", e);
-                            PersistState {
+                            connected_state.unwrap_or_else(|| PersistState {
                                 client: None,
                                 windows: Vec::new(),
                                 is_temporary: false,
-                            }
+                                startup_warning: Some(
+                                    "Failed to connect to daemon, running standalone".to_string(),
+                                ),
+                            })
                         }
+                        Err(e) => PersistState {
+                            client: None,
+                            windows: Vec::new(),
+                            is_temporary: false,
+                            startup_warning: Some(format!(
+                                "Fork failed ({}), running standalone",
+                                e
+                            )),
+                        },
                     }
                 }
-                Err(e) => {
-                    eprintln!("Warning: Persist check failed ({}), running standalone", e);
-                    PersistState {
-                        client: None,
-                        windows: Vec::new(),
-                        is_temporary: false,
-                    }
-                }
+                Err(e) => PersistState {
+                    client: None,
+                    windows: Vec::new(),
+                    is_temporary: false,
+                    startup_warning: Some(format!(
+                        "Persist check failed ({}), running standalone",
+                        e
+                    )),
+                },
             }
         }
     };
@@ -191,14 +210,21 @@ fn main() -> io::Result<()> {
 
     // Set persist client on window manager and restore any existing windows (Unix only)
     #[cfg(unix)]
-    {
-        if let Some(client) = persist_state.client {
+    let persist_startup_warning = {
+        let PersistState {
+            client: persist_client,
+            windows: persist_windows,
+            startup_warning,
+            ..
+        } = persist_state;
+        if let Some(client) = persist_client {
             window_manager.set_persist_client(client);
-            if !persist_state.windows.is_empty() {
-                window_manager.restore_persist_windows(persist_state.windows);
+            if !persist_windows.is_empty() {
+                window_manager.restore_persist_windows(persist_windows);
             }
         }
-    }
+        startup_warning
+    };
 
     // Initialize application state
     let (cols, rows) = backend.dimensions();
@@ -207,6 +233,12 @@ fn main() -> io::Result<()> {
         app_config.tint_terminal = true;
     }
     let mut app_state = AppState::new(cols, rows, &app_config, &charset);
+
+    // Show persist startup warning as toast (if any)
+    #[cfg(unix)]
+    if let Some(warning) = persist_startup_warning {
+        app_state.active_toast = Some(ui::toast::Toast::new(warning));
+    }
 
     // Disable exit button if --no-exit flag is set
     if cli_args.no_exit {

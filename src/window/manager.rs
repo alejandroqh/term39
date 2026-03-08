@@ -1663,6 +1663,7 @@ impl WindowManager {
         }
 
         // Now process collected messages (no borrow on persist_client)
+        let mut needs_pong = false;
         for msg in messages {
             match msg {
                 crate::persist::protocol::DaemonMsg::PtyOutput { window_id, data } => {
@@ -1679,7 +1680,17 @@ impl WindowManager {
                 crate::persist::protocol::DaemonMsg::Error { message } => {
                     events.push(PersistEvent::Error(message));
                 }
+                crate::persist::protocol::DaemonMsg::Ping => {
+                    needs_pong = true;
+                }
                 _ => {}
+            }
+        }
+
+        // Respond to heartbeat ping outside the message processing loop
+        if needs_pong {
+            if let Some(ref mut client) = self.persist_client {
+                let _ = client.send(&crate::persist::protocol::ClientMsg::Pong);
             }
         }
 

@@ -25,8 +25,9 @@ pub enum ConnectResult {
 }
 
 impl PersistClient {
-    /// Try to connect to an existing daemon
-    pub fn connect(cols: u16, rows: u16) -> io::Result<ConnectResult> {
+    /// Try to connect to an existing daemon.
+    /// If `force` is true, sends ForceAttach to kick any existing client.
+    pub fn connect(cols: u16, rows: u16, force: bool) -> io::Result<ConnectResult> {
         let sock_path = socket::socket_path()?;
 
         if !sock_path.exists() {
@@ -52,8 +53,13 @@ impl PersistClient {
         stream.set_read_timeout(Some(Duration::from_secs(5)))?;
         stream.set_write_timeout(Some(Duration::from_secs(5)))?;
 
-        // Send Attach message
-        write_message(&mut stream, &ClientMsg::Attach { cols, rows })?;
+        // Send Attach or ForceAttach message
+        let msg = if force {
+            ClientMsg::ForceAttach { cols, rows }
+        } else {
+            ClientMsg::Attach { cols, rows }
+        };
+        write_message(&mut stream, &msg)?;
 
         // Read response
         let response: DaemonMsg = read_message(&mut stream)?;
@@ -84,6 +90,8 @@ impl PersistClient {
         // Temporarily set blocking for writes
         self.stream.set_nonblocking(false)?;
         let result = write_message(&mut self.stream, msg);
+        // If restoring non-blocking fails, return error so caller knows
+        // the socket is in a bad state rather than silently continuing
         self.stream.set_nonblocking(true)?;
         result
     }

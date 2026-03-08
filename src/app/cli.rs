@@ -364,6 +364,15 @@ pub struct Cli {
     #[cfg(unix)]
     #[arg(long, help = "Start a temporary session (no background daemon)")]
     pub no_persist: bool,
+
+    /// Force-attach to a persistent session, kicking any existing client (Unix only)
+    ///
+    /// Useful when a previous client was killed (e.g., SIGKILL) and the daemon
+    /// still thinks a client is attached. This flag forces the daemon to drop
+    /// the old client and accept the new one.
+    #[cfg(unix)]
+    #[arg(long, help = "Force-attach, kicking any existing client")]
+    pub force_attach: bool,
 }
 
 impl Cli {
