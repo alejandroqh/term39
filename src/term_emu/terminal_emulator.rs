@@ -20,6 +20,37 @@ pub struct ShellConfig {
     pub shell_path: Option<String>,
 }
 
+/// Check if a shell can be found, either as a direct path or via PATH lookup
+fn shell_exists(name: &str) -> bool {
+    let path = std::path::Path::new(name);
+    if path.exists() {
+        return true;
+    }
+    // Only search PATH for bare names (no directory separators)
+    if name.contains('/') || name.contains('\\') {
+        return false;
+    }
+    if let Ok(path_var) = std::env::var("PATH") {
+        for dir in std::env::split_paths(&path_var) {
+            if dir.join(name).exists() {
+                return true;
+            }
+            #[cfg(windows)]
+            {
+                if !name.contains('.') {
+                    if dir.join(format!("{}.exe", name)).exists() {
+                        return true;
+                    }
+                    if dir.join(format!("{}.cmd", name)).exists() {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
 impl ShellConfig {
     /// Create a shell config with a custom shell path
     pub fn custom_shell(path: String) -> Self {
@@ -32,7 +63,7 @@ impl ShellConfig {
     /// Returns Ok(()) if valid, Err with message if invalid
     pub fn validate(&self) -> Result<(), String> {
         if let Some(ref path) = self.shell_path {
-            if !std::path::Path::new(path).exists() {
+            if !shell_exists(path) {
                 return Err(format!("Shell '{}' not found", path));
             }
             // Check if file is executable on Unix
@@ -105,7 +136,7 @@ impl TerminalEmulator {
             cmd
         } else if let Some(ref shell_path) = shell_config.shell_path {
             // Use custom shell if specified and valid
-            if std::path::Path::new(shell_path).exists() {
+            if shell_exists(shell_path) {
                 CommandBuilder::new(shell_path)
             } else {
                 // Shell doesn't exist, fall back to default (validation should catch this earlier)
