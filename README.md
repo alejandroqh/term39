@@ -547,6 +547,10 @@ cargo build --release --no-default-features --features bsd-minimal
 
 [TermOS](https://github.com/alejandroqh/termOS) is a lightweight Linux distribution designed to run term39 as the primary desktop environment. It provides a complete DOS-like computing experience directly from boot, with term39 serving as the window manager and shell interface.
 
+## Contributors
+
+- Kevin Gosse ([@kevingosse](https://github.com/kevingosse))
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) file.
