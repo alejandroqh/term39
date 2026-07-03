@@ -794,11 +794,9 @@ impl WindowManager {
                         return false;
                     }
                 }
-                MouseEventKind::Up(MouseButton::Left) => {
-                    if self.pivot_dragging.is_some() {
-                        self.end_pivot_drag();
-                        return false;
-                    }
+                MouseEventKind::Up(MouseButton::Left) if self.pivot_dragging.is_some() => {
+                    self.end_pivot_drag();
+                    return false;
                 }
                 _ => {}
             }

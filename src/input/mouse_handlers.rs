@@ -1043,16 +1043,14 @@ pub fn handle_selection_mouse(
                 }
             }
         }
-        MouseEventKind::Up(MouseButton::Left) => {
-            if app_state.selection_active {
-                if let FocusState::Window(window_id) = window_manager.get_focus() {
-                    window_manager.complete_selection(window_id);
-                }
-                app_state.selection_active = false;
-                app_state.auto_scroll_direction = None;
-                app_state.last_auto_scroll_time = None;
-                return true;
+        MouseEventKind::Up(MouseButton::Left) if app_state.selection_active => {
+            if let FocusState::Window(window_id) = window_manager.get_focus() {
+                window_manager.complete_selection(window_id);
             }
+            app_state.selection_active = false;
+            app_state.auto_scroll_direction = None;
+            app_state.last_auto_scroll_time = None;
+            return true;
         }
         _ => {}
     }

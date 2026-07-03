@@ -78,7 +78,7 @@ impl CommandHistory {
             .iter()
             .map(|(k, v)| (k.clone(), *v))
             .collect();
-        commands.sort_by(|a, b| b.1.cmp(&a.1)); // Sort descending by frequency
+        commands.sort_by_key(|c| std::cmp::Reverse(c.1)); // Sort descending by frequency
         commands
     }
 

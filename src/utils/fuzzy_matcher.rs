@@ -46,7 +46,7 @@ impl FuzzyMatcher {
         }
 
         // Sort by score (descending)
-        matches.sort_by(|a, b| b.score.cmp(&a.score));
+        matches.sort_by_key(|m| std::cmp::Reverse(m.score));
         matches.truncate(limit);
         matches
     }
