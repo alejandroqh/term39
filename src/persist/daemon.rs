@@ -35,6 +35,18 @@ struct DaemonWindow {
     replay_buffer: Vec<u8>,
 }
 
+impl Drop for DaemonWindow {
+    fn drop(&mut self) {
+        // Terminate the child if it is still running (e.g., the client asked
+        // to close the window while the shell was alive), then wait() to reap
+        // it so it doesn't linger as a zombie process.
+        if let Ok(None) = self.child.try_wait() {
+            let _ = self.child.kill();
+        }
+        let _ = self.child.wait();
+    }
+}
+
 impl DaemonWindow {
     fn to_info(&self) -> WindowInfo {
         WindowInfo {

@@ -10,8 +10,8 @@ use crossterm::style::Color;
 pub mod battery_support {
     use crossterm::style::Color;
     use starship_battery::{Manager, State};
-    use std::cell::RefCell;
-    use std::time::{Duration, Instant};
+    use std::sync::{Mutex, OnceLock};
+    use std::time::Duration;
 
     /// Battery information including percentage and charging state
     #[derive(Clone, Copy)]
@@ -20,32 +20,29 @@ pub mod battery_support {
         pub is_charging: bool,
     }
 
-    /// Cached battery info with last update time
-    struct BatteryCache {
-        info: Option<BatteryInfo>,
-        last_update: Instant,
-    }
+    /// Battery info refreshed by a background thread.
+    ///
+    /// Fetching battery status can be slow on some platforms (on Windows it
+    /// enumerates power devices via SetupAPI), so it must never run on the
+    /// render thread - doing so caused periodic input lag (issue #12).
+    static BATTERY_INFO: Mutex<Option<BatteryInfo>> = Mutex::new(None);
+    static UPDATER_STARTED: OnceLock<()> = OnceLock::new();
 
-    thread_local! {
-        static BATTERY_CACHE: RefCell<BatteryCache> = RefCell::new(BatteryCache {
-            info: None,
-            last_update: Instant::now() - Duration::from_secs(2), // Force initial fetch
-        });
-    }
-
-    /// Get the current battery info or None if no battery is available (cached for 1 second)
+    /// Get the most recently fetched battery info, or None if no battery is
+    /// available. Never blocks on the system battery API: the first call
+    /// spawns a background thread that refreshes the value every 2 seconds.
     pub fn get_battery_info() -> Option<BatteryInfo> {
-        BATTERY_CACHE.with(|cache| {
-            let mut cache = cache.borrow_mut();
+        UPDATER_STARTED.get_or_init(|| {
+            std::thread::spawn(|| {
+                loop {
+                    let fetched = fetch_battery_info();
+                    *BATTERY_INFO.lock().expect("battery info mutex poisoned") = fetched;
+                    std::thread::sleep(Duration::from_secs(2));
+                }
+            });
+        });
 
-            // Refresh if more than 1 second has passed
-            if cache.last_update.elapsed() >= Duration::from_secs(1) {
-                cache.info = fetch_battery_info();
-                cache.last_update = Instant::now();
-            }
-
-            cache.info
-        })
+        *BATTERY_INFO.lock().expect("battery info mutex poisoned")
     }
 
     /// Actually fetch battery info from the system

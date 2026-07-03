@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use vte::Parser;
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 use std::process::Command;
 
 /// Shell configuration for terminal emulator
@@ -95,6 +95,18 @@ pub struct TerminalEmulator {
     child: Box<dyn Child + Send>,
     /// Channel to receive data from PTY reader thread
     rx: Receiver<Vec<u8>>,
+}
+
+impl Drop for TerminalEmulator {
+    fn drop(&mut self) {
+        // Terminate the child if it is still running (e.g., the window was
+        // closed while the shell was alive), then wait() to reap it so it
+        // doesn't linger as a zombie process.
+        if let Ok(None) = self.child.try_wait() {
+            let _ = self.child.kill();
+        }
+        let _ = self.child.wait();
+    }
 }
 
 impl TerminalEmulator {
@@ -270,14 +282,15 @@ impl TerminalEmulator {
             }
         }
 
-        // On Windows, the PTY reader thread may not immediately detect when a child
-        // process exits (e.g., cmd.exe). Explicitly check if the child has exited
-        // using try_wait() to ensure windows are auto-closed properly.
-        if process_result.as_ref().is_ok_and(|&running| running) {
-            if let Ok(Some(_exit_status)) = self.child.try_wait() {
-                // Child process has exited
-                process_result = Ok(false);
-            }
+        // Check the child's exit status unconditionally. This serves two purposes:
+        // - On Windows, the PTY reader thread may not immediately detect when a
+        //   child process exits (e.g., cmd.exe), so this ensures windows are
+        //   auto-closed properly.
+        // - On Unix, try_wait() reaps the child as soon as it exits, preventing
+        //   it from lingering as a zombie until the emulator is dropped.
+        if let Ok(Some(_exit_status)) = self.child.try_wait() {
+            // Child process has exited
+            process_result = Ok(false);
         }
 
         process_result
@@ -516,41 +529,52 @@ impl TerminalEmulator {
     }
 
     /// Get the name of the foreground process running in the terminal (Windows)
+    ///
+    /// Uses the Win32 API directly instead of spawning an external tool
+    /// (wmic is slow, deprecated, and spawning it blocked the render thread,
+    /// causing periodic input lag - see issue #12).
+    /// Note: On Windows, we can't easily get the "foreground" process like on
+    /// Unix, so we just return the shell process name (e.g., cmd or powershell).
     #[cfg(target_os = "windows")]
     pub fn get_foreground_process_name(&self) -> Option<String> {
-        // Get the child process PID
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::Threading::{
+            OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+            QueryFullProcessImageNameW,
+        };
+
         let child_pid = self.child.process_id()?;
 
-        // Use wmic to get the process name
-        // Note: On Windows, we can't easily get the "foreground" process like on Unix
-        // So we just return the shell process name (usually cmd.exe or powershell.exe)
-        let output = Command::new("wmic")
-            .args([
-                "process",
-                "where",
-                &format!("ProcessId={}", child_pid),
-                "get",
-                "Name",
-                "/value",
-            ])
-            .output()
-            .ok()?;
+        unsafe {
+            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, child_pid);
+            if handle.is_null() {
+                return None;
+            }
 
-        let output_str = String::from_utf8_lossy(&output.stdout);
+            let mut buf = [0u16; 1024];
+            let mut len = buf.len() as u32;
+            let ok =
+                QueryFullProcessImageNameW(handle, PROCESS_NAME_WIN32, buf.as_mut_ptr(), &mut len);
+            CloseHandle(handle);
 
-        // Parse "Name=process.exe" format
-        for line in output_str.lines() {
-            if let Some(name) = line.strip_prefix("Name=") {
-                let name = name.trim();
-                if !name.is_empty() {
-                    // Remove .exe extension for cleaner display
-                    let name = name.strip_suffix(".exe").unwrap_or(name);
-                    return Some(name.to_string());
-                }
+            if ok == 0 {
+                return None;
+            }
+
+            let path = String::from_utf16_lossy(&buf[..len as usize]);
+            let name = path.rsplit(['\\', '/']).next()?;
+            // Remove .exe extension for cleaner display
+            let name = name
+                .strip_suffix(".exe")
+                .or_else(|| name.strip_suffix(".EXE"))
+                .unwrap_or(name);
+
+            if name.is_empty() {
+                None
+            } else {
+                Some(name.to_string())
             }
         }
-
-        None
     }
 
     /// Get the name of the foreground process running in the terminal (FreeBSD)
