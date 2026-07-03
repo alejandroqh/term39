@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.2] - 2026-07-03
+
+### Fixed
+
+- **Zombie child processes**: Shell processes are now properly reaped when a terminal window closes or the shell exits, both in local mode and in the persist daemon ([#13](https://github.com/alejandroqh/term39/issues/13))
+- **Input lag on Windows**: Window title process-name lookup now uses the Win32 API directly instead of spawning `wmic`, and battery status polling moved to a background thread; both previously blocked the render thread causing periodic input stuttering ([#12](https://github.com/alejandroqh/term39/issues/12))
+
 ## [1.5.1] - 2026-03-23
 
 ### Fixed
