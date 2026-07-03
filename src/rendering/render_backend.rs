@@ -217,22 +217,20 @@ impl FramebufferBackend {
         let (base_width, base_height) = renderer.pixel_dimensions();
 
         // Cache these values - they don't change after initialization
-        let cached_char_width = if cols > 0 { base_width / cols } else { 1 };
-        let cached_char_height = if rows > 0 { base_height / rows } else { 1 };
+        let cached_char_width = base_width.checked_div(cols).unwrap_or(1);
+        let cached_char_height = base_height.checked_div(rows).unwrap_or(1);
 
         // Convert logical pixel position directly to cell coordinates
         // No offset subtraction needed (cursor is bounded to content area)
         // No scale division needed (cursor is already in logical pixel space)
-        let initial_col = if cached_char_width > 0 {
-            (cursor_tracker.x / cached_char_width).min(cols.saturating_sub(1)) as u16
-        } else {
-            0
-        };
-        let initial_row = if cached_char_height > 0 {
-            (cursor_tracker.y / cached_char_height).min(rows.saturating_sub(1)) as u16
-        } else {
-            0
-        };
+        let initial_col = cursor_tracker
+            .x
+            .checked_div(cached_char_width)
+            .map_or(0, |col| col.min(cols.saturating_sub(1)) as u16);
+        let initial_row = cursor_tracker
+            .y
+            .checked_div(cached_char_height)
+            .map_or(0, |row| row.min(rows.saturating_sub(1)) as u16);
 
         Ok(Self {
             renderer,
@@ -281,21 +279,15 @@ impl FramebufferBackend {
     /// Convert pixel X coordinate to cell column using cached dimensions
     #[inline(always)]
     fn pixel_to_col(&self, x: usize) -> u16 {
-        if self.cached_char_width > 0 {
-            (x / self.cached_char_width).min(self.cached_cols.saturating_sub(1)) as u16
-        } else {
-            0
-        }
+        x.checked_div(self.cached_char_width)
+            .map_or(0, |col| col.min(self.cached_cols.saturating_sub(1)) as u16)
     }
 
     /// Convert pixel Y coordinate to cell row using cached dimensions
     #[inline(always)]
     fn pixel_to_row(&self, y: usize) -> u16 {
-        if self.cached_char_height > 0 {
-            (y / self.cached_char_height).min(self.cached_rows.saturating_sub(1)) as u16
-        } else {
-            0
-        }
+        y.checked_div(self.cached_char_height)
+            .map_or(0, |row| row.min(self.cached_rows.saturating_sub(1)) as u16)
     }
 }
 
@@ -356,16 +348,16 @@ impl RenderBackend for FramebufferBackend {
 
                 // Calculate current cell position using cached dimensions
                 // This is inlined for performance (called on every mouse event)
-                let col = if char_width > 0 {
-                    (self.cursor_tracker.x / char_width).min(max_col) as u16
-                } else {
-                    0
-                };
-                let row = if char_height > 0 {
-                    (self.cursor_tracker.y / char_height).min(max_row) as u16
-                } else {
-                    0
-                };
+                let col = self
+                    .cursor_tracker
+                    .x
+                    .checked_div(char_width)
+                    .map_or(0, |col| col.min(max_col) as u16);
+                let row = self
+                    .cursor_tracker
+                    .y
+                    .checked_div(char_height)
+                    .map_or(0, |row| row.min(max_row) as u16);
 
                 // Check if cursor moved to a different cell
                 let position_changed = col != self.prev_col || row != self.prev_row;

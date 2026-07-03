@@ -572,31 +572,21 @@ impl FramebufferRenderer {
 
         // Handle different color depths - use dynamic offsets
         match self.bytes_per_pixel {
-            4 | 3 => {
-                if offset + 2 < frame.len() {
-                    (
-                        frame[offset + self.r_offset],
-                        frame[offset + self.g_offset],
-                        frame[offset + self.b_offset],
-                    )
-                } else {
-                    (0, 0, 0)
-                }
-            }
-            2 => {
-                if offset + 1 < frame.len() {
-                    let color = (frame[offset] as u16) | ((frame[offset + 1] as u16) << 8);
-                    let r = ((color >> 11) & 0x1F) as u8;
-                    let g = ((color >> 5) & 0x3F) as u8;
-                    let b = (color & 0x1F) as u8;
-                    (
-                        (r << 3) | (r >> 2),
-                        (g << 2) | (g >> 4),
-                        (b << 3) | (b >> 2),
-                    )
-                } else {
-                    (0, 0, 0)
-                }
+            4 | 3 if offset + 2 < frame.len() => (
+                frame[offset + self.r_offset],
+                frame[offset + self.g_offset],
+                frame[offset + self.b_offset],
+            ),
+            2 if offset + 1 < frame.len() => {
+                let color = (frame[offset] as u16) | ((frame[offset + 1] as u16) << 8);
+                let r = ((color >> 11) & 0x1F) as u8;
+                let g = ((color >> 5) & 0x3F) as u8;
+                let b = (color & 0x1F) as u8;
+                (
+                    (r << 3) | (r >> 2),
+                    (g << 2) | (g >> 4),
+                    (b << 3) | (b >> 2),
+                )
             }
             _ => (0, 0, 0),
         }
