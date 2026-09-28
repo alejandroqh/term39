@@ -87,8 +87,9 @@ impl RawMouseInput {
             if let Ok(file) = File::open(&path) {
                 let fd = file.as_raw_fd();
 
-                // Query REL capabilities (need at least 2 bytes for REL_WHEEL which is bit 8)
-                let mut rel_bits = [0u8; 2];
+                // EVIOCGBIT_REL encodes an 8-byte output buffer. Allocating only
+                // two bytes lets the kernel overwrite adjacent stack memory.
+                let mut rel_bits = [0u8; 8];
                 let ret = unsafe { libc::ioctl(fd, EVIOCGBIT_REL, rel_bits.as_mut_ptr()) };
 
                 if ret >= 0 {
