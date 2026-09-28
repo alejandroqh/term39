@@ -131,18 +131,14 @@ impl VideoBuffer {
     /// Clear back buffer with a specific cell
     #[allow(dead_code)]
     pub fn clear(&mut self, cell: Cell) {
-        for c in &mut self.back_buffer {
-            *c = cell;
-        }
+        self.back_buffer.fill(cell);
         // Mark all rows dirty after clear
         self.mark_all_dirty();
     }
 
     /// Mark all rows as dirty (for full refresh scenarios)
     pub fn mark_all_dirty(&mut self) {
-        for dirty in &mut self.dirty_rows {
-            *dirty = true;
-        }
+        self.dirty_rows.fill(true);
     }
 
     /// Get buffer dimensions
@@ -284,9 +280,7 @@ impl VideoBuffer {
         }
 
         // Clear dirty flags after processing all rows
-        for dirty in &mut self.dirty_rows {
-            *dirty = false;
-        }
+        self.dirty_rows.fill(false);
 
         // Update front buffer to reflect what's actually displayed
         // Optimized: bulk copy + single-point cursor inversion (avoids per-cell division/modulo)

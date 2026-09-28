@@ -58,7 +58,7 @@ impl Widget for DateTimeWidget {
     }
 
     fn render(&self, buffer: &mut VideoBuffer, x: u16, theme: &Theme, ctx: &WidgetContext) {
-        let time_str = format!(" {} ", &self.cached_time);
+        let time_str = format!(" {} ", self.cached_time);
 
         // Use topbar background with window border fg color for text
         let bg_color = match ctx.focus {
