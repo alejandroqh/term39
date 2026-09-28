@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-09-28
+
+### Changed
+
+- **Much lower CPU usage in the host terminal**: Idle frames no longer write anything to the terminal. Previously term39 emitted a cursor hide/move sequence every 16ms even when nothing changed, forcing terminals like iTerm2 to re-parse and redraw at 60fps (writes dropped from ~60/s to only when content changes)
+- **Atomic frame output**: Each frame is now sent as a single write wrapped in synchronized output mode (DEC 2026), so supporting terminals paint complete frames without tearing; unsupported terminals ignore it
+- **Leaner crossterm dependency**: Dropped the unused `filedescriptor` feature ([#15](https://github.com/alejandroqh/term39/pull/15)) contributed by @xtqqczze
+
+### Fixed
+
+- **Segfault on Linux framebuffer/TTY startup**: The evdev mouse capability query (`EVIOCGBIT_REL`) passed a 2-byte buffer where the kernel writes 8 bytes, corrupting adjacent stack memory ([#16](https://github.com/alejandroqh/term39/pull/16)) contributed by @atlury
+- **Clippy 1.98 lints**: Fixed `manual_slice_fill` and `useless_borrows_in_formatting` errors that broke CI
+
 ## [1.5.2] - 2026-07-03
 
 ### Fixed
