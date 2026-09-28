@@ -5,7 +5,12 @@ use crossterm::{
     QueueableCommand, cursor,
     style::{Color, SetBackgroundColor, SetForegroundColor},
 };
-use std::io::{self, Write};
+use std::io::{self, BufWriter, Write};
+
+/// Synchronized output (DEC mode 2026): the terminal defers painting until the
+/// frame is complete. Terminals without support ignore the unknown mode.
+const BEGIN_SYNC_UPDATE: &[u8] = b"\x1b[?2026h";
+const END_SYNC_UPDATE: &[u8] = b"\x1b[?2026l";
 
 /// Represents a single cell in the terminal buffer
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -180,10 +185,11 @@ impl VideoBuffer {
     /// Optimized with run-length encoding for consecutive cells
     /// Skips rows that haven't been marked dirty for additional performance
     pub fn present(&mut self, stdout: &mut io::Stdout) -> io::Result<()> {
-        // Hide cursor at the START of rendering to prevent any cursor flicker
-        // This ensures the cursor stays hidden even if PTY output or other
-        // operations between frames affected cursor state
-        stdout.queue(cursor::Hide)?;
+        // Accumulate the whole frame and emit it with a single write. Nothing is
+        // written when no cell changed: every write makes the host terminal
+        // (e.g. iTerm2) re-parse and redraw, so idle frames must stay silent.
+        let mut out = BufWriter::with_capacity(64 * 1024, &mut *stdout);
+        let mut frame_started = false;
 
         let mut current_fg = Color::Reset;
         let mut current_bg = Color::Reset;
@@ -229,6 +235,14 @@ impl VideoBuffer {
 
                 // Only update if cell changed (compare with inverted if cursor)
                 if front_cell != &display_cell {
+                    if !frame_started {
+                        // Begin synchronized update so the terminal paints the frame
+                        // atomically, and hide the cursor to prevent flicker
+                        out.write_all(BEGIN_SYNC_UPDATE)?;
+                        out.queue(cursor::Hide)?;
+                        frame_started = true;
+                    }
+
                     // Check if we can extend the current run
                     // Cell must be immediately adjacent (same row, next column) with same colors
                     let can_extend = in_run
@@ -244,18 +258,18 @@ impl VideoBuffer {
                     } else {
                         // Flush previous run if any
                         if in_run && !run_buffer.is_empty() {
-                            stdout.queue(cursor::MoveTo(run_start_x, run_y))?;
-                            stdout.write_all(run_buffer.as_bytes())?;
+                            out.queue(cursor::MoveTo(run_start_x, run_y))?;
+                            out.write_all(run_buffer.as_bytes())?;
                             run_buffer.clear();
                         }
 
                         // Update colors if needed
                         if display_cell.fg_color != current_fg {
-                            stdout.queue(SetForegroundColor(display_cell.fg_color))?;
+                            out.queue(SetForegroundColor(display_cell.fg_color))?;
                             current_fg = display_cell.fg_color;
                         }
                         if display_cell.bg_color != current_bg {
-                            stdout.queue(SetBackgroundColor(display_cell.bg_color))?;
+                            out.queue(SetBackgroundColor(display_cell.bg_color))?;
                             current_bg = display_cell.bg_color;
                         }
 
@@ -271,8 +285,8 @@ impl VideoBuffer {
 
             // Flush run at end of each row (can't span rows)
             if in_run && !run_buffer.is_empty() {
-                stdout.queue(cursor::MoveTo(run_start_x, run_y))?;
-                stdout.write_all(run_buffer.as_bytes())?;
+                out.queue(cursor::MoveTo(run_start_x, run_y))?;
+                out.write_all(run_buffer.as_bytes())?;
                 run_buffer.clear();
                 run_char_count = 0;
                 in_run = false;
@@ -294,13 +308,16 @@ impl VideoBuffer {
             }
         }
 
-        // Hide cursor after rendering to prevent it from being visible or affecting PTY output
-        // Even hidden cursors have a position, so we also move it to (0, 0)
-        stdout.queue(cursor::MoveTo(0, 0))?;
-        stdout.queue(cursor::Hide)?;
+        if frame_started {
+            // Hide cursor after rendering to prevent it from being visible or affecting PTY output
+            // Even hidden cursors have a position, so we also move it to (0, 0)
+            out.queue(cursor::MoveTo(0, 0))?;
+            out.queue(cursor::Hide)?;
+            out.write_all(END_SYNC_UPDATE)?;
+        }
 
-        // Flush all queued commands at once - single syscall
-        stdout.flush()?;
+        // Flush the accumulated frame at once - single write
+        out.flush()?;
 
         Ok(())
     }
